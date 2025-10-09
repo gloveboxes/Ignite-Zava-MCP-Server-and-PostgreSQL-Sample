@@ -1,0 +1,14 @@
+services:
+  devcontainer:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    volumes:
+      - .:/workspace:cached
+    command: sleep infinity
+    working_dir: /workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - POSTGRES_URL=postgresql://store_manager:StoreManager123!@postgres:5432/zava

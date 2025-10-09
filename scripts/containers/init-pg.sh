@@ -237,7 +237,7 @@ container exec "${CONTAINER_NAME}" psql -U "${DEFAULT_USER}" -d "${POSTGRES_DB}"
 
 # Restore zava database from backup
 log "Restoring zava database from backup..."
-BACKUP_FILE="zava_retail_2025_07_21_postgres_rls.backup"
+BACKUP_FILE="zava_retail_with_supplier_2025_10_09.backup"
 
 # The backup file is now available at /backup_data/ inside the container
 log "Restoring database contents..."

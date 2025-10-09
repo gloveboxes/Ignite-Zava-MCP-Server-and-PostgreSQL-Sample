@@ -1,0 +1,70 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🚀 All MCP Servers (Sales + Supplier + Finance)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mcp_server.sales_analysis",
+            "console": "integratedTerminal",
+            "consoleName": "Sales Analysis MCP (Main)",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "preLaunchTask": "Start Supplier and Finance MCP Servers"
+        },
+        {
+            "name": "📊 Sales Analysis MCP Server (Port 8000)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mcp_server.sales_analysis",
+            "console": "integratedTerminal",
+            "consoleName": "Sales Analysis MCP",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "🏪 Supplier MCP Server (Port 8001)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mcp_server.supplier_mcp_server",
+            "console": "integratedTerminal",
+            "consoleName": "Supplier MCP",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "💰 Finance MCP Server (Port 8002)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mcp_server.finance_mcp_server",
+            "console": "integratedTerminal",
+            "consoleName": "Finance MCP",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "🔥 All MCP Servers (Compound Launch)",
+            "configurations": [
+                "📊 Sales Analysis MCP Server (Port 8000)",
+                "🏪 Supplier MCP Server (Port 8001)", 
+                "💰 Finance MCP Server (Port 8002)"
+            ],
+            "presentation": {
+                "hidden": false,
+                "group": "MCP Servers",
+                "order": 1
+            },
+            "stopAll": true
+        }
+    ]
+}

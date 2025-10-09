@@ -1,0 +1,42 @@
+{
+    "name": "MCP Agent Workshop",
+    "dockerComposeFile": [
+        "../docker-compose.yml",
+        "docker-compose.devcontainer.yml"
+    ],
+    "service": "devcontainer",
+    "workspaceFolder": "/workspace",
+    "features": {
+        "ghcr.io/devcontainers/features/azure-cli:1": {
+            "extensions": "ml"
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker": {},
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-azuretools.vscode-docker",
+                "mathematic.vscode-pdf",
+                "ms-ossdata.vscode-pgsql",
+                "charliermarsh.ruff",
+                "ms-azuretools.vscode-bicep"
+            ]
+        }
+    },
+    "containerEnv": {
+        "ENVIRONMENT": "container",
+        "postgres_host": "postgres",
+        "postgres_port": "5432",
+        "postgres_user": "postgres",
+        "postgres_password": "postgres",
+        "postgres_db": "zava"
+    },
+    "forwardPorts": [8005],
+    "portsAttributes": {
+        "8005": {
+            "label": "Web Chat App",
+            "onAutoForward": "openBrowserOnce"
+        }
+    }
+    // "postAttachCommand": "/bin/bash .devcontainer/make-port-public.sh 8005"
+}

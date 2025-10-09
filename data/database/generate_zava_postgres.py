@@ -36,7 +36,7 @@ import logging
 import os
 import random
 import sys
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
 import asyncpg
@@ -65,10 +65,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # PostgreSQL connection configuration
 POSTGRES_CONFIG = {
-    'host': 'db',
+    'host': 'localhost',
     'port': 5432,
     'user': 'postgres',
-    'password': 'P@ssw0rd!',
+    'password': 'change-me',
     'database': 'zava'
 }
 
@@ -193,6 +193,35 @@ async def create_database_schema(conn):
             )
         """)
         
+        # Create suppliers table for enterprise procurement requirements
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.suppliers (
+                supplier_id SERIAL PRIMARY KEY,
+                supplier_name TEXT NOT NULL,
+                supplier_code TEXT UNIQUE NOT NULL,
+                contact_email TEXT,
+                contact_phone TEXT,
+                address_line1 TEXT,
+                address_line2 TEXT,
+                city TEXT,
+                state_province TEXT,
+                postal_code TEXT,
+                country TEXT DEFAULT 'USA',
+                payment_terms TEXT DEFAULT 'Net 30',
+                lead_time_days INTEGER DEFAULT 14,
+                minimum_order_amount DECIMAL(10,2) DEFAULT 0.00,
+                bulk_discount_threshold DECIMAL(10,2) DEFAULT 10000.00,
+                bulk_discount_percent DECIMAL(5,2) DEFAULT 5.00,
+                supplier_rating DECIMAL(3,2) DEFAULT 3.00 CHECK (supplier_rating >= 0 AND supplier_rating <= 5),
+                esg_compliant BOOLEAN DEFAULT true,
+                approved_vendor BOOLEAN DEFAULT true,
+                preferred_vendor BOOLEAN DEFAULT false,
+                active_status BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         # Create products table with cost and selling price for 33% gross margin
         await conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.products (
@@ -201,12 +230,61 @@ async def create_database_schema(conn):
                 product_name TEXT NOT NULL,
                 category_id INTEGER NOT NULL,
                 type_id INTEGER NOT NULL,
+                supplier_id INTEGER NOT NULL,
                 cost DECIMAL(10,2) NOT NULL,
                 base_price DECIMAL(10,2) NOT NULL,
                 gross_margin_percent DECIMAL(5,2) DEFAULT 33.00,
                 product_description TEXT NOT NULL,
+                procurement_lead_time_days INTEGER DEFAULT 14,
+                minimum_order_quantity INTEGER DEFAULT 1,
+                discontinued BOOLEAN DEFAULT false,
                 FOREIGN KEY (category_id) REFERENCES {SCHEMA_NAME}.categories (category_id),
-                FOREIGN KEY (type_id) REFERENCES {SCHEMA_NAME}.product_types (type_id)
+                FOREIGN KEY (type_id) REFERENCES {SCHEMA_NAME}.product_types (type_id),
+                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
+            )
+        """)
+        
+        # Create supplier_performance table to track supplier metrics
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.supplier_performance (
+                performance_id SERIAL PRIMARY KEY,
+                supplier_id INTEGER NOT NULL,
+                evaluation_date DATE NOT NULL,
+                cost_score DECIMAL(3,2) DEFAULT 3.00 CHECK (cost_score >= 0 AND cost_score <= 5),
+                quality_score DECIMAL(3,2) DEFAULT 3.00 CHECK (quality_score >= 0 AND quality_score <= 5),
+                delivery_score DECIMAL(3,2) DEFAULT 3.00 CHECK (delivery_score >= 0 AND delivery_score <= 5),
+                compliance_score DECIMAL(3,2) DEFAULT 3.00 CHECK (compliance_score >= 0 AND compliance_score <= 5),
+                overall_score DECIMAL(3,2) DEFAULT 3.00 CHECK (overall_score >= 0 AND overall_score <= 5),
+                notes TEXT,
+                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
+            )
+        """)
+        
+        # Create procurement_requests table for tracking procurement workflow
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.procurement_requests (
+                request_id SERIAL PRIMARY KEY,
+                request_number TEXT UNIQUE NOT NULL,
+                requester_name TEXT NOT NULL,
+                requester_email TEXT NOT NULL,
+                department TEXT NOT NULL,
+                product_id INTEGER NOT NULL,
+                supplier_id INTEGER NOT NULL,
+                quantity_requested INTEGER NOT NULL,
+                unit_cost DECIMAL(10,2) NOT NULL,
+                total_cost DECIMAL(10,2) NOT NULL,
+                justification TEXT,
+                urgency_level TEXT DEFAULT 'Normal' CHECK (urgency_level IN ('Low', 'Normal', 'High', 'Critical')),
+                approval_status TEXT DEFAULT 'Pending' CHECK (approval_status IN ('Pending', 'Approved', 'Rejected', 'On Hold')),
+                approved_by TEXT,
+                approved_at TIMESTAMP,
+                request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                required_by_date DATE,
+                vendor_restrictions TEXT,
+                esg_requirements BOOLEAN DEFAULT false,
+                bulk_discount_eligible BOOLEAN DEFAULT false,
+                FOREIGN KEY (product_id) REFERENCES {SCHEMA_NAME}.products (product_id),
+                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
             )
         """)
         
@@ -273,6 +351,69 @@ async def create_database_schema(conn):
             )
         """)
         
+
+        # Create simplified company_policies table for essential policies only
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.company_policies (
+                policy_id SERIAL PRIMARY KEY,
+                policy_name TEXT NOT NULL,
+                policy_type TEXT NOT NULL CHECK (policy_type IN (
+                    'procurement', 'order_processing', 'budget_authorization', 'vendor_approval'
+                )),
+                policy_content TEXT NOT NULL,
+                department TEXT,
+                minimum_order_threshold DECIMAL(10,2),
+                approval_required BOOLEAN DEFAULT false,
+                is_active BOOLEAN DEFAULT true
+            )
+        """)
+        
+        # Create simplified supplier_contracts table for essential contract information
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.supplier_contracts (
+                contract_id SERIAL PRIMARY KEY,
+                supplier_id INTEGER NOT NULL,
+                contract_number TEXT UNIQUE NOT NULL,
+                contract_status TEXT DEFAULT 'active' CHECK (contract_status IN ('active', 'expired', 'terminated')),
+                start_date DATE NOT NULL,
+                end_date DATE,
+                contract_value DECIMAL(12,2),
+                payment_terms TEXT NOT NULL,
+                auto_renew BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
+            )
+        """)
+        
+        # Create simplified approvers table for basic approval workflow
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.approvers (
+                approver_id SERIAL PRIMARY KEY,
+                employee_id TEXT UNIQUE NOT NULL,
+                full_name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                department TEXT NOT NULL,
+                approval_limit DECIMAL(10,2) DEFAULT 0.00,
+                is_active BOOLEAN DEFAULT true
+            )
+        """)
+        
+        # Create simple notifications table for communication tracking
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.notifications (
+                notification_id SERIAL PRIMARY KEY,
+                request_id INTEGER,
+                notification_type TEXT NOT NULL CHECK (notification_type IN ('approval_request', 'status_update', 'completion')),
+                recipient_email TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                message TEXT NOT NULL,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMP,
+                FOREIGN KEY (request_id) REFERENCES {SCHEMA_NAME}.procurement_requests (request_id)
+            )
+        """)
+        
+
         # Create optimized performance indexes
         logging.info("Creating performance indexes...")
         
@@ -281,13 +422,53 @@ async def create_database_schema(conn):
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_types_category ON {SCHEMA_NAME}.product_types(category_id)")
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_types_name ON {SCHEMA_NAME}.product_types(type_name)")
         
+        # Supplier indexes
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_name ON {SCHEMA_NAME}.suppliers(supplier_name)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_code ON {SCHEMA_NAME}.suppliers(supplier_code)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_active ON {SCHEMA_NAME}.suppliers(active_status)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_preferred ON {SCHEMA_NAME}.suppliers(preferred_vendor)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_approved ON {SCHEMA_NAME}.suppliers(approved_vendor)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_rating ON {SCHEMA_NAME}.suppliers(supplier_rating)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_esg ON {SCHEMA_NAME}.suppliers(esg_compliant)")
+        
         # Product indexes
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_sku ON {SCHEMA_NAME}.products(sku)")
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_category ON {SCHEMA_NAME}.products(category_id)")
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_type ON {SCHEMA_NAME}.products(type_id)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_supplier ON {SCHEMA_NAME}.products(supplier_id)")
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_price ON {SCHEMA_NAME}.products(base_price)")
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_cost ON {SCHEMA_NAME}.products(cost)")
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_margin ON {SCHEMA_NAME}.products(gross_margin_percent)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_lead_time ON {SCHEMA_NAME}.products(procurement_lead_time_days)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_discontinued ON {SCHEMA_NAME}.products(discontinued)")
+        
+        # Supplier performance indexes
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_performance_supplier ON {SCHEMA_NAME}.supplier_performance(supplier_id)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_performance_date ON {SCHEMA_NAME}.supplier_performance(evaluation_date)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_performance_overall ON {SCHEMA_NAME}.supplier_performance(overall_score)")
+        
+        # Procurement request indexes
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_number ON {SCHEMA_NAME}.procurement_requests(request_number)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_status ON {SCHEMA_NAME}.procurement_requests(approval_status)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_product ON {SCHEMA_NAME}.procurement_requests(product_id)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_supplier ON {SCHEMA_NAME}.procurement_requests(supplier_id)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_date ON {SCHEMA_NAME}.procurement_requests(request_date)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_urgency ON {SCHEMA_NAME}.procurement_requests(urgency_level)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_requester ON {SCHEMA_NAME}.procurement_requests(requester_email)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_department ON {SCHEMA_NAME}.procurement_requests(department)")
+        
+        # Simplified Agent Support indexes
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_contracts_supplier ON {SCHEMA_NAME}.supplier_contracts(supplier_id)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_contracts_status ON {SCHEMA_NAME}.supplier_contracts(contract_status)")
+        
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_company_policies_type ON {SCHEMA_NAME}.company_policies(policy_type)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_company_policies_threshold ON {SCHEMA_NAME}.company_policies(minimum_order_threshold)")
+        
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_approvers_department ON {SCHEMA_NAME}.approvers(department)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_approvers_limit ON {SCHEMA_NAME}.approvers(approval_limit)")
+        
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_notifications_request ON {SCHEMA_NAME}.notifications(request_id)")
+        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_notifications_type ON {SCHEMA_NAME}.notifications(notification_type)")
         
         # Inventory indexes
         await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_inventory_store_product ON {SCHEMA_NAME}.inventory(store_id, product_id)")
@@ -355,9 +536,12 @@ async def create_database_schema(conn):
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.stores ENABLE ROW LEVEL SECURITY")
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.categories ENABLE ROW LEVEL SECURITY") 
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.product_types ENABLE ROW LEVEL SECURITY")
+        await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.suppliers ENABLE ROW LEVEL SECURITY")
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.products ENABLE ROW LEVEL SECURITY")
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.product_image_embeddings ENABLE ROW LEVEL SECURITY")
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.product_description_embeddings ENABLE ROW LEVEL SECURITY")
+        await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.supplier_performance ENABLE ROW LEVEL SECURITY")
+        await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.procurement_requests ENABLE ROW LEVEL SECURITY")
         
         # Create RLS policies for orders - store managers can only see orders from their store
         await conn.execute(f"DROP POLICY IF EXISTS store_manager_orders ON {SCHEMA_NAME}.orders")
@@ -485,6 +669,30 @@ async def create_database_schema(conn):
         await conn.execute(f"DROP POLICY IF EXISTS all_users_product_description_embeddings ON {SCHEMA_NAME}.product_description_embeddings")
         await conn.execute(f"""
             CREATE POLICY all_users_product_description_embeddings ON {SCHEMA_NAME}.product_description_embeddings
+            FOR ALL TO PUBLIC
+            USING (true)
+        """)
+        
+        # Suppliers table - all users can see all suppliers (needed for procurement)
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_suppliers ON {SCHEMA_NAME}.suppliers")
+        await conn.execute(f"""
+            CREATE POLICY all_users_suppliers ON {SCHEMA_NAME}.suppliers
+            FOR ALL TO PUBLIC
+            USING (true)
+        """)
+        
+        # Supplier performance table - all users can see all supplier performance data
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_supplier_performance ON {SCHEMA_NAME}.supplier_performance")
+        await conn.execute(f"""
+            CREATE POLICY all_users_supplier_performance ON {SCHEMA_NAME}.supplier_performance
+            FOR ALL TO PUBLIC
+            USING (true)
+        """)
+        
+        # Procurement requests table - all users can see all procurement requests (for collaboration)
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_procurement_requests ON {SCHEMA_NAME}.procurement_requests")
+        await conn.execute(f"""
+            CREATE POLICY all_users_procurement_requests ON {SCHEMA_NAME}.procurement_requests
             FOR ALL TO PUBLIC
             USING (true)
         """)
@@ -685,6 +893,299 @@ async def insert_product_types(conn):
         logging.error(f"Error inserting product types: {e}")
         raise
 
+async def insert_suppliers(conn):
+    """Insert supplier data into the database with enterprise-focused suppliers"""
+    try:
+        logging.info("Generating suppliers for enterprise procurement...")
+        
+        # Define realistic DIY suppliers for home improvement and crafting with enterprise requirements
+        suppliers_data = [
+            # Premium DIY Tool & Hardware Suppliers
+            ("ProBuild Industrial Supply", "PBS001", "procurement@probuild.com", "(555) 123-4567", 
+             "1234 Industrial Blvd", "Suite 100", "Atlanta", "GA", "30309", "USA", "Net 30", 10, 5000.00, 25000.00, 8.0, 4.8, True, True, True),
+            
+            ("MasterCraft Tools Direct", "MCT002", "orders@mastercraft.com", "(555) 234-5678",
+             "5678 Workshop Way", "", "Detroit", "MI", "48201", "USA", "Net 30", 14, 3000.00, 15000.00, 6.5, 4.6, True, True, True),
+            
+            ("Eco-Build Materials Co", "EBM003", "supply@ecobuild.com", "(555) 345-6789",
+             "9012 Sustainable Blvd", "Building B", "Portland", "OR", "97201", "USA", "Net 30", 12, 2500.00, 12000.00, 7.0, 4.9, True, True, True),
+            
+            ("Precision Hardware Systems", "PHS004", "sales@precisionhw.com", "(555) 456-7890",
+             "3456 Fabrication St", "", "Houston", "TX", "77001", "USA", "Net 30", 15, 2000.00, 10000.00, 5.5, 4.3, True, True, True),
+            
+            # Mid-tier DIY Suppliers
+            ("HomeBuilder Supply Chain", "HBS005", "wholesale@homebuilder.com", "(555) 567-8901",
+             "7890 Construction Plaza", "Floor 2", "Chicago", "IL", "60601", "USA", "Net 30", 18, 1500.00, 8000.00, 5.0, 4.1, True, True, False),
+            
+            ("Craft & Build Distributors", "CBD006", "info@craftbuild.com", "(555) 678-9012",
+             "2468 Maker Ave", "", "Phoenix", "AZ", "85001", "USA", "Net 45", 21, 1000.00, 6000.00, 4.5, 3.9, True, True, False),
+            
+            ("Workshop Essentials Ltd", "WEL007", "orders@workshop.com", "(555) 789-0123",
+             "1357 Tools Blvd", "", "Cleveland", "OH", "44101", "USA", "Net 45", 25, 800.00, 4000.00, 4.2, 3.8, True, True, False),
+            
+            ("DIY Central Warehouse", "DCW008", "supply@diycentral.com", "(555) 890-1234",
+             "9753 Wholesale Way", "", "Las Vegas", "NV", "89101", "USA", "Net 60", 28, 500.00, 3000.00, 3.8, 3.6, True, True, False),
+            
+            # Budget-friendly DIY Suppliers
+            ("Value Hardware Direct", "VHD009", "sales@valuehardware.com", "(555) 901-2345",
+             "4682 Discount Row", "Unit A", "Oklahoma City", "OK", "73101", "USA", "Net 60", 30, 250.00, 2000.00, 3.2, 3.4, False, True, False),
+            
+            ("Budget Builder Supply", "BBS010", "orders@budgetbuilder.com", "(555) 012-3456",
+             "1975 Economy Plaza", "", "Memphis", "TN", "38101", "USA", "Net 60", 35, 200.00, 1500.00, 2.8, 3.2, False, True, False),
+            
+            # Specialty DIY Suppliers
+            ("PowerTool Professionals", "PTP011", "pro@powertool.com", "(555) 123-7890",
+             "8642 Electric Ave", "", "Milwaukee", "WI", "53201", "USA", "Net 30", 12, 3500.00, 18000.00, 7.5, 4.5, True, True, True),
+            
+            ("Lumber & Wood Specialists", "LWS012", "timber@lumberwood.com", "(555) 234-8901",
+             "5309 Forest Lane", "", "Seattle", "WA", "98101", "USA", "Net 30", 16, 2200.00, 11000.00, 6.8, 4.4, True, True, True),
+            
+            ("Hardware & Fasteners Plus", "HFP013", "fasteners@hardwareplus.com", "(555) 345-9012",
+             "7531 Bolt Street", "Suite 200", "Pittsburgh", "PA", "15201", "USA", "Net 30", 14, 1800.00, 9000.00, 5.8, 4.2, True, True, False),
+            
+            ("Garden & Outdoor Supply", "GOS014", "garden@outdoorsupply.com", "(555) 456-0123",
+             "9642 Landscape Blvd", "", "San Diego", "CA", "92101", "USA", "Net 45", 20, 1200.00, 7000.00, 5.2, 4.0, True, True, False),
+            
+            ("Plumbing & Electrical Depot", "PED015", "trades@plumbingelectric.com", "(555) 567-1234",
+             "3174 Trades Circle", "", "Indianapolis", "IN", "46201", "USA", "Net 30", 18, 2800.00, 14000.00, 6.2, 4.3, True, True, True),
+            
+            ("Paint & Finishing Solutions", "PFS016", "paint@finishingsolutions.com", "(555) 678-2345",
+             "8520 Color Way", "Building C", "Denver", "CO", "80201", "USA", "Net 30", 22, 1600.00, 8500.00, 5.5, 3.9, True, True, False),
+            
+            ("Safety & Work Gear Supply", "SWG017", "safety@workgear.com", "(555) 789-3456",
+             "4863 Protection Pkwy", "", "Nashville", "TN", "37201", "USA", "Net 30", 15, 2400.00, 12000.00, 6.5, 4.4, True, True, True),
+            
+            ("Automotive DIY Parts", "ADP018", "auto@diyparts.com", "(555) 890-4567",
+             "6297 Motor Mile", "", "Detroit", "MI", "48202", "USA", "Net 45", 25, 1400.00, 6500.00, 4.8, 3.7, True, True, False),
+            
+            ("Craft & Hobby Wholesale", "CHW019", "craft@hobbywholesale.com", "(555) 901-5678",
+             "7418 Creative Circle", "Suite 150", "Austin", "TX", "78701", "USA", "Net 30", 12, 800.00, 4500.00, 4.5, 3.8, True, True, False),
+            
+            ("Industrial Adhesives & Chemicals", "IAC020", "chemicals@industrial.com", "(555) 012-6789",
+             "9135 Chemical Way", "", "Baton Rouge", "LA", "70801", "USA", "Net 30", 10, 5500.00, 28000.00, 8.2, 4.7, True, True, True),
+        ]
+        
+        # Insert supplier data
+        supplier_insert_data = []
+        for supplier in suppliers_data:
+            supplier_insert_data.append(supplier)
+        
+        await batch_insert(conn, f"""
+            INSERT INTO {SCHEMA_NAME}.suppliers (
+                supplier_name, supplier_code, contact_email, contact_phone,
+                address_line1, address_line2, city, state_province, postal_code, country,
+                payment_terms, lead_time_days, minimum_order_amount, bulk_discount_threshold, bulk_discount_percent,
+                supplier_rating, esg_compliant, approved_vendor, preferred_vendor
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        """, supplier_insert_data)
+        
+        logging.info(f"Successfully inserted {len(suppliers_data):,} suppliers!")
+        
+        # Insert initial supplier performance data
+        logging.info("Generating supplier performance evaluations...")
+        
+        # Get supplier IDs
+        supplier_rows = await conn.fetch(f"SELECT supplier_id, supplier_name FROM {SCHEMA_NAME}.suppliers")
+        
+        performance_data = []
+        for supplier in supplier_rows:
+            supplier_id = supplier['supplier_id']
+            # Generate 3-6 months of performance evaluations
+            for months_ago in range(0, random.randint(3, 7)):
+                evaluation_date = date.today().replace(day=1) - timedelta(days=months_ago * 30)
+                
+                # Generate realistic performance scores with some variation
+                base_cost_score = random.uniform(3.5, 4.8)
+                base_quality_score = random.uniform(3.2, 4.9)
+                base_delivery_score = random.uniform(3.0, 4.7)
+                base_compliance_score = random.uniform(4.2, 5.0)
+                
+                # Add some monthly variation
+                cost_score = max(1.0, min(5.0, base_cost_score + random.uniform(-0.3, 0.3)))
+                quality_score = max(1.0, min(5.0, base_quality_score + random.uniform(-0.4, 0.4)))
+                delivery_score = max(1.0, min(5.0, base_delivery_score + random.uniform(-0.5, 0.5)))
+                compliance_score = max(1.0, min(5.0, base_compliance_score + random.uniform(-0.2, 0.2)))
+                
+                # Calculate overall score as weighted average
+                overall_score = (cost_score * 0.3 + quality_score * 0.3 + delivery_score * 0.25 + compliance_score * 0.15)
+                
+                performance_data.append((
+                    supplier_id, evaluation_date, cost_score, quality_score, 
+                    delivery_score, compliance_score, overall_score, 
+                    f"Monthly evaluation for {supplier['supplier_name']}"
+                ))
+        
+        await batch_insert(conn, f"""
+            INSERT INTO {SCHEMA_NAME}.supplier_performance (
+                supplier_id, evaluation_date, cost_score, quality_score,
+                delivery_score, compliance_score, overall_score, notes
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """, performance_data)
+        
+        logging.info(f"Successfully inserted {len(performance_data):,} supplier performance evaluations!")
+
+
+        
+
+        
+    except Exception as e:
+        logging.error(f"Error inserting suppliers: {e}")
+        raise
+
+async def insert_agent_support_data(conn):
+    """Insert agent support data (approvers, contracts, policies, procurement requests, notifications)"""
+    try:
+        logging.info("Generating essential agent support data...")
+        
+        # Generate basic approvers for demonstration
+        approvers_data = []
+        departments = ["Finance", "Operations", "Procurement", "Management"]
+        
+        # Create simple approval hierarchy
+        approver_configs = [
+            ("EXEC001", "Jane CEO", "jane.ceo@company.com", "Management", 1000000),
+            ("DIR001", "John Finance Director", "john.director@company.com", "Finance", 250000),
+            ("DIR002", "Sarah Operations Director", "sarah.ops@company.com", "Operations", 200000),
+            ("MGR001", "Mike Procurement Manager", "mike.proc@company.com", "Procurement", 50000),
+            ("MGR002", "Lisa Finance Manager", "lisa.fin@company.com", "Finance", 25000),
+            ("SUP001", "Tom Operations Supervisor", "tom.ops@company.com", "Operations", 10000),
+            ("SUP002", "Amy Procurement Specialist", "amy.proc@company.com", "Procurement", 5000)
+        ]
+        
+        for emp_id, name, email, dept, limit in approver_configs:
+            approvers_data.append((emp_id, name, email, dept, limit, True))
+        
+        # Insert approvers
+        await batch_insert(conn, f"""
+            INSERT INTO {SCHEMA_NAME}.approvers (
+                employee_id, full_name, email, department, approval_limit, is_active
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+        """, approvers_data)
+        
+        # Generate simplified supplier contracts
+        contract_data = []
+        for i, supplier_id in enumerate(range(1, 21), 1):  # 20 suppliers
+            contract_data.append((
+                supplier_id,
+                f"CON-2024-{i:03d}",
+                "active",
+                date(2024, 1, 1),
+                date(2025, 12, 31),
+                random.uniform(50000, 500000),
+                random.choice(["Net 30", "Net 45", "Net 60"]),
+                random.choice([True, False])
+            ))
+        
+        await batch_insert(conn, f"""
+            INSERT INTO {SCHEMA_NAME}.supplier_contracts (
+                supplier_id, contract_number, contract_status, start_date, end_date,
+                contract_value, payment_terms, auto_renew
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """, contract_data)
+        
+        # Generate essential company policies
+        policy_data = [
+            ("Procurement Policy", "procurement", "All purchases over $5,000 require manager approval. Competitive bidding required for orders over $25,000.", "Procurement", 5000, True),
+            ("Order Processing Policy", "order_processing", "Orders processed within 24 hours. Rush orders require $50 fee and manager approval.", "Operations", None, False),
+            ("Budget Authorization", "budget_authorization", "Spending limits: Manager $50K, Director $250K, Executive $1M+", "Finance", None, True),
+            ("Vendor Approval", "vendor_approval", "All new vendors require approval and background check completion.", "Procurement", None, True)
+        ]
+        
+        await batch_insert(conn, f"""
+            INSERT INTO {SCHEMA_NAME}.company_policies (
+                policy_name, policy_type, policy_content, department, minimum_order_threshold, approval_required
+            ) VALUES ($1, $2, $3, $4, $5, $6)
+        """, policy_data)
+        
+        # Generate sample procurement requests (now products table exists)
+        procurement_data = []
+        product_rows = await conn.fetch(f"SELECT product_id, supplier_id, cost FROM {SCHEMA_NAME}.products LIMIT 20")
+        departments = ["Operations", "Finance", "Procurement", "Management"]
+        urgency_levels = ["Low", "Normal", "High", "Critical"]
+        approval_statuses = ["Pending", "Approved", "Rejected"]
+        
+        for i in range(25):  # Generate 25 sample procurement requests
+            if not product_rows:
+                break
+            
+            product = random.choice(product_rows)
+            product_id = product['product_id'] 
+            supplier_id = product['supplier_id']
+            unit_cost = float(product['cost'])
+            quantity_requested = random.randint(10, 100)
+            total_cost = unit_cost * quantity_requested
+            
+            request_number = f"PR-2024-{i+1:04d}"
+            requester_name = fake.name()
+            requester_email = f"{requester_name.lower().replace(' ', '.')}@company.com" 
+            department = random.choice(departments)
+            urgency_level = random.choice(urgency_levels)
+            approval_status = random.choices(approval_statuses, weights=[40, 50, 10], k=1)[0]
+            
+            request_date = date.today() - timedelta(days=random.randint(1, 60))
+            required_by_date = request_date + timedelta(days=random.randint(7, 30))
+            justification = fake.sentence()
+            
+            approved_by = None
+            approved_at = None
+            if approval_status == "Approved":
+                approved_by = random.choice([a[1] for a in approvers_data])  # Pick random approver name
+                approved_at = request_date + timedelta(days=random.randint(1, 5))
+            
+            procurement_data.append((
+                request_number, requester_name, requester_email, department,
+                product_id, supplier_id, quantity_requested, unit_cost, total_cost,
+                justification, urgency_level, approval_status, approved_by, approved_at,
+                request_date, required_by_date
+            ))
+        
+        if procurement_data:
+            await batch_insert(conn, f"""
+                INSERT INTO {SCHEMA_NAME}.procurement_requests (
+                    request_number, requester_name, requester_email, department,
+                    product_id, supplier_id, quantity_requested, unit_cost, total_cost,
+                    justification, urgency_level, approval_status, approved_by, approved_at,
+                    request_date, required_by_date
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            """, procurement_data)
+
+        # Generate sample notifications
+        notification_data = []
+        recent_requests = await conn.fetch(f"""
+            SELECT request_id, requester_email, total_cost, approval_status 
+            FROM {SCHEMA_NAME}.procurement_requests 
+            ORDER BY request_date DESC LIMIT 10
+        """)
+        
+        for req in recent_requests:
+            # Find appropriate approver
+            suitable_approver = next((a for a in approvers_data if a[4] >= req['total_cost']), approvers_data[0])
+            
+            notification_data.append((
+                req['request_id'],
+                "approval_request",
+                suitable_approver[2],  # email
+                f"Approval Required: Request #{req['request_id']}",
+                f"Please review procurement request for ${req['total_cost']:,.2f}"
+            ))
+        
+        if notification_data:
+            await batch_insert(conn, f"""
+                INSERT INTO {SCHEMA_NAME}.notifications (
+                    request_id, notification_type, recipient_email, subject, message
+                ) VALUES ($1, $2, $3, $4, $5)
+            """, notification_data)
+        
+        logging.info(f"Successfully inserted {len(approvers_data)} approvers!")
+        logging.info(f"Successfully inserted {len(contract_data)} supplier contracts!")
+        logging.info(f"Successfully inserted {len(policy_data)} company policies!")
+        logging.info(f"Successfully inserted {len(procurement_data)} procurement requests!")
+        logging.info(f"Successfully inserted {len(notification_data)} notifications!")
+        
+    except Exception as e:
+        logging.error(f"Error inserting agent support data: {e}")
+        raise
+
 async def insert_products(conn):
     """Insert product data into the database"""
     try:
@@ -701,10 +1202,38 @@ async def insert_products(conn):
         for row in rows:
             type_mapping[(row['category_id'], row['type_name'])] = row['type_id']
         
+        # Get supplier mappings - assign suppliers to product categories
+        supplier_rows = await conn.fetch(f"SELECT supplier_id, supplier_name, preferred_vendor FROM {SCHEMA_NAME}.suppliers ORDER BY preferred_vendor DESC, supplier_rating DESC")
+        
+        if not supplier_rows:
+            raise Exception("No suppliers found! Please insert suppliers first.")
+        
+        # Create category-to-supplier mapping for realistic DIY assignments
+        category_supplier_mapping = {
+            'Tools': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Tool', 'MasterCraft', 'PowerTool', 'Hardware', 'ProBuild'])],
+            'Hardware': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Hardware', 'Precision', 'Fasteners', 'Industrial'])],
+            'Building Materials': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Build', 'Materials', 'Lumber', 'Wood'])],
+            'Home Improvement': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['HomeBuilder', 'Workshop', 'DIY', 'Value'])],
+            'Garden & Outdoor': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Garden', 'Outdoor', 'Eco'])],
+            'Electrical': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Electrical', 'Plumbing', 'PowerTool'])],
+            'Plumbing': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Plumbing', 'Hardware', 'Industrial'])],
+            'Paint & Supplies': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Paint', 'Finishing', 'Craft'])],
+            'Safety Equipment': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Safety', 'Work', 'Industrial'])],
+            'Automotive': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Automotive', 'Tools', 'DIY'])],
+        }
+        
+        # Default suppliers for any unmapped categories
+        default_suppliers = supplier_rows[:5]  # Use top 5 suppliers as default
+        
         products_data = []
         
         for main_category, subcategories in main_categories.items():
             category_id = category_mapping[main_category]
+            
+            # Get appropriate suppliers for this category
+            category_suppliers = category_supplier_mapping.get(main_category, default_suppliers)
+            if not category_suppliers:
+                category_suppliers = default_suppliers
             
             for subcategory, product_list in subcategories.items():
                 # Skip the seasonal multipliers key, only process actual product types
@@ -725,6 +1254,14 @@ async def insert_products(conn):
                     json_price = product_details["price"]
                     description = product_details["description"]
                     
+                    # Assign supplier - prefer preferred vendors, with some randomization
+                    supplier = random.choices(
+                        category_suppliers, 
+                        weights=[3 if s['preferred_vendor'] else 1 for s in category_suppliers], 
+                        k=1
+                    )[0]
+                    supplier_id = supplier['supplier_id']
+                    
                     # Treat the JSON price as the cost
                     cost = float(json_price)
                     
@@ -733,9 +1270,21 @@ async def insert_products(conn):
                     # Therefore: Selling Price = Cost / (1 - 0.33) = Cost / 0.67
                     base_price = round(cost / 0.67, 2)
                     
-                    products_data.append((sku, product_name, category_id, type_id, cost, base_price, description))
+                    # Set procurement lead time based on supplier
+                    # Get supplier info for lead time
+                    supplier_info = await conn.fetchrow(f"SELECT lead_time_days FROM {SCHEMA_NAME}.suppliers WHERE supplier_id = $1", supplier_id)
+                    procurement_lead_time = supplier_info['lead_time_days'] if supplier_info else 14
+                    
+                    # Set minimum order quantity (vary by product type)
+                    min_order_qty = random.choices([1, 5, 10, 25], weights=[60, 25, 10, 5], k=1)[0]
+                    
+                    products_data.append((sku, product_name, category_id, type_id, supplier_id, cost, base_price, description, procurement_lead_time, min_order_qty))
         
-        await batch_insert(conn, f"INSERT INTO {SCHEMA_NAME}.products (sku, product_name, category_id, type_id, cost, base_price, product_description) VALUES ($1, $2, $3, $4, $5, $6, $7)", products_data)
+        await batch_insert(conn, f"""
+            INSERT INTO {SCHEMA_NAME}.products 
+            (sku, product_name, category_id, type_id, supplier_id, cost, base_price, product_description, procurement_lead_time_days, minimum_order_quantity) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        """, products_data)
         
         logging.info(f"Successfully inserted {len(products_data):,} products!")
         return len(products_data)  # Return the number of products inserted
@@ -1430,12 +1979,52 @@ async def verify_database_contents(conn):
     for row in rows:
         logging.info(f"   {row['category_name']:<18} {row['orders']:>6}     ${row['revenue']:>6}")
     
+    # Supplier analysis
+    logging.info("\n🏭 SUPPLIER ANALYSIS:")
+    supplier_stats = await conn.fetch(f"""
+        SELECT s.supplier_name, s.preferred_vendor, s.supplier_rating,
+               COUNT(p.product_id) as product_count,
+               ROUND(AVG(p.cost), 2) as avg_product_cost,
+               ROUND(SUM(oi.total_amount)/1000.0, 1) || 'K' as revenue_generated
+        FROM {SCHEMA_NAME}.suppliers s
+        LEFT JOIN {SCHEMA_NAME}.products p ON s.supplier_id = p.supplier_id
+        LEFT JOIN {SCHEMA_NAME}.order_items oi ON p.product_id = oi.product_id
+        GROUP BY s.supplier_id, s.supplier_name, s.preferred_vendor, s.supplier_rating
+        ORDER BY SUM(oi.total_amount) DESC NULLS LAST
+        LIMIT 5
+    """)
+    
+    logging.info("   Top Suppliers by Revenue:")
+    logging.info("   Supplier                Products  Avg Cost  Revenue  Preferred  Rating")
+    logging.info("   " + "-" * 70)
+    for row in supplier_stats:
+        preferred = "✓" if row['preferred_vendor'] else " "
+        logging.info(f"   {row['supplier_name']:<18} {row['product_count']:>8}  ${row['avg_product_cost']:>6}  ${row['revenue_generated']:>6}      {preferred}       {row['supplier_rating']:.1f}")
+    
+    # Procurement requests summary
+    procurement_summary = await conn.fetchrow(f"""
+        SELECT COUNT(*) as total_requests,
+               COUNT(CASE WHEN approval_status = 'Approved' THEN 1 END) as approved,
+               COUNT(CASE WHEN approval_status = 'Pending' THEN 1 END) as pending,
+               ROUND(SUM(total_cost)/1000.0, 1) as total_value_k
+        FROM {SCHEMA_NAME}.procurement_requests
+    """)
+    
+    if procurement_summary:
+        logging.info("\n📋 PROCUREMENT REQUESTS SUMMARY:")
+        logging.info(f"   Total Requests:     {procurement_summary['total_requests']:,}")
+        logging.info(f"   Approved:           {procurement_summary['approved']:,}")
+        logging.info(f"   Pending:            {procurement_summary['pending']:,}")
+        logging.info(f"   Total Value:        ${procurement_summary['total_value_k']}K")
+
     # Final summary
     customers = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.customers")
     products = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.products")
+    suppliers = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.suppliers")
     orders = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.orders")
     order_items = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.order_items")
     embeddings = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.product_image_embeddings")
+    procurement_requests = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.procurement_requests")
     total_revenue = await conn.fetchval(f"SELECT SUM(total_amount) FROM {SCHEMA_NAME}.order_items")
     
     # Gross margin analysis
@@ -1476,10 +2065,12 @@ async def verify_database_contents(conn):
 
     logging.info("\n✅ DATABASE SUMMARY:")
     logging.info(f"   Customers:          {customers:>8,}")
+    logging.info(f"   Suppliers:          {suppliers:>8,}")
     logging.info(f"   Products:           {products:>8,}")
     logging.info(f"   Product Embeddings: {embeddings:>8,}")
     logging.info(f"   Orders:             {orders:>8,}")
     logging.info(f"   Order Items:        {order_items:>8,}")
+    logging.info(f"   Procurement Reqs:   {procurement_requests:>8,}")
     if total_revenue and orders:
         logging.info(f"   Total Revenue:      ${total_revenue/1000:.1f}K")
         logging.info(f"   Avg Order:          ${total_revenue/orders:.2f}")
@@ -1705,8 +2296,15 @@ async def generate_postgresql_database(num_customers: int = 50000):
             await insert_stores(conn)
             await insert_categories(conn)
             await insert_product_types(conn)
+            await insert_suppliers(conn)
             await insert_customers(conn, num_customers)
             await insert_products(conn)
+            
+            # Insert agent support data (now that products table exists)
+            logging.info("\n" + "=" * 50)
+            logging.info("INSERTING AGENT SUPPORT DATA")
+            logging.info("=" * 50)
+            await insert_agent_support_data(conn)
             
             # Populate product embeddings from product_data.json
             logging.info("\n" + "=" * 50)
@@ -1771,10 +2369,12 @@ async def show_database_stats():
     try:
         # Get table row counts
         customers_count = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.customers")
+        suppliers_count = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.suppliers")
         products_count = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.products")
         orders_count = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.orders")
         order_items_count = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.order_items")
         embeddings_count = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.product_image_embeddings")
+        procurement_count = await conn.fetchval(f"SELECT COUNT(*) FROM {SCHEMA_NAME}.procurement_requests")
         
         # Get revenue information
         total_revenue = await conn.fetchval(f"SELECT SUM(total_amount) FROM {SCHEMA_NAME}.order_items")
@@ -1794,10 +2394,12 @@ async def show_database_stats():
         
         logging.info(f"Database Size: {db_size}")
         logging.info(f"Customers: {customers_count:,}")
+        logging.info(f"Suppliers: {suppliers_count:,}")
         logging.info(f"Products: {products_count:,}")
         logging.info(f"Product Embeddings: {embeddings_count:,}")
         logging.info(f"Orders: {orders_count:,}")
         logging.info(f"Order Items: {order_items_count:,}")
+        logging.info(f"Procurement Requests: {procurement_count:,}")
         logging.info(f"Total Revenue: ${total_revenue:,.2f}")
         if orders_count > 0:
             logging.info(f"Average Order Value: ${total_revenue/orders_count:.2f}")
@@ -1812,10 +2414,173 @@ async def show_database_stats():
     finally:
         await conn.close()
 
+async def demo_supplier_procurement_queries():
+    """
+    Demonstration function showing supplier and procurement queries for enterprise use cases.
+    
+    This function demonstrates:
+    1. Supplier evaluation and selection
+    2. Procurement request analysis
+    3. Bulk discount opportunities
+    4. ESG compliance reporting
+    5. Lead time analysis
+    """
+    conn = await create_connection()
+    
+    try:
+        logging.info("\n" + "=" * 70)
+        logging.info("ENTERPRISE PROCUREMENT & SUPPLIER ANALYSIS DEMONSTRATION")
+        logging.info("=" * 70)
+        
+        # 1. Top Suppliers by Performance Score
+        logging.info("\n🏆 TOP SUPPLIERS BY PERFORMANCE SCORE:")
+        top_suppliers = await conn.fetch(f"""
+            SELECT s.supplier_name, s.supplier_code, s.preferred_vendor, s.esg_compliant,
+                   ROUND(AVG(sp.overall_score), 2) as avg_performance,
+                   COUNT(p.product_id) as product_count,
+                   s.bulk_discount_threshold, s.bulk_discount_percent
+            FROM {SCHEMA_NAME}.suppliers s
+            LEFT JOIN {SCHEMA_NAME}.supplier_performance sp ON s.supplier_id = sp.supplier_id
+            LEFT JOIN {SCHEMA_NAME}.products p ON s.supplier_id = p.supplier_id
+            WHERE s.active_status = true AND s.approved_vendor = true
+            GROUP BY s.supplier_id, s.supplier_name, s.supplier_code, s.preferred_vendor, 
+                     s.esg_compliant, s.bulk_discount_threshold, s.bulk_discount_percent
+            ORDER BY avg_performance DESC NULLS LAST, s.preferred_vendor DESC
+            LIMIT 5
+        """)
+        
+        logging.info("   Supplier              Code    Preferred  ESG   Performance  Products  Bulk Discount")
+        logging.info("   " + "-" * 80)
+        for supplier in top_suppliers:
+            preferred = "✓" if supplier['preferred_vendor'] else " "
+            esg = "✓" if supplier['esg_compliant'] else " "
+            performance = supplier['avg_performance'] if supplier['avg_performance'] else "N/A"
+            logging.info(f"   {supplier['supplier_name']:<18} {supplier['supplier_code']:<8} {preferred:>3}       {esg:>3}      {performance:>6}     {supplier['product_count']:>5}      {supplier['bulk_discount_percent']}%@${supplier['bulk_discount_threshold']:.0f}")
+        
+        # 2. Procurement Requests Analysis
+        logging.info("\n📋 PROCUREMENT REQUESTS BY STATUS & URGENCY:")
+        procurement_analysis = await conn.fetch(f"""
+            SELECT approval_status, urgency_level, 
+                   COUNT(*) as request_count,
+                   ROUND(SUM(total_cost), 2) as total_value,
+                   ROUND(AVG(total_cost), 2) as avg_request_value
+            FROM {SCHEMA_NAME}.procurement_requests
+            GROUP BY approval_status, urgency_level
+            ORDER BY approval_status, urgency_level DESC
+        """)
+        
+        current_status = None
+        for req in procurement_analysis:
+            if req['approval_status'] != current_status:
+                current_status = req['approval_status']
+                logging.info(f"\n   {current_status.upper()}:")
+                logging.info("     Priority   Count     Total Value    Avg Value")
+                logging.info("     " + "-" * 45)
+            
+            logging.info(f"     {req['urgency_level']:<8} {req['request_count']:>5}     ${req['total_value']:>10,.2f}    ${req['avg_request_value']:>8,.2f}")
+        
+        # 3. Bulk Discount Opportunities
+        logging.info("\n💰 BULK DISCOUNT OPPORTUNITIES:")
+        bulk_opportunities = await conn.fetch(f"""
+            SELECT s.supplier_name, s.bulk_discount_threshold, s.bulk_discount_percent,
+                   SUM(pr.total_cost) as pending_value,
+                   COUNT(pr.request_id) as pending_requests,
+                   CASE 
+                     WHEN SUM(pr.total_cost) >= s.bulk_discount_threshold 
+                     THEN ROUND(SUM(pr.total_cost) * s.bulk_discount_percent / 100, 2)
+                     ELSE 0 
+                   END as potential_savings
+            FROM {SCHEMA_NAME}.suppliers s
+            JOIN {SCHEMA_NAME}.procurement_requests pr ON s.supplier_id = pr.supplier_id
+            WHERE pr.approval_status = 'Approved' AND pr.bulk_discount_eligible = true
+            GROUP BY s.supplier_id, s.supplier_name, s.bulk_discount_threshold, s.bulk_discount_percent
+            HAVING SUM(pr.total_cost) >= s.bulk_discount_threshold * 0.7  -- Within 70% of threshold
+            ORDER BY potential_savings DESC
+        """)
+        
+        if bulk_opportunities:
+            logging.info("   Supplier              Threshold    Pending Value    Potential Savings")
+            logging.info("   " + "-" * 65)
+            total_savings = 0
+            for opp in bulk_opportunities:
+                total_savings += float(opp['potential_savings'])
+                logging.info(f"   {opp['supplier_name']:<18}   ${opp['bulk_discount_threshold']:>8,.0f}    ${opp['pending_value']:>11,.2f}      ${opp['potential_savings']:>9,.2f}")
+            logging.info("   " + "-" * 65)
+            logging.info(f"   TOTAL POTENTIAL SAVINGS:                                ${total_savings:>9,.2f}")
+        else:
+            logging.info("   No current bulk discount opportunities found")
+        
+        # 4. ESG Compliance Report
+        logging.info("\n🌱 ESG COMPLIANCE ANALYSIS:")
+        esg_analysis = await conn.fetch(f"""
+            SELECT 
+                COUNT(CASE WHEN s.esg_compliant = true THEN 1 END) as esg_compliant_suppliers,
+                COUNT(CASE WHEN s.esg_compliant = false THEN 1 END) as non_esg_suppliers,
+                COUNT(pr.request_id) as total_requests,
+                COUNT(CASE WHEN pr.esg_requirements = true THEN 1 END) as esg_required_requests,
+                COUNT(CASE WHEN pr.esg_requirements = true AND s.esg_compliant = true THEN 1 END) as esg_compliant_requests
+            FROM {SCHEMA_NAME}.suppliers s
+            LEFT JOIN {SCHEMA_NAME}.procurement_requests pr ON s.supplier_id = pr.supplier_id
+        """)
+        
+        esg_data = esg_analysis[0] if esg_analysis else {}
+        if esg_data:
+            esg_compliance_rate = (esg_data['esg_compliant_requests'] / max(esg_data['esg_required_requests'], 1)) * 100
+            logging.info(f"   ESG Compliant Suppliers:    {esg_data['esg_compliant_suppliers']}")
+            logging.info(f"   Non-ESG Suppliers:          {esg_data['non_esg_suppliers']}")
+            logging.info(f"   ESG Required Requests:      {esg_data['esg_required_requests']}")
+            logging.info(f"   ESG Compliance Rate:        {esg_compliance_rate:.1f}%")
+        
+        # 5. Lead Time Analysis
+        logging.info("\n⏱️  SUPPLIER LEAD TIME ANALYSIS:")
+        lead_time_analysis = await conn.fetch(f"""
+            SELECT s.supplier_name, s.lead_time_days,
+                   COUNT(p.product_id) as product_count,
+                   ROUND(AVG(p.procurement_lead_time_days), 1) as avg_product_lead_time,
+                   COUNT(pr.request_id) as active_requests
+            FROM {SCHEMA_NAME}.suppliers s
+            LEFT JOIN {SCHEMA_NAME}.products p ON s.supplier_id = p.supplier_id
+            LEFT JOIN {SCHEMA_NAME}.procurement_requests pr ON s.supplier_id = pr.supplier_id 
+                AND pr.approval_status IN ('Approved', 'Pending')
+            WHERE s.active_status = true
+            GROUP BY s.supplier_id, s.supplier_name, s.lead_time_days
+            ORDER BY s.lead_time_days, s.supplier_name
+            LIMIT 8
+        """)
+        
+        logging.info("   Supplier              Lead Time    Products    Avg Product Lead    Active Reqs")
+        logging.info("   " + "-" * 75)
+        for lt in lead_time_analysis:
+            logging.info(f"   {lt['supplier_name']:<18}   {lt['lead_time_days']:>7} days    {lt['product_count']:>7}         {lt['avg_product_lead_time']:>8} days      {lt['active_requests']:>6}")
+        
+        # 6. Procurement Workflow Efficiency
+        logging.info("\n⚡ PROCUREMENT WORKFLOW EFFICIENCY:")
+        workflow_stats = await conn.fetchrow(f"""
+            SELECT 
+                ROUND(AVG(CASE WHEN approval_status = 'Approved' AND approved_at IS NOT NULL 
+                              THEN EXTRACT(DAYS FROM (approved_at - request_date)) 
+                              ELSE NULL END), 1) as avg_approval_days,
+                COUNT(CASE WHEN approval_status = 'Approved' THEN 1 END) as approved_count,
+                COUNT(CASE WHEN approval_status = 'Pending' AND request_date < CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as overdue_pending,
+                COUNT(CASE WHEN urgency_level = 'Critical' AND approval_status = 'Pending' THEN 1 END) as critical_pending
+            FROM {SCHEMA_NAME}.procurement_requests
+        """)
+        
+        if workflow_stats:
+            logging.info(f"   Average Approval Time:      {workflow_stats['avg_approval_days']} days")
+            logging.info(f"   Total Approved Requests:    {workflow_stats['approved_count']}")
+            logging.info(f"   Overdue Pending Requests:   {workflow_stats['overdue_pending']}")
+            logging.info(f"   Critical Pending Requests:  {workflow_stats['critical_pending']}")
+        
+        logging.info("\n" + "=" * 70)
+        logging.info("PROCUREMENT ANALYSIS COMPLETE")
+        logging.info("=" * 70)
+        
+    finally:
+        await conn.close()
+
 async def main():
     """Main function to handle command line arguments"""
-    import argparse
-    import sys
     
     parser = argparse.ArgumentParser(description='Generate PostgreSQL database with product embeddings')
     parser.add_argument('--show-stats', action='store_true', 
@@ -1826,6 +2591,8 @@ async def main():
                        help='Only verify embeddings table and show sample data')
     parser.add_argument('--verify-seasonal', action='store_true',
                        help='Only verify seasonal patterns in existing database')
+    parser.add_argument('--demo-procurement', action='store_true',
+                       help='Demonstrate procurement and supplier analysis queries')
     parser.add_argument('--clear-embeddings', action='store_true',
                        help='Clear existing embeddings before populating (used with --embeddings-only)')
     parser.add_argument('--batch-size', type=int, default=100,
@@ -1854,6 +2621,9 @@ async def main():
                 await verify_seasonal_patterns(conn)
             finally:
                 await conn.close()
+        elif args.demo_procurement:
+            # Demo procurement and supplier analysis
+            await demo_supplier_procurement_queries()
         elif args.embeddings_only:
             # Populate embeddings only
             conn = await create_connection()
@@ -1878,6 +2648,7 @@ async def main():
             logging.info(f"To populate embeddings only: python {sys.argv[0]} --embeddings-only")
             logging.info(f"To verify embeddings: python {sys.argv[0]} --verify-embeddings")
             logging.info(f"To verify seasonal patterns: python {sys.argv[0]} --verify-seasonal")
+            logging.info(f"To demo procurement queries: python {sys.argv[0]} --demo-procurement")
             
     except Exception as e:
         logging.error(f"Failed to complete operation: {e}")

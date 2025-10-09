@@ -1,0 +1,118 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Supplier and Finance MCP Servers",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "command": "echo",
+            "args": ["Starting background MCP servers..."],
+            "dependsOn": [
+                "Start Supplier MCP Server Background",
+                "Start Finance MCP Server Background"
+            ],
+            "dependsOrder": "parallel",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Start Supplier MCP Server Background",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "mcp_server.supplier_mcp_server"],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}"
+                }
+            },
+            "group": "build",
+            "isBackground": true,
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(.*)$",
+                    "file": 1,
+                    "location": 2,
+                    "message": 3
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*Starting.*",
+                    "endsPattern": ".*Uvicorn running on.*"
+                }
+            }
+        },
+        {
+            "label": "Start Finance MCP Server Background",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "mcp_server.finance_mcp_server"],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}"
+                }
+            },
+            "group": "build",
+            "isBackground": true,
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": {
+                "pattern": {
+                    "regexp": "^(.*)$",
+                    "file": 1,
+                    "location": 2,
+                    "message": 3
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*Starting.*",
+                    "endsPattern": ".*Uvicorn running on.*"
+                }
+            }
+        },
+        {
+            "label": "🛑 Stop All MCP Servers",
+            "type": "shell",
+            "command": "pkill",
+            "args": ["-f", "mcp_server"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": []
+        }
+    ]
+}
