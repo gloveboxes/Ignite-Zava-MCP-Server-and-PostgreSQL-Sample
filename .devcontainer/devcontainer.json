@@ -19,7 +19,8 @@
                 "mathematic.vscode-pdf",
                 "ms-ossdata.vscode-pgsql",
                 "charliermarsh.ruff",
-                "ms-azuretools.vscode-bicep"
+                "ms-azuretools.vscode-bicep",
+                "ms-python.debugpy"
             ]
         }
     },
