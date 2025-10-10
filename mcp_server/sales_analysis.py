@@ -138,7 +138,7 @@ async def get_multiple_table_schemas(
     table_names: Annotated[
         list[str],
         Field(
-            description="List of table names. Valid table names include 'retail.customers', 'retail.stores', 'retail.categories', 'retail.product_types', 'retail.products', 'retail.orders', 'retail.order_items', 'retail.inventory'."
+            description="List of table names. Valid table names include 'retail.customers', 'retail.stores', 'retail.categories', 'retail.product_types', 'retail.products', 'retail.orders', 'retail.order_items', 'retail.inventory', 'retail.suppliers', 'retail.supplier_performance', 'retail.procurement_requests', 'retail.company_policies', 'retail.supplier_contracts', 'retail.approvers', 'retail.notifications', 'retail.product_image_embeddings', 'retail.product_description_embeddings'."
         ),
     ],
 ) -> str:
@@ -146,7 +146,7 @@ async def get_multiple_table_schemas(
     Retrieve schemas for multiple tables. Use this tool only for schemas you have not already fetched during the conversation.
 
     Args:
-        table_names: List of table names. Valid table names include 'retail.customers', 'retail.stores', 'retail.categories', 'retail.product_types', 'retail.products', 'retail.orders', 'retail.order_items', 'retail.inventory'.
+        table_names: List of table names. Valid table names include 'retail.customers', 'retail.stores', 'retail.categories', 'retail.product_types', 'retail.products', 'retail.orders', 'retail.order_items', 'retail.inventory', 'retail.suppliers', 'retail.supplier_performance', 'retail.procurement_requests', 'retail.company_policies', 'retail.supplier_contracts', 'retail.approvers', 'retail.notifications', 'retail.product_image_embeddings', 'retail.product_description_embeddings'.
 
     Returns:
         Concatenated schema strings for the requested tables.
@@ -167,6 +167,15 @@ async def get_multiple_table_schemas(
         "retail.orders",
         "retail.order_items",
         "retail.inventory",
+        "retail.suppliers",
+        "retail.supplier_performance",
+        "retail.procurement_requests",
+        "retail.company_policies",
+        "retail.supplier_contracts",
+        "retail.approvers",
+        "retail.notifications",
+        "retail.product_image_embeddings",
+        "retail.product_description_embeddings",
     }
 
     # Validate table names

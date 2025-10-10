@@ -40,6 +40,8 @@ SCHEMA_NAME = "retail"
 MANAGER_ID = ""
 
 # Constants - table names without schema prefix (will be added in queries)
+
+# Table constants
 CUSTOMERS_TABLE = "customers"
 PRODUCTS_TABLE = "products"
 ORDERS_TABLE = "orders"
@@ -48,6 +50,16 @@ STORES_TABLE = "stores"
 CATEGORIES_TABLE = "categories"
 PRODUCT_TYPES_TABLE = "product_types"
 INVENTORY_TABLE = "inventory"
+# New tables from schema
+SUPPLIERS_TABLE = "suppliers"
+SUPPLIER_PERFORMANCE_TABLE = "supplier_performance"
+PROCUREMENT_REQUESTS_TABLE = "procurement_requests"
+COMPANY_POLICIES_TABLE = "company_policies"
+SUPPLIER_CONTRACTS_TABLE = "supplier_contracts"
+APPROVERS_TABLE = "approvers"
+NOTIFICATIONS_TABLE = "notifications"
+PRODUCT_IMAGE_EMBEDDINGS_TABLE = "product_image_embeddings"
+PRODUCT_DESCRIPTION_EMBEDDINGS_TABLE = "product_description_embeddings"
 
 
 class PostgreSQLSchemaProvider:
@@ -352,18 +364,33 @@ class PostgreSQLSchemaProvider:
                         f"{schema_name}.{PRODUCT_TYPES_TABLE}",
                     )
                 },
-                PRODUCTS_TABLE: {
-                    # Removed available_product_names to avoid lengthy output
-                },
+                PRODUCTS_TABLE: {},
                 ORDERS_TABLE: {
                     "available_years": (
                         "EXTRACT(YEAR FROM order_date)::text",
                         f"{schema_name}.{ORDERS_TABLE}",
                     )
                 },
-                ORDER_ITEMS_TABLE: {
-                    # "price_range": ("unit_price", f"{schema_name}.{ORDER_ITEMS_TABLE}")
+                ORDER_ITEMS_TABLE: {},
+                SUPPLIERS_TABLE: {
+                    "available_suppliers": ("supplier_name", f"{schema_name}.{SUPPLIERS_TABLE}")
                 },
+                SUPPLIER_PERFORMANCE_TABLE: {},
+                PROCUREMENT_REQUESTS_TABLE: {
+                    "available_departments": ("department", f"{schema_name}.{PROCUREMENT_REQUESTS_TABLE}")
+                },
+                COMPANY_POLICIES_TABLE: {
+                    "available_policy_types": ("policy_type", f"{schema_name}.{COMPANY_POLICIES_TABLE}")
+                },
+                SUPPLIER_CONTRACTS_TABLE: {},
+                APPROVERS_TABLE: {
+                    "available_approver_departments": ("department", f"{schema_name}.{APPROVERS_TABLE}")
+                },
+                NOTIFICATIONS_TABLE: {
+                    "available_notification_types": ("notification_type", f"{schema_name}.{NOTIFICATIONS_TABLE}")
+                },
+                PRODUCT_IMAGE_EMBEDDINGS_TABLE: {},
+                PRODUCT_DESCRIPTION_EMBEDDINGS_TABLE: {},
             }
 
             enum_data = {}
@@ -994,6 +1021,15 @@ async def main() -> None:
                 f"{SCHEMA_NAME}.{ORDERS_TABLE}",
                 f"{SCHEMA_NAME}.{ORDER_ITEMS_TABLE}",
                 f"{SCHEMA_NAME}.{INVENTORY_TABLE}",
+                f"{SCHEMA_NAME}.{SUPPLIERS_TABLE}",
+                f"{SCHEMA_NAME}.{SUPPLIER_PERFORMANCE_TABLE}",
+                f"{SCHEMA_NAME}.{PROCUREMENT_REQUESTS_TABLE}",
+                f"{SCHEMA_NAME}.{COMPANY_POLICIES_TABLE}",
+                f"{SCHEMA_NAME}.{SUPPLIER_CONTRACTS_TABLE}",
+                f"{SCHEMA_NAME}.{APPROVERS_TABLE}",
+                f"{SCHEMA_NAME}.{NOTIFICATIONS_TABLE}",
+                f"{SCHEMA_NAME}.{PRODUCT_IMAGE_EMBEDDINGS_TABLE}",
+                f"{SCHEMA_NAME}.{PRODUCT_DESCRIPTION_EMBEDDINGS_TABLE}",
             ]
             logger.info(
                 "Database schema info: %s",

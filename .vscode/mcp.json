@@ -1,7 +1,7 @@
 {
 	"servers": {
 		"zava-sales-analysis-headoffice": {
-			"url": "http://rpi58:8000/mcp",
+			"url": "http://127.0.0.1:8000/mcp",
 			"type": "http",
 			"headers": {"x-rls-user-id": "00000000-0000-0000-0000-000000000000"}
 		},
