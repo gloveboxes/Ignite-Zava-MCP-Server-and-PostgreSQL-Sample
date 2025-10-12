@@ -1,9 +1,10 @@
 name: zava_mcp_server
 
+
 services:
   postgres:
-    image: docker.io/pgvector/pgvector:pg18
-    container_name: pg18
+    image: pgvector/pgvector:pg17-trixie
+    container_name: PG17
     restart: unless-stopped
     env_file:
       - .env

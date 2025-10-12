@@ -1,0 +1,217 @@
+{
+  "store_product_strategy": {
+    "online_store": "all_products",
+    "popup_stores": "curated_selection"
+  },
+  "store_specializations": {
+    "Zava Pop-Up Pike Place": {
+      "theme": "Urban Trendy",
+      "description": "High-traffic downtown location with focus on trendy streetwear and everyday essentials",
+      "product_skus": [
+        "APP-TS-001", "APP-TS-002", "APP-TS-003", "APP-TS-007", "APP-TS-009", "APP-TS-010",
+        "APP-FS-007", "APP-FS-008",
+        "APP-HD-001", "APP-HD-002", "APP-HD-004", "APP-HD-005",
+        "APP-SW-001", "APP-SW-002",
+        "APP-FL-001", "APP-FL-003",
+        "APP-JN-001", "APP-JN-002", "APP-JN-004", "APP-JN-007", "APP-JN-009",
+        "APP-PN-003",
+        "APP-SH-001", "APP-SH-004",
+        "OUT-JK-001", "OUT-JK-002", "OUT-JK-003", "OUT-JK-006", "OUT-JK-007",
+        "FW-SN-001", "FW-SN-003", "FW-SN-005", "FW-SN-007", "FW-SN-009",
+        "FW-BT-002", "FW-BT-003", "FW-BT-004",
+        "FW-SD-001", "FW-SD-002",
+        "ACC-CP-001", "ACC-CP-002", "ACC-CP-004",
+        "ACC-SK-001", "ACC-SK-002", "ACC-SK-006",
+        "ACC-BP-001", "ACC-BP-004", "ACC-BP-007", "ACC-BP-009",
+        "ACC-SG-001", "ACC-SG-002", "ACC-SG-004"
+      ]
+    },
+    "Zava Pop-Up Bellevue Square": {
+      "theme": "Business Casual Premium",
+      "description": "Upscale mall location with focus on business casual, premium items, and professional wear",
+      "product_skus": [
+        "APP-TS-001", "APP-TS-002", "APP-TS-006", "APP-TS-011",
+        "APP-FS-001", "APP-FS-002", "APP-FS-003", "APP-FS-004", "APP-FS-005", "APP-FS-006",
+        "APP-HD-002", "APP-HD-003", "APP-HD-007",
+        "APP-SW-003", "APP-SW-004",
+        "APP-JN-001", "APP-JN-002", "APP-JN-005", "APP-JN-008",
+        "APP-PN-001", "APP-PN-004",
+        "APP-SH-001",
+        "OUT-JK-001", "OUT-JK-004", "OUT-JK-006", "OUT-JK-009",
+        "OUT-CT-001", "OUT-CT-002",
+        "FW-SN-001", "FW-SN-002", "FW-SN-005",
+        "FW-BT-001", "FW-BT-002",
+        "FW-DS-001", "FW-DS-002", "FW-DS-003", "FW-DS-004", "FW-DS-005",
+        "ACC-CP-001", "ACC-CP-006",
+        "ACC-SK-003",
+        "ACC-BP-002", "ACC-BP-005",
+        "ACC-BL-001", "ACC-BL-003",
+        "ACC-SG-001", "ACC-SG-002"
+      ]
+    },
+    "Zava Pop-Up Tacoma Mall": {
+      "theme": "Family Casual",
+      "description": "South Sound location with practical, affordable, family-friendly clothing and basics",
+      "product_skus": [
+        "APP-TS-001", "APP-TS-002", "APP-TS-005", "APP-TS-007", "APP-TS-008",
+        "APP-FS-006", "APP-FS-007", "APP-FS-008",
+        "APP-HD-001", "APP-HD-002", "APP-HD-005",
+        "APP-SW-001", "APP-SW-002",
+        "APP-FL-001", "APP-FL-002",
+        "APP-JN-001", "APP-JN-003", "APP-JN-006",
+        "APP-PN-001", "APP-PN-002", "APP-PN-003",
+        "APP-SH-001", "APP-SH-002", "APP-SH-003",
+        "OUT-JK-002", "OUT-JK-005", "OUT-JK-006", "OUT-JK-007", "OUT-JK-010",
+        "OUT-CT-004",
+        "FW-SN-001", "FW-SN-004", "FW-SN-006",
+        "FW-BT-001", "FW-BT-004", "FW-BT-005",
+        "ACC-CP-001", "ACC-CP-003", "ACC-CP-005", "ACC-CP-007",
+        "ACC-SK-001", "ACC-SK-005", "ACC-SK-006", "ACC-SK-008",
+        "ACC-BP-001", "ACC-BP-003", "ACC-BP-006",
+        "ACC-GL-001", "ACC-GL-003",
+        "ACC-BL-002"
+      ]
+    },
+    "Zava Pop-Up Spokane Pavilion": {
+      "theme": "Outdoor Adventure",
+      "description": "Eastern Washington location with focus on outdoor gear, hiking, and rugged wear",
+      "product_skus": [
+        "APP-TS-004", "APP-TS-008", "APP-TS-012",
+        "APP-FS-007", "APP-FS-008",
+        "APP-HD-001", "APP-HD-003", "APP-HD-006",
+        "APP-SW-003",
+        "APP-FL-001", "APP-FL-002", "APP-FL-004",
+        "APP-JN-001", "APP-JN-003", "APP-JN-006",
+        "APP-PN-002", "APP-PN-003",
+        "APP-SH-002", "APP-SH-003",
+        "OUT-JK-002", "OUT-JK-005", "OUT-JK-006", "OUT-JK-008", "OUT-JK-009", "OUT-JK-010",
+        "OUT-CT-003", "OUT-CT-004",
+        "FW-SN-002", "FW-SN-006", "FW-SN-008",
+        "FW-BT-001", "FW-BT-003", "FW-BT-004", "FW-BT-005",
+        "FW-SD-001",
+        "ACC-CP-003", "ACC-CP-005", "ACC-CP-007", "ACC-CP-008",
+        "ACC-SK-001", "ACC-SK-004", "ACC-SK-005", "ACC-SK-007",
+        "ACC-BP-003", "ACC-BP-006", "ACC-BP-008",
+        "ACC-GL-001", "ACC-GL-002", "ACC-GL-003", "ACC-GL-004",
+        "ACC-SC-003", "ACC-SC-004"
+      ]
+    },
+    "Zava Pop-Up Everett Station": {
+      "theme": "Commuter Essentials",
+      "description": "Transit hub location with practical clothing, work wear, and travel accessories",
+      "product_skus": [
+        "APP-TS-001", "APP-TS-006", "APP-TS-007",
+        "APP-FS-001", "APP-FS-002", "APP-FS-003", "APP-FS-006",
+        "APP-HD-002", "APP-HD-007",
+        "APP-SW-003", "APP-SW-004",
+        "APP-JN-001", "APP-JN-002", "APP-JN-005",
+        "APP-PN-001", "APP-PN-003",
+        "APP-SH-001",
+        "OUT-JK-001", "OUT-JK-002", "OUT-JK-006", "OUT-JK-007",
+        "OUT-CT-002", "OUT-CT-004",
+        "FW-SN-001", "FW-SN-002", "FW-SN-004",
+        "FW-BT-002", "FW-BT-004",
+        "FW-DS-001", "FW-DS-002",
+        "ACC-CP-001", "ACC-CP-005",
+        "ACC-SK-002", "ACC-SK-003", "ACC-SK-006",
+        "ACC-BP-001", "ACC-BP-002", "ACC-BP-005", "ACC-BP-007", "ACC-BP-009",
+        "ACC-GL-002",
+        "ACC-SC-002",
+        "ACC-BL-001", "ACC-BL-002", "ACC-BL-003",
+        "ACC-SG-001", "ACC-SG-003"
+      ]
+    },
+    "Zava Pop-Up Redmond Town Center": {
+      "theme": "Tech Casual",
+      "description": "Tech hub location with smart casual, athleisure, and modern professional wear",
+      "product_skus": [
+        "APP-TS-002", "APP-TS-006", "APP-TS-008", "APP-TS-011",
+        "APP-FS-002", "APP-FS-003", "APP-FS-007",
+        "APP-HD-002", "APP-HD-003", "APP-HD-007",
+        "APP-SW-001", "APP-SW-003", "APP-SW-004",
+        "APP-JN-002", "APP-JN-004", "APP-JN-007",
+        "APP-PN-001", "APP-PN-003",
+        "APP-SH-001", "APP-SH-002",
+        "OUT-JK-001", "OUT-JK-003", "OUT-JK-007", "OUT-JK-009",
+        "FW-SN-001", "FW-SN-002", "FW-SN-005", "FW-SN-006", "FW-SN-007",
+        "FW-BT-002",
+        "FW-DS-002",
+        "ACC-CP-001", "ACC-CP-002",
+        "ACC-SK-001", "ACC-SK-002", "ACC-SK-004",
+        "ACC-BP-001", "ACC-BP-002", "ACC-BP-004", "ACC-BP-006",
+        "ACC-GL-002",
+        "ACC-BL-002", "ACC-BL-003",
+        "ACC-SG-002", "ACC-SG-003"
+      ]
+    },
+    "Zava Pop-Up Kirkland Waterfront": {
+      "theme": "Lifestyle Boutique",
+      "description": "Upscale waterfront location with curated fashion, premium casual, and accessories",
+      "product_skus": [
+        "APP-TS-002", "APP-TS-003", "APP-TS-009", "APP-TS-010", "APP-TS-011",
+        "APP-FS-001", "APP-FS-004", "APP-FS-006",
+        "APP-HD-004", "APP-HD-005",
+        "APP-SW-002",
+        "APP-FL-003", "APP-FL-004",
+        "APP-JN-002", "APP-JN-004", "APP-JN-007", "APP-JN-008", "APP-JN-009",
+        "APP-PN-001", "APP-PN-004",
+        "APP-SH-001", "APP-SH-004",
+        "OUT-JK-001", "OUT-JK-003", "OUT-JK-004", "OUT-JK-006",
+        "OUT-CT-001", "OUT-CT-002",
+        "FW-SN-001", "FW-SN-003", "FW-SN-005", "FW-SN-007",
+        "FW-BT-002",
+        "FW-DS-002", "FW-DS-003", "FW-DS-004",
+        "FW-SD-001", "FW-SD-003",
+        "ACC-CP-002", "ACC-CP-004", "ACC-CP-006",
+        "ACC-SK-002", "ACC-SK-006",
+        "ACC-BP-004", "ACC-BP-007", "ACC-BP-009",
+        "ACC-SC-001", "ACC-SC-002",
+        "ACC-BL-001", "ACC-BL-003", "ACC-BL-004",
+        "ACC-SG-001", "ACC-SG-002", "ACC-SG-004"
+      ]
+    }
+  },
+  "product_distribution_rules": {
+    "essential_items": {
+      "description": "Core items that should appear in most popup stores",
+      "skus": ["APP-TS-001", "APP-JN-001", "OUT-JK-006", "FW-SN-001", "ACC-CP-001", "ACC-SK-001"]
+    },
+    "seasonal_priority": {
+      "winter": {
+        "categories": ["Outerwear", "Gloves", "Scarves", "Beanies"],
+        "boost_stores": ["Zava Pop-Up Spokane Pavilion", "Zava Pop-Up Everett Station"]
+      },
+      "summer": {
+        "categories": ["T-Shirts", "Shorts", "Sandals", "Sunglasses"],
+        "boost_stores": ["Zava Pop-Up Pike Place", "Zava Pop-Up Kirkland Waterfront"]
+      }
+    },
+    "store_size_distribution": {
+      "large_stores": {
+        "stores": ["Zava Pop-Up Pike Place", "Zava Pop-Up Bellevue Square"],
+        "target_products": "48-55"
+      },
+      "medium_stores": {
+        "stores": ["Zava Pop-Up Tacoma Mall", "Zava Pop-Up Spokane Pavilion"],
+        "target_products": "45-52"
+      },
+      "small_stores": {
+        "stores": ["Zava Pop-Up Everett Station", "Zava Pop-Up Redmond Town Center", "Zava Pop-Up Kirkland Waterfront"],
+        "target_products": "42-48"
+      }
+    }
+  },
+  "notes": {
+    "design_philosophy": "Each popup store has a distinct theme and product mix to create realistic scenarios where customers may need to visit multiple stores or order items not in stock",
+    "agent_use_cases": [
+      "Customer asks for product not in current store - agent finds it at another location",
+      "Store needs to reorder popular items - agent checks other stores or suppliers",
+      "Customer wants to know which store has specific product category",
+      "Agent suggests alternative stores based on product theme/specialty"
+    ],
+    "overlapping_products": "~20-30% overlap between stores for core essentials, 70-80% unique assortment",
+    "total_products": 129,
+    "avg_products_per_popup": 48,
+    "online_store": "Carries all 129 products"
+  }
+}

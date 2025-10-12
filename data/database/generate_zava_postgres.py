@@ -7,6 +7,8 @@ and vector embeddings support for PostgreSQL with pgvector extension.
 DATA FILE STRUCTURE:
 - product_data.json: Contains all product information (main_categories with products)
 - reference_data.json: Contains store configurations (weights, year weights)
+- supplier_data.json: Contains supplier information for clothing/apparel vendors
+- store_products.json: Maps which SKUs each store carries (for reproducible inventory)
 
 POSTGRESQL CONNECTION:
 - Requires PostgreSQL with pgvector extension enabled
@@ -20,6 +22,7 @@ FEATURES:
 - Vector similarity indexing with pgvector
 - Performance-optimized indexes
 - Comprehensive statistics and verification
+- Reproducible store product assignments (via store_products.json)
 
 USAGE:
     python generate_zava_postgres.py                     # Generate complete database
@@ -105,6 +108,22 @@ product_data = load_product_data()
 # Get reference data from loaded JSON
 main_categories = product_data['main_categories']
 stores = reference_data['stores']
+
+# Load store products configuration
+def load_store_products():
+    """Load store products configuration from JSON file"""
+    try:
+        store_products_path = os.path.join(os.path.dirname(__file__), 'store_products.json')
+        with open(store_products_path, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logging.warning("store_products.json not found - using random product selection")
+        return None
+    except Exception as e:
+        logging.warning(f"Error loading store_products.json: {e} - using random product selection")
+        return None
+
+store_products_config = load_store_products()
 
 # Check if seasonal trends are available
 seasonal_categories = []
@@ -894,82 +913,78 @@ async def insert_product_types(conn):
         raise
 
 async def insert_suppliers(conn):
-    """Insert supplier data into the database with enterprise-focused suppliers"""
+    """Insert supplier data into the database from JSON file"""
     try:
-        logging.info("Generating suppliers for enterprise procurement...")
+        logging.info("Loading suppliers from supplier_data.json...")
         
-        # Define realistic DIY suppliers for home improvement and crafting with enterprise requirements
-        suppliers_data = [
-            # Premium DIY Tool & Hardware Suppliers
-            ("ProBuild Industrial Supply", "PBS001", "procurement@probuild.com", "(555) 123-4567", 
-             "1234 Industrial Blvd", "Suite 100", "Atlanta", "GA", "30309", "USA", "Net 30", 10, 5000.00, 25000.00, 8.0, 4.8, True, True, True),
+        # Load supplier data from JSON file
+        supplier_json_path = os.path.join(os.path.dirname(__file__), 'supplier_data.json')
+        
+        if not os.path.exists(supplier_json_path):
+            raise FileNotFoundError(f"Supplier data file not found: {supplier_json_path}")
+        
+        with open(supplier_json_path, 'r') as f:
+            supplier_config = json.load(f)
+        
+        suppliers_from_json = supplier_config.get('suppliers', [])
+        
+        if not suppliers_from_json:
+            raise ValueError("No suppliers found in supplier_data.json")
+        
+        logging.info(f"Loaded {len(suppliers_from_json)} suppliers from JSON file")
+        
+        # Transform JSON data into database format
+        supplier_insert_data = []
+        for idx, supplier in enumerate(suppliers_from_json, 1):
+            # Generate supplier code if not provided
+            supplier_code = f"SUP{idx:03d}"
             
-            ("MasterCraft Tools Direct", "MCT002", "orders@mastercraft.com", "(555) 234-5678",
-             "5678 Workshop Way", "", "Detroit", "MI", "48201", "USA", "Net 30", 14, 3000.00, 15000.00, 6.5, 4.6, True, True, True),
+            # Parse address (assuming single address string, split into components)
+            address = supplier.get('address', '')
+            address_parts = address.split(',') if address else ['', '', '', '']
             
-            ("Eco-Build Materials Co", "EBM003", "supply@ecobuild.com", "(555) 345-6789",
-             "9012 Sustainable Blvd", "Building B", "Portland", "OR", "97201", "USA", "Net 30", 12, 2500.00, 12000.00, 7.0, 4.9, True, True, True),
+            # Extract components
+            address_line1 = address_parts[0].strip() if len(address_parts) > 0 else ''
+            city = address_parts[1].strip() if len(address_parts) > 1 else ''
+            state = address_parts[2].strip().split()[0] if len(address_parts) > 2 else 'WA'
+            postal_code = address_parts[2].strip().split()[1] if len(address_parts) > 2 and len(address_parts[2].strip().split()) > 1 else '98000'
             
-            ("Precision Hardware Systems", "PHS004", "sales@precisionhw.com", "(555) 456-7890",
-             "3456 Fabrication St", "", "Houston", "TX", "77001", "USA", "Net 30", 15, 2000.00, 10000.00, 5.5, 4.3, True, True, True),
+            # Calculate bulk discount threshold and percentage
+            min_order = supplier.get('min_order_amount', 500.00)
+            bulk_threshold = min_order * 5  # Bulk discounts at 5x minimum order
+            bulk_discount = random.uniform(5.0, 10.0)  # 5-10% bulk discount
             
-            # Mid-tier DIY Suppliers
-            ("HomeBuilder Supply Chain", "HBS005", "wholesale@homebuilder.com", "(555) 567-8901",
-             "7890 Construction Plaza", "Floor 2", "Chicago", "IL", "60601", "USA", "Net 30", 18, 1500.00, 8000.00, 5.0, 4.1, True, True, False),
+            # Determine vendor status based on rating
+            rating = supplier.get('rating', 4.0)
+            is_preferred = supplier.get('is_preferred', rating >= 4.5)
+            approved_vendor = True  # All loaded suppliers are approved
+            esg_compliant = is_preferred  # Preferred vendors are ESG compliant
             
-            ("Craft & Build Distributors", "CBD006", "info@craftbuild.com", "(555) 678-9012",
-             "2468 Maker Ave", "", "Phoenix", "AZ", "85001", "USA", "Net 45", 21, 1000.00, 6000.00, 4.5, 3.9, True, True, False),
-            
-            ("Workshop Essentials Ltd", "WEL007", "orders@workshop.com", "(555) 789-0123",
-             "1357 Tools Blvd", "", "Cleveland", "OH", "44101", "USA", "Net 45", 25, 800.00, 4000.00, 4.2, 3.8, True, True, False),
-            
-            ("DIY Central Warehouse", "DCW008", "supply@diycentral.com", "(555) 890-1234",
-             "9753 Wholesale Way", "", "Las Vegas", "NV", "89101", "USA", "Net 60", 28, 500.00, 3000.00, 3.8, 3.6, True, True, False),
-            
-            # Budget-friendly DIY Suppliers
-            ("Value Hardware Direct", "VHD009", "sales@valuehardware.com", "(555) 901-2345",
-             "4682 Discount Row", "Unit A", "Oklahoma City", "OK", "73101", "USA", "Net 60", 30, 250.00, 2000.00, 3.2, 3.4, False, True, False),
-            
-            ("Budget Builder Supply", "BBS010", "orders@budgetbuilder.com", "(555) 012-3456",
-             "1975 Economy Plaza", "", "Memphis", "TN", "38101", "USA", "Net 60", 35, 200.00, 1500.00, 2.8, 3.2, False, True, False),
-            
-            # Specialty DIY Suppliers
-            ("PowerTool Professionals", "PTP011", "pro@powertool.com", "(555) 123-7890",
-             "8642 Electric Ave", "", "Milwaukee", "WI", "53201", "USA", "Net 30", 12, 3500.00, 18000.00, 7.5, 4.5, True, True, True),
-            
-            ("Lumber & Wood Specialists", "LWS012", "timber@lumberwood.com", "(555) 234-8901",
-             "5309 Forest Lane", "", "Seattle", "WA", "98101", "USA", "Net 30", 16, 2200.00, 11000.00, 6.8, 4.4, True, True, True),
-            
-            ("Hardware & Fasteners Plus", "HFP013", "fasteners@hardwareplus.com", "(555) 345-9012",
-             "7531 Bolt Street", "Suite 200", "Pittsburgh", "PA", "15201", "USA", "Net 30", 14, 1800.00, 9000.00, 5.8, 4.2, True, True, False),
-            
-            ("Garden & Outdoor Supply", "GOS014", "garden@outdoorsupply.com", "(555) 456-0123",
-             "9642 Landscape Blvd", "", "San Diego", "CA", "92101", "USA", "Net 45", 20, 1200.00, 7000.00, 5.2, 4.0, True, True, False),
-            
-            ("Plumbing & Electrical Depot", "PED015", "trades@plumbingelectric.com", "(555) 567-1234",
-             "3174 Trades Circle", "", "Indianapolis", "IN", "46201", "USA", "Net 30", 18, 2800.00, 14000.00, 6.2, 4.3, True, True, True),
-            
-            ("Paint & Finishing Solutions", "PFS016", "paint@finishingsolutions.com", "(555) 678-2345",
-             "8520 Color Way", "Building C", "Denver", "CO", "80201", "USA", "Net 30", 22, 1600.00, 8500.00, 5.5, 3.9, True, True, False),
-            
-            ("Safety & Work Gear Supply", "SWG017", "safety@workgear.com", "(555) 789-3456",
-             "4863 Protection Pkwy", "", "Nashville", "TN", "37201", "USA", "Net 30", 15, 2400.00, 12000.00, 6.5, 4.4, True, True, True),
-            
-            ("Automotive DIY Parts", "ADP018", "auto@diyparts.com", "(555) 890-4567",
-             "6297 Motor Mile", "", "Detroit", "MI", "48202", "USA", "Net 45", 25, 1400.00, 6500.00, 4.8, 3.7, True, True, False),
-            
-            ("Craft & Hobby Wholesale", "CHW019", "craft@hobbywholesale.com", "(555) 901-5678",
-             "7418 Creative Circle", "Suite 150", "Austin", "TX", "78701", "USA", "Net 30", 12, 800.00, 4500.00, 4.5, 3.8, True, True, False),
-            
-            ("Industrial Adhesives & Chemicals", "IAC020", "chemicals@industrial.com", "(555) 012-6789",
-             "9135 Chemical Way", "", "Baton Rouge", "LA", "70801", "USA", "Net 30", 10, 5500.00, 28000.00, 8.2, 4.7, True, True, True),
-        ]
+            supplier_insert_data.append((
+                supplier.get('name', f'Supplier {idx}'),
+                supplier_code,
+                supplier.get('email', f'contact{idx}@supplier.com'),
+                supplier.get('phone', f'(555) {idx:03d}-0000'),
+                address_line1,
+                '',  # address_line2
+                city,
+                state,
+                postal_code,
+                'USA',
+                supplier.get('payment_terms', 'Net 30'),
+                supplier.get('lead_time_days', 14),
+                min_order,
+                bulk_threshold,
+                bulk_discount,
+                rating,
+                esg_compliant,
+                approved_vendor,
+                is_preferred
+            ))
+        
+        logging.info(f"Prepared {len(supplier_insert_data)} suppliers for insertion...")
         
         # Insert supplier data
-        supplier_insert_data = []
-        for supplier in suppliers_data:
-            supplier_insert_data.append(supplier)
-        
         await batch_insert(conn, f"""
             INSERT INTO {SCHEMA_NAME}.suppliers (
                 supplier_name, supplier_code, contact_email, contact_phone,
@@ -979,7 +994,26 @@ async def insert_suppliers(conn):
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         """, supplier_insert_data)
         
-        logging.info(f"Successfully inserted {len(suppliers_data):,} suppliers!")
+        logging.info(f"Successfully inserted {len(supplier_insert_data):,} suppliers!")
+        
+        # Store category and product type mappings for later use
+        global SUPPLIER_CATEGORY_MAP
+        SUPPLIER_CATEGORY_MAP = {}
+        for supplier in suppliers_from_json:
+            supplier_name = supplier.get('name', '')
+            categories = supplier.get('categories', [])
+            product_types = supplier.get('product_types', [])
+            
+            for category in categories:
+                if category not in SUPPLIER_CATEGORY_MAP:
+                    SUPPLIER_CATEGORY_MAP[category] = []
+                SUPPLIER_CATEGORY_MAP[category].append(supplier_name)
+            
+            for product_type in product_types:
+                product_key = f"product_type:{product_type}"
+                if product_key not in SUPPLIER_CATEGORY_MAP:
+                    SUPPLIER_CATEGORY_MAP[product_key] = []
+                SUPPLIER_CATEGORY_MAP[product_key].append(supplier_name)
         
         # Insert initial supplier performance data
         logging.info("Generating supplier performance evaluations...")
@@ -1208,19 +1242,19 @@ async def insert_products(conn):
         if not supplier_rows:
             raise Exception("No suppliers found! Please insert suppliers first.")
         
-        # Create category-to-supplier mapping for realistic DIY assignments
-        category_supplier_mapping = {
-            'Tools': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Tool', 'MasterCraft', 'PowerTool', 'Hardware', 'ProBuild'])],
-            'Hardware': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Hardware', 'Precision', 'Fasteners', 'Industrial'])],
-            'Building Materials': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Build', 'Materials', 'Lumber', 'Wood'])],
-            'Home Improvement': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['HomeBuilder', 'Workshop', 'DIY', 'Value'])],
-            'Garden & Outdoor': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Garden', 'Outdoor', 'Eco'])],
-            'Electrical': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Electrical', 'Plumbing', 'PowerTool'])],
-            'Plumbing': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Plumbing', 'Hardware', 'Industrial'])],
-            'Paint & Supplies': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Paint', 'Finishing', 'Craft'])],
-            'Safety Equipment': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Safety', 'Work', 'Industrial'])],
-            'Automotive': [s for s in supplier_rows if any(word in s['supplier_name'] for word in ['Automotive', 'Tools', 'DIY'])],
-        }
+        # Use the SUPPLIER_CATEGORY_MAP created during supplier insertion
+        # This mapping was built from the supplier_data.json file's categories and product_types
+        category_supplier_mapping = {}
+        
+        # Create a dict for quick supplier lookup by name
+        supplier_by_name = {s['supplier_name']: s for s in supplier_rows}
+        
+        # Build category mapping from SUPPLIER_CATEGORY_MAP
+        for category, supplier_names in SUPPLIER_CATEGORY_MAP.items():
+            if not category.startswith('product_type:'):  # Only process category entries
+                category_supplier_mapping[category] = [
+                    supplier_by_name[name] for name in supplier_names if name in supplier_by_name
+                ]
         
         # Default suppliers for any unmapped categories
         default_suppliers = supplier_rows[:5]  # Use top 5 suppliers as default
@@ -1683,13 +1717,16 @@ async def insert_inventory(conn):
     try:
         logging.info("Generating inventory with seasonal considerations...")
         
-        # Get all stores and products with category information
-        stores_data = await conn.fetch(f"SELECT store_id, store_name FROM {SCHEMA_NAME}.stores")
+        # Get all stores and products with category and SKU information
+        stores_data = await conn.fetch(f"SELECT store_id, store_name, is_online FROM {SCHEMA_NAME}.stores")
         products_data = await conn.fetch(f"""
-            SELECT p.product_id, c.category_name 
+            SELECT p.product_id, p.sku, c.category_name 
             FROM {SCHEMA_NAME}.products p
             JOIN {SCHEMA_NAME}.categories c ON p.category_id = c.category_id
         """)
+        
+        # Build SKU to product mapping for quick lookup
+        sku_to_product = {row['sku']: row for row in products_data}
         
         # Build category to seasonal multiplier mapping (using average across year for base inventory)
         category_seasonal_avg = {}
@@ -1697,6 +1734,7 @@ async def insert_inventory(conn):
             if 'washington_seasonal_multipliers' in category_data:
                 seasonal_multipliers = category_data['washington_seasonal_multipliers']
                 # Use average seasonal multiplier for inventory planning
+                # seasonal_multipliers is now a list of 12 values (one per month)
                 avg_multiplier = sum(seasonal_multipliers) / len(seasonal_multipliers)
                 category_seasonal_avg[category_name] = avg_multiplier
             else:
@@ -1704,25 +1742,63 @@ async def insert_inventory(conn):
         
         inventory_data = []
         
+        # Check if we have store products configuration
+        use_config = store_products_config is not None and 'store_specializations' in store_products_config
+        
+        if use_config:
+            logging.info("📦 Using store_products.json configuration for reproducible inventory assignments")
+            store_specializations = store_products_config['store_specializations']
+        else:
+            logging.info("⚠️  store_products.json not found - using random product selection")
+            store_specializations = None
+        
         for store in stores_data:
             store_id = store['store_id']
             store_name = store['store_name']
+            is_online = store['is_online']
             
             # Get store configuration for inventory distribution
             store_config = stores.get(store_name, {})
             base_stock_multiplier = store_config.get('customer_distribution_weight', 1.0)
             
-            for product in products_data:
+            # Determine which products this store carries
+            if use_config and store_name in store_specializations:
+                # Use configured SKU list for this store
+                assigned_skus = store_specializations[store_name]['product_skus']
+                selected_products = [sku_to_product[sku] for sku in assigned_skus if sku in sku_to_product]
+                logging.info(f"  {store_name}: carrying {len(selected_products)} products (from config)")
+            elif not is_online:
+                # Fallback: Randomly select 45-55 products for popup stores
+                num_products = random.randint(45, 55)
+                selected_products = random.sample(products_data, num_products)
+                logging.info(f"  {store_name}: carrying {num_products} of {len(products_data)} total products (random)")
+            else:
+                # Online store carries all products
+                selected_products = products_data
+                logging.info(f"  {store_name}: carrying all {len(products_data)} products")
+            
+            for product in selected_products:
                 product_id = product['product_id']
                 category_name = product['category_name']
                 
                 # Get seasonal multiplier for this category
                 seasonal_multiplier = category_seasonal_avg.get(category_name, 1.0)
                 
-                # Generate stock level based on store weight, seasonal trends, and random variation
-                base_stock = random.randint(10, 100)
-                stock_level = int(base_stock * base_stock_multiplier * seasonal_multiplier * random.uniform(0.5, 1.5))
-                stock_level = max(1, stock_level)  # Ensure at least 1 item in stock
+                # Popup stores have limited inventory - much lower stock levels
+                # Online stores can have more inventory
+                if 'Online' in store_name:
+                    # Online store: 30-120 units base stock
+                    base_stock = random.randint(30, 120)
+                else:
+                    # Popup stores: 5-40 units base stock (limited retail space)
+                    base_stock = random.randint(5, 40)
+                
+                # Apply store weight (smaller popup stores have even less)
+                # Scale down the multiplier effect for popup stores
+                adjusted_multiplier = 0.3 + (base_stock_multiplier / 100.0)  # Much smaller impact
+                
+                stock_level = int(base_stock * adjusted_multiplier * seasonal_multiplier * random.uniform(0.8, 1.2))
+                stock_level = max(2, stock_level)  # Ensure at least 2 items in stock
                 
                 inventory_data.append((store_id, product_id, stock_level))
         
@@ -2281,10 +2357,53 @@ async def verify_seasonal_patterns(conn):
         logging.error(f"Error verifying seasonal patterns: {e}")
         raise
 
+async def recreate_database():
+    """Drop and recreate the zava database"""
+    try:
+        # Connect to postgres database to drop/create zava
+        logging.info("Connecting to postgres database to recreate zava...")
+        conn = await asyncpg.connect(
+            host=POSTGRES_CONFIG['host'],
+            port=POSTGRES_CONFIG['port'],
+            database='postgres',  # Connect to postgres database
+            user=POSTGRES_CONFIG['user'],
+            password=POSTGRES_CONFIG['password']
+        )
+        
+        try:
+            # Terminate existing connections to zava database
+            logging.info("Terminating existing connections to zava database...")
+            await conn.execute("""
+                SELECT pg_terminate_backend(pg_stat_activity.pid)
+                FROM pg_stat_activity
+                WHERE pg_stat_activity.datname = 'zava'
+                  AND pid <> pg_backend_pid()
+            """)
+            
+            # Drop database if it exists
+            logging.info("Dropping database 'zava' if it exists...")
+            await conn.execute("DROP DATABASE IF EXISTS zava")
+            logging.info("✓ Database dropped")
+            
+            # Create database
+            logging.info("Creating database 'zava'...")
+            await conn.execute("CREATE DATABASE zava")
+            logging.info("✓ Database created")
+            
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        logging.error(f"Error recreating database: {e}")
+        raise
+
 async def generate_postgresql_database(num_customers: int = 50000):
     """Generate complete PostgreSQL database"""
     try:
-        # Create connection
+        # Drop and recreate the database first
+        await recreate_database()
+        
+        # Create connection to the new database
         conn = await create_connection()
         
         try:

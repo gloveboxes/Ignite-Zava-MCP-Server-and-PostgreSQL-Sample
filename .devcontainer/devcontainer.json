@@ -10,7 +10,7 @@
         "ghcr.io/devcontainers/features/azure-cli:1": {
             "extensions": "ml"
         },
-        "ghcr.io/devcontainers/features/docker-in-docker": {},
+    "ghcr.io/devcontainers/features/docker-in-docker": {}
     },
     "customizations": {
         "vscode": {
