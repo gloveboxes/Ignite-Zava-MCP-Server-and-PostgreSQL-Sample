@@ -20,7 +20,8 @@
                 "ms-ossdata.vscode-pgsql",
                 "charliermarsh.ruff",
                 "ms-azuretools.vscode-bicep",
-                "ms-python.debugpy"
+                "ms-python.debugpy",
+                "GitHub.copilot-chat"
             ]
         }
     },
