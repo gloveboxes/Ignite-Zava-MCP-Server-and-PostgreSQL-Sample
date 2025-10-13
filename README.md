@@ -1,5 +1,9 @@
 # Sales Analysis MCP Server
 
+## For a comprehensive view of data
+
+See [ZAVA RETAIL DATABASE DOCUMENTATION](ZAVA_RETAIL_DATABASE_DOCUMENTATION.md)
+
 A Model Context Protocol (MCP) server that provides comprehensive customer sales database access for Zava Retail DIY Business. This server enables AI assistants to query and analyze retail sales data through a secure, schema-aware interface.
 
 ## Prerequisites
@@ -12,7 +16,6 @@ A Model Context Protocol (MCP) server that provides comprehensive customer sales
 ## Getting Started
 
 Open a terminal window and running the following commands:
-
 1. Authenticate with Azure CLI
 
     ```bash
