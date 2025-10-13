@@ -156,7 +156,7 @@ container run -d --name "${CONTAINER_NAME}" \
 -e POSTGRES_DB="${POSTGRES_DB}" \
 -e PGDATA=/var/lib/postgresql/data/pgdata \
 --volume "${ASIF_MOUNT_POINT}/pgdata:/var/lib/postgresql/data" \
---volume "/Users/dave/GitHub/mcp_server_container/data:/backup_data" \
+--volume "$(pwd)/data:/backup_data" \
 "${PG_IMAGE}" || die "Failed to start container"
 
 # Show container status
