@@ -8,7 +8,7 @@ from agent_framework import (
     WorkflowContext,
     handler,
 )
-from agent_framework.azure import AzureOpenAIChatClient
+from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
 from azure.identity import DefaultAzureCredential
 
 from app.config import Config
@@ -24,11 +24,11 @@ class DepartmentExtractor(Executor):
 
     agent: ChatAgent
 
-    def __init__(self, chat_client: AzureOpenAIChatClient, id: str = "writer"):
+    def __init__(self, responses_client: AzureOpenAIResponsesClient, id: str = "writer"):
         # Create a domain specific agent using your configured AzureOpenAIChatClient.
-        self.agent = chat_client.create_agent(
+        self.agent = responses_client.create_agent(
             instructions=(
-                "You are an excellent content writer. You create new content and edit contents based on the feedback."
+                "You determine which department the user question is about."
             ),
         )
         # Associate the agent with this executor node. The base Executor stores it on self.agent.
@@ -99,9 +99,10 @@ class Summarizer(Executor):
 
 
 chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
+responses_client = AzureOpenAIResponsesClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
 
 # Instantiate the two agent backed executors.
-writer = DepartmentExtractor(chat_client)
+writer = DepartmentExtractor(responses_client)
 policy = PolicyExecutor(finance_provider)
 summarizer = Summarizer(chat_client)
 
