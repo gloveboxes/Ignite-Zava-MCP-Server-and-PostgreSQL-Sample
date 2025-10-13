@@ -9,17 +9,22 @@ from agent_framework import (
     handler,
 )
 from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
+from agent_framework.openai import OpenAIChatClient, OpenAIResponsesClient
 from azure.identity import DefaultAzureCredential
 
 from app.config import Config
 from app.finance_postgres import FinancePostgreSQLProvider
 
 from pydantic import BaseModel
+import os
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
 
 class DepartmentRequest(BaseModel):
     department: str
 
-class DepartmentExtractor(Executor):
+class DepartmentExtractorResponses(Executor):
     """Custom executor that extracts department information from messages."""
 
     agent: ChatAgent
@@ -43,6 +48,29 @@ class DepartmentExtractor(Executor):
         else:
             raise ValueError("Department not found")
 
+class DepartmentExtractor(Executor):
+    """Custom executor that extracts department information from messages."""
+
+    agent: ChatAgent
+
+    def __init__(self, responses_client: AzureOpenAIChatClient, id: str = "writer"):
+        # Create a domain specific agent using your configured AzureOpenAIChatClient.
+        self.agent = responses_client.create_agent(
+            instructions=(
+                "You determine which department the user question is about. Reply only with the department name. Nothing else."
+            ),
+        )
+        # Associate the agent with this executor node. The base Executor stores it on self.agent.
+        super().__init__(id=id)
+
+    @handler
+    async def handle(self, message: ChatMessage, ctx: WorkflowContext[DepartmentRequest]) -> None:
+        """Extract department data"""
+        response = await self.agent.run(message)
+        department_request = DepartmentRequest(department=response.text)
+        await ctx.send_message(department_request)
+
+
 # Initialize configuration
 config = Config()
 
@@ -58,14 +86,15 @@ class PolicyExecutor(Executor):
         super().__init__(id=id)
 
     @handler
-    async def handle(self, department: DepartmentRequest, ctx: WorkflowContext[list[ChatMessage], str]) -> None:
+    async def handle(self, department: DepartmentRequest, ctx: WorkflowContext[str]) -> None:
         """Identify and flag any policy violations in the workflow."""
 
+        await self.finance_provider.create_pool()
         result = await self.finance_provider.get_company_order_policy(
             department=department.department
         )
 
-        await ctx.send_message(result.messages)
+        await ctx.send_message(result)
 
 
 class Summarizer(Executor):
@@ -88,7 +117,7 @@ class Summarizer(Executor):
         super().__init__(id=id)
 
     @handler
-    async def handle(self, messages: list[ChatMessage], ctx: WorkflowContext[list[ChatMessage], str]) -> None:
+    async def handle(self, messages: str, ctx: WorkflowContext[list[ChatMessage], str]) -> None:
         """Review the full conversation transcript and complete with a final string.
 
         This node consumes all messages so far. It uses its agent to produce the final text,
@@ -98,11 +127,15 @@ class Summarizer(Executor):
         await ctx.yield_output(response.text)
 
 
-chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
-responses_client = AzureOpenAIResponsesClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
+if GITHUB_TOKEN:
+    chat_client = OpenAIChatClient(base_url="https://models.github.ai/inference", model_id="openai/gpt-4.1-mini", api_key=GITHUB_TOKEN)
+    responses_client = OpenAIResponsesClient(base_url="https://models.github.ai/inference", model_id="openai/gpt-4.1-mini", api_key=GITHUB_TOKEN)
+else:
+    chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
+    responses_client = AzureOpenAIResponsesClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
 
 # Instantiate the two agent backed executors.
-writer = DepartmentExtractor(responses_client)
+writer = DepartmentExtractor(chat_client)
 policy = PolicyExecutor(finance_provider)
 summarizer = Summarizer(chat_client)
 
