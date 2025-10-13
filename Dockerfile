@@ -20,13 +20,13 @@ RUN pip install --no-cache-dir -r requirements.lock.txt \
     && find /usr/local/lib/python3.11/site-packages -type d -name "__pycache__" -exec rm -rf {} +
 
 # Copy only necessary app code
-COPY mcp_server/ /app/mcp_server/
+COPY app/ /app/app/
 
 EXPOSE 8000
 ENV PORT=8000 \
     AZURE_EXTENSION_USE_DYNAMIC_INSTALL=yes_without_prompt
 
 # Add a health check to periodically verify the container's health
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD python -m mcp_server.health_check || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD python -m app.health_check || exit 1
 
-CMD ["python", "-m", "mcp_server.sales_analysis"]
+CMD ["python", "-m", "app.sales_analysis"]

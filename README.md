@@ -295,7 +295,7 @@ The server implements robust error handling:
 ### Project Structure
 
 ```text
-mcp_server/
+app/
 ├── sales_analysis.py          # Main MCP server implementation
 ├── sales_analysis_postgres.py # PostgreSQL integration layer
 ├── sales_analysis_text_embedding.py # Text embedding for semantic search tool
