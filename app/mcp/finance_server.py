@@ -9,21 +9,8 @@ The server uses pre-written SQL queries (not dynamically generated SQL) and
 the empty GUID for RLS for simplicity.
 """
 
-import sys
-import os
-
-# Handle imports for both direct execution and module usage
-try:
-    from .finance_postgres import FinancePostgreSQLProvider
-    from .config import Config
-except ImportError:
-    # Fallback for direct execution
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(current_dir)
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
-    from app.finance_postgres import FinancePostgreSQLProvider
-    from app.config import Config
+from ..finance_postgres import FinancePostgreSQLProvider
+from ..config import Config
 
 import asyncio
 import json
@@ -45,7 +32,7 @@ logging.basicConfig(
 for name in [
     "azure.core.pipeline.policies.http_logging_policy",
     "azure.ai.agents",
-    "azure.ai.projects", 
+    "azure.ai.projects",
     "azure.core",
     "azure.identity",
     "uvicorn.access",

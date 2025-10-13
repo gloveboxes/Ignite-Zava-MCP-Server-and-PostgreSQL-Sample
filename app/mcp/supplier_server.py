@@ -20,16 +20,8 @@ from mcp.server.fastmcp import Context, FastMCP
 from opentelemetry.instrumentation.starlette import StarletteInstrumentor
 from pydantic import Field
 
-try:
-    from .config import Config
-    from .supplier_postgres import SupplierPostgreSQLProvider
-except ImportError:
-    # Handle direct execution (not as module)
-    import sys
-    import os
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from app.config import Config
-    from app.supplier_postgres import SupplierPostgreSQLProvider
+from ..config import Config
+from ..supplier_postgres import SupplierPostgreSQLProvider
 
 config = Config()
 logger = logging.getLogger(__name__)
