@@ -4,5 +4,7 @@ name: zava_mcp_server
 # Local PostgreSQL container has been removed since we use Azure Database for PostgreSQL
 
 services:
-  # No services needed - MCP servers run directly via VS Code tasks
-  # This docker-compose.yml is kept for potential future local services
+  # Placeholder service to maintain valid Docker Compose structure
+  placeholder:
+    image: alpine:latest
+    command: echo "Using Azure PostgreSQL - no local services needed"

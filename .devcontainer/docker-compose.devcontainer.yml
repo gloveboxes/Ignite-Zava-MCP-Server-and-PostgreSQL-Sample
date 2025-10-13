@@ -7,7 +7,6 @@ services:
       - .:/workspace:cached
     command: sleep infinity
     working_dir: /workspace
-    # Note: No longer depends on local postgres since we use Azure PostgreSQL
     environment:
-      # PostgreSQL connection will be configured via .env file after Azure deployment
+      # Azure PostgreSQL configuration will be loaded from .env file
       - AZURE_EXTENSION_USE_DYNAMIC_INSTALL=yes_without_prompt
