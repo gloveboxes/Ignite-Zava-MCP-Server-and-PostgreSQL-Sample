@@ -48,6 +48,18 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "🤵 Agent UI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "app.agents",
+            "console": "integratedTerminal",
+            "consoleName": "Agent UI",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ],
     "compounds": [
