@@ -25,3 +25,6 @@ PyYAML>=6.0,<7.0.0
 # OpenTelemetry for observability
 opentelemetry-instrumentation-starlette>=0.57b0, <1.0.0
 opentelemetry-instrumentation-asyncpg>=0.57b0, <1.0.0
+
+# MAF
+agent-framework-core --pre
