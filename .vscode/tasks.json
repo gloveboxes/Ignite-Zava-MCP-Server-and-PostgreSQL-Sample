@@ -29,7 +29,7 @@
             "label": "Start Supplier MCP Server Background",
             "type": "shell",
             "command": "python",
-            "args": ["-m", "mcp_server.supplier_mcp_server"],
+            "args": ["-m", "app.supplier_mcp_server"],
             "options": {
                 "cwd": "${workspaceFolder}",
                 "env": {
@@ -64,7 +64,7 @@
             "label": "Start Finance MCP Server Background",
             "type": "shell",
             "command": "python",
-            "args": ["-m", "mcp_server.finance_mcp_server"],
+            "args": ["-m", "app.finance_mcp_server"],
             "options": {
                 "cwd": "${workspaceFolder}",
                 "env": {

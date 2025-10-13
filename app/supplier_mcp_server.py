@@ -28,8 +28,8 @@ except ImportError:
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from mcp_server.config import Config
-    from mcp_server.supplier_postgres import SupplierPostgreSQLProvider
+    from app.config import Config
+    from app.supplier_postgres import SupplierPostgreSQLProvider
 
 config = Config()
 logger = logging.getLogger(__name__)

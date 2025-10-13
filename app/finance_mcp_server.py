@@ -22,8 +22,8 @@ except ImportError:
     parent_dir = os.path.dirname(current_dir)
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
-    from mcp_server.finance_postgres import FinancePostgreSQLProvider
-    from mcp_server.config import Config
+    from app.finance_postgres import FinancePostgreSQLProvider
+    from app.config import Config
 
 import asyncio
 import json
