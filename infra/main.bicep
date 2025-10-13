@@ -39,6 +39,10 @@ param models array = [
 @minLength(4)
 param uniqueSuffix string
 
+@description('PostgreSQL administrator password')
+@secure()
+param postgresqlAdminPassword string
+
 var resourceGroupName = toLower('rg-${resourcePrefix}-${uniqueSuffix}')
 
 var defaultTags = {
@@ -57,6 +61,7 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-11-01' = {
 var aiProjectName = toLower('prj-${resourcePrefix}-${uniqueSuffix}')
 var foundryResourceName = toLower('fdy-${resourcePrefix}-${uniqueSuffix}')
 var applicationInsightsName = toLower('appi-${resourcePrefix}-${uniqueSuffix}')
+var postgresqlServerName = toLower('psql-${resourcePrefix}-${uniqueSuffix}')
 
 module applicationInsights 'application-insights.bicep' = {
   name: 'application-insights-deployment'
@@ -64,6 +69,17 @@ module applicationInsights 'application-insights.bicep' = {
   params: {
     applicationInsightsName: applicationInsightsName
     location: location
+    tags: rootTags
+  }
+}
+
+module postgresql 'postgresql.bicep' = {
+  name: 'postgresql-deployment'
+  scope: rg
+  params: {
+    postgresqlServerName: postgresqlServerName
+    location: location
+    administratorPassword: postgresqlAdminPassword
     tags: rootTags
   }
 }
@@ -123,3 +139,7 @@ output deployedModels array = [for (model, index) in models: {
 output applicationInsightsName string = applicationInsights.outputs.applicationInsightsName
 output applicationInsightsConnectionString string = applicationInsights.outputs.connectionString
 output applicationInsightsInstrumentationKey string = applicationInsights.outputs.instrumentationKey
+output postgresqlServerName string = postgresql.outputs.serverName
+output postgresqlServerFqdn string = postgresql.outputs.serverFqdn
+output postgresqlDatabaseName string = postgresql.outputs.databaseName
+output postgresqlAdminLogin string = postgresql.outputs.administratorLogin

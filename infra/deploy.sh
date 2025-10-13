@@ -3,18 +3,13 @@ set -e  # Exit on any error
 
 echo "Deploying the Azure resources..."
 
-# --- Prompt for GPT model deployment ---
-read -p "Do you want to deploy the GPT-4o-mini model? (y/N): " DEPLOY_GPT
-case "$DEPLOY_GPT" in
-    [Yy]*)
-        INCLUDE_GPT_MODEL=true
-        echo "Including both GPT-4o-mini and text-embedding-3-small models"
-        ;;
-    *)
-        INCLUDE_GPT_MODEL=false
-        echo "Including only text-embedding-3-small model"
-        ;;
-esac
+# --- Always deploy both models ---
+INCLUDE_GPT_MODEL=true
+echo "Deploying both GPT-4o-mini and text-embedding-3-small models"
+
+# --- Generate secure password for PostgreSQL ---
+echo "Generating secure password for PostgreSQL..."
+POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 
 # --- Parameters (match deploy.ps1) ---
 RG_LOCATION="westus"
@@ -25,9 +20,8 @@ UNIQUE_SUFFIX=$(openssl rand -hex 2 | tr '[:upper:]' '[:lower:]')
 echo "Creating agent resources in resource group: rg-$RESOURCE_PREFIX-$UNIQUE_SUFFIX"
 DEPLOYMENT_NAME="azure-zava-mcp-server-$(date +%Y%m%d%H%M%S)"
 
-# --- Configure models array based on user choice ---
-if [ "$INCLUDE_GPT_MODEL" = true ]; then
-    MODELS_JSON='[
+# --- Configure models array (always deploy both models) ---
+MODELS_JSON='[
   {
     "name": "gpt-4o-mini",
     "format": "OpenAI",
@@ -43,17 +37,6 @@ if [ "$INCLUDE_GPT_MODEL" = true ]; then
     "capacity": 120
   }
 ]'
-else
-    MODELS_JSON='[
-  {
-    "name": "text-embedding-3-small",
-    "format": "OpenAI",
-    "version": "1",
-    "skuName": "GlobalStandard",
-    "capacity": 120
-  }
-]'
-fi
 
 echo "Starting Azure deployment..."
 if ! az deployment sub create \
@@ -65,6 +48,7 @@ if ! az deployment sub create \
   --parameters resourcePrefix="$RESOURCE_PREFIX" \
   --parameters uniqueSuffix="$UNIQUE_SUFFIX" \
   --parameters models="$MODELS_JSON" \
+  --parameters postgresqlAdminPassword="$POSTGRES_PASSWORD" \
   --output json > output.json; then
     echo "Deployment failed. Check output.json for details."
     exit 1
@@ -89,9 +73,18 @@ AI_PROJECT_NAME=$(jq -r '.properties.outputs.aiProjectName.value // empty' outpu
 AZURE_OPENAI_ENDPOINT=$(echo "$PROJECTS_ENDPOINT" | sed 's|api/projects/.*$||')
 APPLICATIONINSIGHTS_CONNECTION_STRING=$(jq -r '.properties.outputs.applicationInsightsConnectionString.value // empty' output.json)
 APPLICATION_INSIGHTS_NAME=$(jq -r '.properties.outputs.applicationInsightsName.value // empty' output.json)
+POSTGRESQL_SERVER_FQDN=$(jq -r '.properties.outputs.postgresqlServerFqdn.value // empty' output.json)
+POSTGRESQL_DATABASE_NAME=$(jq -r '.properties.outputs.postgresqlDatabaseName.value // empty' output.json)
+POSTGRESQL_ADMIN_LOGIN=$(jq -r '.properties.outputs.postgresqlAdminLogin.value // empty' output.json)
 
 if [ -z "$PROJECTS_ENDPOINT" ] || [ "$PROJECTS_ENDPOINT" = "null" ]; then
     echo "Error: projectsEndpoint not found. Possible deployment failure."
+    exit 1
+fi
+
+# Verify PostgreSQL outputs were also created
+if [ -z "$POSTGRESQL_SERVER_FQDN" ] || [ "$POSTGRESQL_SERVER_FQDN" = "null" ]; then
+    echo "Error: PostgreSQL server FQDN not found. Database deployment may have failed."
     exit 1
 fi
 
@@ -136,19 +129,15 @@ mkdir -p "$(dirname "$ENV_FILE_PATH")"
 # Remove existing .env file if it exists
 [ -f "$ENV_FILE_PATH" ] && rm -f "$ENV_FILE_PATH"
 
-# Configure GPT model deployment name based on what was deployed
-if [ "$INCLUDE_GPT_MODEL" = true ]; then
-    GPT_MODEL_LINE='GPT_MODEL_DEPLOYMENT_NAME="gpt-4o-mini"'
-else
-    GPT_MODEL_LINE='# GPT_MODEL_DEPLOYMENT_NAME="gpt-4o-mini"  # Not deployed'
-fi
+# Configure GPT model deployment name (always deployed)
+GPT_MODEL_LINE='GPT_MODEL_DEPLOYMENT_NAME="gpt-4o-mini"'
 
 cat > "$ENV_FILE_PATH" << EOF
-POSTGRES_DB_HOST=pg17
+POSTGRES_DB_HOST=$POSTGRESQL_SERVER_FQDN
 POSTGRES_DB_PORT=5432
-POSTGRES_DB="zava"
-POSTGRES_USER="postgres"
-POSTGRES_PASSWORD="change-me"
+POSTGRES_DB=$POSTGRESQL_DATABASE_NAME
+POSTGRES_USER=$POSTGRESQL_ADMIN_LOGIN
+POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
 POSTGRES_APPLICATION_NAME="mcp-server"
 PROJECT_ENDPOINT=$PROJECTS_ENDPOINT
 AZURE_OPENAI_ENDPOINT=$AZURE_OPENAI_ENDPOINT
@@ -173,6 +162,11 @@ Azure AI Foundry Resources:
 - AI Project Name: $AI_PROJECT_NAME
 - Foundry Resource Name: $AI_FOUNDRY_NAME
 - Application Insights Name: $APPLICATION_INSIGHTS_NAME
+
+PostgreSQL Database:
+- Server FQDN: $POSTGRESQL_SERVER_FQDN
+- Database Name: $POSTGRESQL_DATABASE_NAME
+- Administrator Login: $POSTGRESQL_ADMIN_LOGIN
 EOF
 
 # Clean up output.json
@@ -225,18 +219,93 @@ else
     exit 1
 fi
 
+# Check if PostgreSQL tools are available
+echo ""
+echo "Checking PostgreSQL connectivity tools..."
+
+# Verify postgresql-client is available (should be installed in container)
+if ! command -v psql &> /dev/null; then
+    echo "❌ Error: postgresql-client is not available."
+    echo "This should be installed in the dev container. Please rebuild the container."
+    exit 1
+fi
+echo "✅ PostgreSQL client is available."
+
+echo "Testing Azure PostgreSQL server connectivity..."
+echo "Server: $POSTGRESQL_SERVER_FQDN"
+echo "Database: $POSTGRESQL_DATABASE_NAME"
+echo "User: $POSTGRESQL_ADMIN_LOGIN"
+
+# Test connectivity with better error reporting
+MAX_ATTEMPTS=10
+ATTEMPT=1
+
+while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+    echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Testing PostgreSQL connectivity..."
+    
+    # Test with verbose output for debugging
+    if PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRESQL_SERVER_FQDN" -U "$POSTGRESQL_ADMIN_LOGIN" -d "$POSTGRESQL_DATABASE_NAME" -c "SELECT version();" 2>&1 | grep -q "PostgreSQL"; then
+        echo "✅ PostgreSQL server is ready and accessible!"
+        break
+    else
+        if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "⚠️  PostgreSQL connectivity test timed out after $MAX_ATTEMPTS attempts."
+            echo "This is likely due to:"
+            echo "  - Firewall rules still propagating (can take up to 15 minutes)"
+            echo "  - Network connectivity issues"
+            echo "  - Authentication configuration"
+            echo ""
+            echo "The server appears ready in Azure Portal, so continuing with database initialization..."
+            echo "If initialization fails, please wait a few minutes and run init-azure-db.sh manually."
+            break
+        else
+            echo "Connection failed. Waiting 30 seconds before retry..."
+            # Show last error for debugging
+            PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRESQL_SERVER_FQDN" -U "$POSTGRESQL_ADMIN_LOGIN" -d "$POSTGRESQL_DATABASE_NAME" -c "SELECT 1;" 2>&1 | head -n 2
+            sleep 30
+        fi
+    fi
+    
+    ATTEMPT=$((ATTEMPT + 1))
+done
+
+# Initialize Azure PostgreSQL database
+echo ""
+echo "Initializing Azure PostgreSQL database..."
+echo "Note: If this fails, you can run './init-azure-db.sh' manually later."
+echo ""
+
+if ./init-azure-db.sh; then
+    echo "✅ Database initialization completed successfully."
+else
+    echo ""
+    echo "⚠️  Database initialization encountered issues."
+    echo "This is common when firewall rules are still propagating."
+    echo ""
+    echo "🔧 To complete setup manually:"
+    echo "  1. Wait 5-10 minutes for firewall rules to fully propagate"
+    echo "  2. Run: cd infra && ./init-azure-db.sh"
+    echo "  3. Then run: ./validate-deployment.sh"
+    echo ""
+fi
+
 echo ""
 echo "🎉 Deployment completed successfully!"
+echo ""
+echo "🔍 Running deployment validation..."
+if ./validate-deployment.sh; then
+    echo "✅ All validation checks passed!"
+else
+    echo "⚠️  Some validation checks failed. Please review the output above."
+fi
 echo ""
 echo "📋 Resource Information:"
 echo "  Resource Group: $RESOURCE_GROUP_NAME"
 echo "  AI Project: $AI_PROJECT_NAME"
 echo "  Foundry Resource: $AI_FOUNDRY_NAME"
 echo "  Application Insights: $APPLICATION_INSIGHTS_NAME"
+echo "  PostgreSQL Server: $POSTGRESQL_SERVER_FQDN"
+echo "  PostgreSQL Database: $POSTGRESQL_DATABASE_NAME"
 echo "  Text Embedding Model Deployment: text-embedding-3-small"
-if [ "$INCLUDE_GPT_MODEL" = true ]; then
-    echo "  GPT Model Deployment: gpt-4o-mini"
-else
-    echo "  GPT Model Deployment: Not deployed (skipped by user choice)"
-fi
+echo "  GPT Model Deployment: gpt-4o-mini"
 echo ""

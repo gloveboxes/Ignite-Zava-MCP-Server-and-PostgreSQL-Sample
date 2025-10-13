@@ -38,7 +38,13 @@ Open a terminal window and running the following commands:
 
 Run the following scripts to automate the deployment of Azure resources needed for the MCP server.
 
-The deployment scripts will automatically deploy the `text-embedding-3-small` model. During deployment, you'll have the option to also include the `gpt-4o-mini` model. Note that `gpt-4o-mini` is **not required** for this project and is only included for potential future enhancements.
+The deployment scripts will automatically deploy:
+- **Azure AI Foundry** with both `text-embedding-3-small` and `gpt-4o-mini` models
+- **Azure Database for PostgreSQL** (Flexible Server) with pgvector extension
+- **Application Insights** for monitoring
+- Service principal with appropriate permissions
+
+The deployment will automatically initialize the PostgreSQL database with the Zava retail sample data.
 
 **Choose the script for your platform:**
 
@@ -58,7 +64,11 @@ cd infra && ./deploy.sh
 
 ## Running the MCP Server
 
-The easiest way to run the complete stack (PostgreSQL + MCP Server) is using Docker Compose:
+You can run the MCP server in two ways:
+
+### Option 1: Local Development with Docker Compose
+
+The easiest way to run the complete stack (PostgreSQL + MCP Server) locally is using Docker Compose:
 
 ### Start the Stack
 
@@ -78,6 +88,51 @@ docker compose logs -f pg17
 # Stop the stack
 docker compose down -v
 ```
+
+### Option 2: Using Azure PostgreSQL
+
+If you've deployed Azure resources using the deployment scripts above, the MCP server will automatically connect to your Azure PostgreSQL database using the configuration in `.env`.
+
+To run the MCP server locally while connecting to Azure PostgreSQL:
+
+```bash
+# Start the MCP servers (they will connect to Azure PostgreSQL)
+# Option 1: Using VS Code tasks
+# Use Ctrl+Shift+P -> "Tasks: Run Task" -> "Start Supplier and Finance MCP Servers"
+
+# Option 2: Using terminal
+python -m app.mcp.supplier_server &
+python -m app.mcp.finance_server &
+```
+
+The deployment script automatically creates a `.env` file with the correct Azure connection details.
+
+#### Manual Database Initialization
+
+If the automatic database initialization fails during deployment, you can initialize it manually:
+
+```bash
+cd infra
+./init-azure-db.sh
+```
+
+This script will:
+- Test the connection to Azure PostgreSQL
+- Enable required extensions (pgvector, plpgsql)
+- Create the store_manager user
+- Restore the Zava retail database from the backup file
+- Set up proper permissions
+
+#### Cleanup Azure Resources
+
+When you're done with the workshop, you can remove all Azure resources:
+
+```bash
+cd infra
+./cleanup.sh
+```
+
+This will remove the resource group and all associated resources, including the PostgreSQL database, AI models, and service principal.
 
 ## Usage
 
