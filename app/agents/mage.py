@@ -2,13 +2,13 @@ import logging
 
 from agent_framework import (
     ChatAgent,
+    MCPStreamableHTTPTool,
     MagenticBuilder,
 )
 from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
-from agent_framework.openai import OpenAIChatClient, OpenAIResponsesClient
 from azure.identity import DefaultAzureCredential
 
-from .finance_tools import get_company_order_policy, get_supplier_contract, get_historical_sales_data, get_current_inventory_status
+# from .finance_tools import get_company_order_policy, get_supplier_contract, get_historical_sales_data, get_current_inventory_status
 
 import os
 
@@ -51,24 +51,48 @@ researcher_agent = ChatAgent(
     instructions=(
         "You are a Researcher. You find information without additional computation or quantitative analysis."
     ),
-    # This agent requires the gpt-4o-search-preview model to perform web searches.
-    # Feel free to explore with other agents that support web search, for example,
-    # the `OpenAIResponseAgent` or `AzureAgentProtocol` with bing grounding.
     chat_client=chat_client,
 )
 
-coder_agent = ChatAgent(
+sales_mcp_tools = MCPStreamableHTTPTool(
+    name="SalesMCP",
+    url="http://localhost:8000/",
+    headers=None,
+    load_tools=True,
+    load_prompts=False,
+    request_timeout=30,
+)
+
+supplier_mcp_tools = MCPStreamableHTTPTool(
+    name="SupplierMCP",
+    url="http://localhost:8001/",
+    headers=None,
+    load_tools=True,
+    load_prompts=False,
+    request_timeout=30,
+)
+
+finance_mcp_tools = MCPStreamableHTTPTool(
+    name="FinanceMCP",
+    url="http://localhost:8002/",
+    headers=None,
+    load_tools=True,
+    load_prompts=False,
+    request_timeout=30,
+)
+
+finance_agent = ChatAgent(
     name="FinanceAgent",
     description="A helpful assistant that integrates with the backend finance data.",
     instructions="You solve questions using financial data and the tools provided.",
     chat_client=chat_client,
-    tools=[get_company_order_policy, get_supplier_contract, get_historical_sales_data, get_current_inventory_status],
+    tools=finance_mcp_tools,
 )
 
 
 workflow = (
     MagenticBuilder()
-    .participants(researcher=researcher_agent, coder=coder_agent)
+    .participants(researcher=researcher_agent, financier=finance_agent)
     # .on_event(on_event, mode=MagenticCallbackMode.STREAMING)
     .with_standard_manager(
         chat_client=chat_client,
