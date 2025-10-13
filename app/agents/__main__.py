@@ -5,8 +5,6 @@ from .stock import workflow as stock_workflow
 
 
 def main():
-    """Launch the spam detection workflow in DevUI."""
-
     port = os.environ.get("PORT", 8090)
 
     # Launch server with the workflow

@@ -11,13 +11,16 @@ from agent_framework import (
 from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import DefaultAzureCredential
 
-class Writer(Executor):
-    """Custom executor that owns a domain specific agent responsible for generating content.
+from app.config import Config
+from app.finance_postgres import FinancePostgreSQLProvider
 
-    This class demonstrates:
-    - Attaching a ChatAgent to an Executor so it participates as a node in a workflow.
-    - Using a @handler method to accept a typed input and forward a typed output via ctx.send_message.
-    """
+from pydantic import BaseModel
+
+class DepartmentRequest(BaseModel):
+    department: str
+
+class DepartmentExtractor(Executor):
+    """Custom executor that extracts department information from messages."""
 
     agent: ChatAgent
 
@@ -32,28 +35,41 @@ class Writer(Executor):
         super().__init__(id=id)
 
     @handler
-    async def handle(self, message: ChatMessage, ctx: WorkflowContext[list[ChatMessage], str]) -> None:
-        """Generate content using the agent and forward the updated conversation.
+    async def handle(self, message: ChatMessage, ctx: WorkflowContext[DepartmentRequest]) -> None:
+        """Extract department data"""
+        response = await self.agent.run(message, response_format=DepartmentRequest)
+        if response.value:
+            await ctx.send_message(response.value)
+        else:
+            raise ValueError("Department not found")
 
-        Contract for this handler:
-        - message is the inbound user ChatMessage.
-        - ctx is a WorkflowContext that expects a list[ChatMessage] to be sent downstream.
+# Initialize configuration
+config = Config()
 
-        Pattern shown here:
-        1) Seed the conversation with the inbound message.
-        2) Run the attached agent to produce assistant messages.
-        3) Forward the cumulative messages to the next executor with ctx.send_message.
-        """
-        # Start the conversation with the incoming user message.
-        messages: list[ChatMessage] = [message]
-        # Run the agent and extend the conversation with the agent's messages.
-        response = await self.agent.run(messages)
-        messages.extend(response.messages)
-        # Forward the accumulated messages to the next executor in the workflow.
-        await ctx.send_message(messages)
+# Create database provider
+finance_provider = FinancePostgreSQLProvider()
 
-class Reviewer(Executor):
-    """Custom executor that owns a review agent and completes the workflow.
+
+class PolicyExecutor(Executor):
+    """Custom executor that finds policy violations in the workflow."""
+
+    def __init__(self, finance_provider: FinancePostgreSQLProvider, id: str = "policy_executor"):
+        self.finance_provider = finance_provider
+        super().__init__(id=id)
+
+    @handler
+    async def handle(self, department: DepartmentRequest, ctx: WorkflowContext[list[ChatMessage], str]) -> None:
+        """Identify and flag any policy violations in the workflow."""
+
+        result = await self.finance_provider.get_company_order_policy(
+            department=department.department
+        )
+
+        await ctx.send_message(result.messages)
+
+
+class Summarizer(Executor):
+    """Custom executor that owns a summarization agent and completes the workflow.
 
     This class demonstrates:
     - Consuming a typed payload produced upstream.
@@ -62,11 +78,11 @@ class Reviewer(Executor):
 
     agent: ChatAgent
 
-    def __init__(self, chat_client: AzureOpenAIChatClient, id: str = "reviewer"):
-        # Create a domain specific agent that evaluates and refines content.
+    def __init__(self, chat_client: AzureOpenAIChatClient, id: str = "summarizer"):
+        # Create a domain specific agent that summarizes content.
         self.agent = chat_client.create_agent(
             instructions=(
-                "You are an excellent content reviewer. You review the content and provide feedback to the writer."
+                "You are an excellent workflow summarizer. You summarize the workflow and its key points into actionable tasks for the user."
             ),
         )
         super().__init__(id=id)
@@ -85,9 +101,10 @@ class Reviewer(Executor):
 chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
 
 # Instantiate the two agent backed executors.
-writer = Writer(chat_client)
-reviewer = Reviewer(chat_client)
+writer = DepartmentExtractor(chat_client)
+policy = PolicyExecutor(finance_provider)
+summarizer = Summarizer(chat_client)
 
 # Build the workflow using the fluent builder.
-# Set the start node and connect an edge from writer to reviewer.
-workflow = WorkflowBuilder().set_start_executor(writer).add_edge(writer, reviewer).build()
+# Set the start node and connect an edge from writer to summarizer.
+workflow = WorkflowBuilder().set_start_executor(writer).add_edge(writer, policy).add_edge(policy, summarizer).build()
