@@ -64,36 +64,9 @@ cd infra && ./deploy.sh
 
 ## Running the MCP Server
 
-You can run the MCP server in two ways:
+After deploying Azure resources using the deployment scripts above, the MCP server will automatically connect to your Azure PostgreSQL database using the configuration in `.env`.
 
-### Option 1: Local Development with Docker Compose
-
-The easiest way to run the complete stack (PostgreSQL + MCP Server) locally is using Docker Compose:
-
-### Start the Stack
-
-```bash
-# Start PostgreSQL and MCP Server
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# View MCP Server Logs
-docker compose logs -f mcp_server
-
-# View the PostgreSQL Logs
-docker compose logs -f pg17
-
-# Stop the stack
-docker compose down -v
-```
-
-### Option 2: Using Azure PostgreSQL
-
-If you've deployed Azure resources using the deployment scripts above, the MCP server will automatically connect to your Azure PostgreSQL database using the configuration in `.env`.
-
-To run the MCP server locally while connecting to Azure PostgreSQL:
+To run the MCP servers:
 
 ```bash
 # Start the MCP servers (they will connect to Azure PostgreSQL)

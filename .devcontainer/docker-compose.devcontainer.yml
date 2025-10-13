@@ -7,8 +7,7 @@ services:
       - .:/workspace:cached
     command: sleep infinity
     working_dir: /workspace
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Note: No longer depends on local postgres since we use Azure PostgreSQL
     environment:
-      - POSTGRES_URL=postgresql://store_manager:StoreManager123!@postgres:5432/zava
+      # PostgreSQL connection will be configured via .env file after Azure deployment
+      - AZURE_EXTENSION_USE_DYNAMIC_INSTALL=yes_without_prompt
