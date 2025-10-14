@@ -1,5 +1,5 @@
 import logging
-
+import asyncio
 from agent_framework import (
     ChatAgent,
     MCPStreamableHTTPTool,
@@ -31,9 +31,18 @@ sales_mcp_tools = MCPStreamableHTTPTool(
     request_timeout=30,
 )
 
+async def get_tool_list(tool: MCPStreamableHTTPTool) -> str:
+    tool_suffix = ""
+    async with tool as tools:
+        await tools.load_tools()
+        for func in tools.functions:
+             tool_suffix += f"### {func.name}\n{func.description}\n------------------------"
+    return tool_suffix
+
+sales_tools = asyncio.run(get_tool_list(sales_mcp_tools))
 sales_agent = ChatAgent(
     name="SalesAgent",
-    description="A helpful assistant that integrates with the backend sales data.",
+    description=f"A helpful assistant that integrates with the backend sales data. \n\nYou have the following capabilities: \n{sales_tools}",
     instructions="You solve questions using sales data and the tools provided.",
     chat_client=chat_client,
     tools=sales_mcp_tools,
@@ -48,10 +57,11 @@ supplier_mcp_tools = MCPStreamableHTTPTool(
     load_prompts=False,
     request_timeout=30,
 )
+supplier_tools = asyncio.run(get_tool_list(supplier_mcp_tools))
 
 supplier_agent = ChatAgent(
     name="SupplierAgent",
-    description="A helpful assistant that integrates with the backend supplier data.",
+    description=f"A helpful assistant that integrates with the backend supplier data. \n\nYou have the following capabilities: \n{supplier_tools}",
     instructions="You solve questions using supplier data and the tools provided.",
     chat_client=chat_client,
     tools=supplier_mcp_tools,
@@ -66,10 +76,11 @@ finance_mcp_tools = MCPStreamableHTTPTool(
     load_prompts=False,
     request_timeout=30,
 )
+finance_tools = asyncio.run(get_tool_list(finance_mcp_tools))
 
 finance_agent = ChatAgent(
     name="FinanceAgent",
-    description="A helpful assistant that integrates with the backend finance data.",
+    description=f"A helpful assistant that integrates with the backend finance data. \n\nYou have the following capabilities: \n{finance_tools}",
     instructions="You solve questions using financial data and the tools provided.",
     chat_client=chat_client,
     tools=finance_mcp_tools,
