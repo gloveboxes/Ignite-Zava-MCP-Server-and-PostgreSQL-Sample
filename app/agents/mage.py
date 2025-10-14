@@ -15,10 +15,6 @@ from agent_framework import (
     MagenticCallbackMode,
 )
 
-import os
-
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)

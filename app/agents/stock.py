@@ -9,7 +9,6 @@ from agent_framework import (
     handler,
 )
 from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
-from agent_framework.openai import OpenAIChatClient, OpenAIResponsesClient
 from azure.identity import DefaultAzureCredential
 
 from app.config import Config
@@ -17,9 +16,6 @@ from app.finance_postgres import FinancePostgreSQLProvider
 
 from pydantic import BaseModel
 import os
-
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-
 
 class DepartmentRequest(BaseModel):
     department: str
@@ -126,13 +122,8 @@ class Summarizer(Executor):
         response = await self.agent.run(messages)
         await ctx.yield_output(response.text)
 
-
-if GITHUB_TOKEN:
-    chat_client = OpenAIChatClient(base_url="https://models.github.ai/inference", model_id="openai/gpt-4.1-mini", api_key=GITHUB_TOKEN)
-    responses_client = OpenAIResponsesClient(base_url="https://models.github.ai/inference", model_id="openai/gpt-4.1-mini", api_key=GITHUB_TOKEN)
-else:
-    chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
-    responses_client = AzureOpenAIResponsesClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
+chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
+responses_client = AzureOpenAIResponsesClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
 
 # Instantiate the two agent backed executors.
 writer = DepartmentExtractor(chat_client)
