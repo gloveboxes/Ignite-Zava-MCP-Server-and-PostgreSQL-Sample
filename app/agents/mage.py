@@ -36,7 +36,7 @@ async def get_tool_list(tool: MCPStreamableHTTPTool) -> str:
     async with tool as tools:
         await tools.load_tools()
         for func in tools.functions:
-             tool_suffix += f"### {func.name}\n{func.description}\n------------------------"
+             tool_suffix += f"\n### {func.name}\n{func.description}\n------------------------\n"
     return tool_suffix
 
 sales_tools = asyncio.run(get_tool_list(sales_mcp_tools))
@@ -109,9 +109,9 @@ workflow = (
     .on_event(on_event, mode=MagenticCallbackMode.STREAMING)
     .with_standard_manager(
         chat_client=chat_client,
-        max_round_count=10,
+        max_round_count=3,
         max_stall_count=3,
-        max_reset_count=2,
+        max_reset_count=1,
     )
     .build()
 )
