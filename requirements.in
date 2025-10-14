@@ -28,4 +28,5 @@ opentelemetry-instrumentation-asyncpg>=0.57b0, <1.0.0
 
 # MAF
 agent-framework-core --pre
-agent-framework-devui --pre
+# agent-framework-devui --pre
+git+https://github.com/microsoft/agent-framework.git@main#subdirectory=python/packages/devui
