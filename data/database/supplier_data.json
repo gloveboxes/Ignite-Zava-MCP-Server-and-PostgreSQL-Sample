@@ -12,7 +12,7 @@
       "min_order_amount": 500.00,
       "lead_time_days": 14,
       "is_preferred": true,
-      "rating": 4.8
+      "rating": 3.5
     },
     {
       "name": "Elite Fashion Distributors",
@@ -54,7 +54,7 @@
       "min_order_amount": 2000.00,
       "lead_time_days": 21,
       "is_preferred": true,
-      "rating": 4.6
+      "rating": 2.5
     },
     {
       "name": "Northwest Denim Works",
@@ -124,7 +124,7 @@
       "min_order_amount": 500.00,
       "lead_time_days": 14,
       "is_preferred": false,
-      "rating": 4.5
+      "rating": 2.0
     },
     {
       "name": "Active Wear Solutions",
@@ -236,7 +236,7 @@
       "min_order_amount": 2000.00,
       "lead_time_days": 21,
       "is_preferred": true,
-      "rating": 4.9
+      "rating": 3.7
     },
     {
       "name": "Streetwear Collective",
