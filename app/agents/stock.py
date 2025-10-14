@@ -15,7 +15,6 @@ from app.config import Config
 from app.finance_postgres import FinancePostgreSQLProvider
 
 from pydantic import BaseModel
-import os
 
 class DepartmentRequest(BaseModel):
     department: str

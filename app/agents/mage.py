@@ -94,13 +94,13 @@ async def on_event(event: MagenticCallbackEvent) -> None:
 workflow = (
     MagenticBuilder()
     .participants(sales=sales_agent, supplier=supplier_agent, financier=finance_agent)
+    # .with_plan_review()
     .on_event(on_event, mode=MagenticCallbackMode.STREAMING)
     .with_standard_manager(
         chat_client=chat_client,
         max_round_count=10,
         max_stall_count=3,
         max_reset_count=2,
-        final_answer_prompt="Sing this in soprano"
     )
     .build()
 )
