@@ -3,7 +3,7 @@ import os
 
 os.chdir('/workspace/data/database')
 
-with open('product_data.json', 'r') as f:
+with open('reference_data/product_data.json', 'r') as f:
     data = json.load(f)
 
 print('=== PRODUCT COUNT ANALYSIS ===')
