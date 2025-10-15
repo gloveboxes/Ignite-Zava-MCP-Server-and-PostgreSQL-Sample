@@ -25,6 +25,27 @@
         </div>
       </div>
 
+      <!-- AI Agent Alert Banner -->
+      <div v-if="summary && summary.lowStockCount > 0" class="ai-banner">
+        <div class="banner-icon">🤖</div>
+        <div class="banner-content">
+          <div class="banner-title">
+            <strong>{{ summary.lowStockCount }}</strong> items are low on stock!
+          </div>
+          <div class="banner-text">
+            Our AI Agent can help you prioritize restocking and optimize inventory levels across all stores.
+          </div>
+        </div>
+        <router-link to="/management/ai-agent" class="banner-button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4"/>
+            <path d="M12 8h.01"/>
+          </svg>
+          Launch AI Agent
+        </router-link>
+      </div>
+
       <!-- Summary Cards -->
       <div v-if="summary" class="summary-cards">
         <div class="summary-card">
@@ -320,6 +341,91 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* AI Agent Banner */
+.ai-banner {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 1.5rem 2rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.banner-icon {
+  font-size: 3rem;
+  line-height: 1;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.banner-content {
+  flex: 1;
+}
+
+.banner-title {
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
+}
+
+.banner-title strong {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.banner-text {
+  font-size: 0.9rem;
+  opacity: 0.95;
+  line-height: 1.5;
+}
+
+.banner-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: white;
+  color: #667eea;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.banner-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #f8f9ff;
+}
+
+.banner-button svg {
+  stroke: #667eea;
 }
 
 /* Summary Cards */
@@ -739,6 +845,21 @@ export default {
   
   .header-right {
     flex-wrap: wrap;
+  }
+  
+  .ai-banner {
+    flex-direction: column;
+    text-align: center;
+    padding: 1.5rem;
+  }
+  
+  .banner-icon {
+    font-size: 2.5rem;
+  }
+  
+  .banner-button {
+    width: 100%;
+    justify-content: center;
   }
 }
 </style>
