@@ -38,7 +38,7 @@ class ImageEmbeddingProcessor:
         try:
             # Load CLIP model and processor from HuggingFace
             model_name = "openai/clip-vit-base-patch32"
-            self.processor = CLIPProcessor.from_pretrained(model_name)
+            self.processor = CLIPProcessor.from_pretrained(model_name, use_fast=True)
             self.model = CLIPModel.from_pretrained(model_name)
             
             # Set device (use CPU to avoid GPU complexity for now)

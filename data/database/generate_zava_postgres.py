@@ -68,7 +68,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # PostgreSQL connection configuration
 POSTGRES_CONFIG = {
-    'host': 'localhost',
+    'host': '192.168.1.16',
     'port': 5432,
     'user': 'postgres',
     'password': 'change-me',
