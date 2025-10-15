@@ -120,6 +120,9 @@ seasonal_config = load_seasonal_multipliers()
 main_categories = product_data['main_categories']
 stores = reference_data['stores']
 
+# Global variable for supplier category mapping
+SUPPLIER_CATEGORY_MAP = {}
+
 # Load store products configuration
 def load_store_products():
     """Load store products configuration - now integrated into stores_reference.json"""
@@ -2854,8 +2857,8 @@ async def main():
 if __name__ == "__main__":
     # Check if required packages are available
     try:
-        from dotenv import load_dotenv
-        from faker import Faker
+        # Note: Faker and dotenv are already imported at the top of the file
+        pass
     except ImportError as e:
         logging.error(f"Required library not found: {e}")
         logging.error("Please install required packages with: pip install -r requirements_postgres.txt")

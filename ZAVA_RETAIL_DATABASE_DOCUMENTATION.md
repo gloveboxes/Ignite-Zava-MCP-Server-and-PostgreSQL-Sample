@@ -148,8 +148,8 @@ All GitHub Popup suppliers offer bulk discount programs with varying thresholds 
 **Best Discount Rates:**
 - **Athletic Footwear Network (SUP016)**: 9.72% discount on orders $4,500+
 - **Sock & Hosiery Wholesale (SUP012)**: 9.60% discount on orders $1,500+
-- **Bag & Luggage Distributors (SUP013)**: 8.94% discount on orders $4,000+
 - **Urban Threads Wholesale (SUP001)**: 8.98% discount on orders $2,500+
+- **Bag & Luggage Distributors (SUP013)**: 8.94% discount on orders $4,000+
 - **Premier Accessories Ltd (SUP008)**: 8.79% discount on orders $2,000+
 
 **Most Accessible Discounts (Lowest Thresholds):**
@@ -164,7 +164,7 @@ All GitHub Popup suppliers offer bulk discount programs with varying thresholds 
 - **Formal Wear Specialists (SUP017)**: 7.68% discount on orders $10,000+
 - **Metro Style Supply Co (SUP004)**: 5.53% discount on orders $10,000+
 
-**💡 Procurement Tip**: Sock & Hosiery Wholesale offers the best combination of high discount rate (9.60%) and low threshold ($1,500), making them ideal for frequent smaller orders. For footwear, Athletic Footwear Network provides the highest discount rate at 9.72%.
+**💡 Procurement Tip**: Sock & Hosiery Wholesale offers the best combination of high discount rate (9.60%) and low threshold ($1,500), making them ideal for frequent smaller orders. Athletic Footwear Network provides the highest discount rate at 9.72%, while Urban Threads Wholesale offers 8.98% with a $2,500 threshold for general apparel needs.
 
 ### Supplier Key Metrics
 
@@ -181,7 +181,7 @@ All GitHub Popup suppliers offer bulk discount programs with varying thresholds 
 - **Net 60:** 3 suppliers (15%)
 
 ### Lead Time Analysis
-- **Average Lead Time:** 14.8 days
+- **Average Lead Time:** 14.3 days
 - **Fastest Delivery:** 5 days (Sock & Hosiery Wholesale)
 - **Longest Lead Time:** 28 days (Classic Outerwear Imports)
 
@@ -234,7 +234,7 @@ The GitHub Popup retail system implements sophisticated seasonal demand patterns
 - **Apparel - Tops:** [0.7, 0.7, 0.8, 0.9, 1.1, 1.3, 1.4, 1.3, 1.1, 0.9, 0.7, 0.6] - Summer peak
 - **Footwear:** [0.9, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.3, 1.2, 1.1, 0.9, 0.8] - Spring/summer preference
 - **Accessories:** [1.2, 1.2, 1.1, 1.0, 1.0, 1.1, 1.2, 1.2, 1.1, 1.0, 1.1, 1.3] - Winter accessories demand
-- **Apparel - Bottoms:** [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] - Stable year-round
+- - **Apparel - Bottoms:** [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] - Stable year-round
 
 #### 🌡️ Temperate Zone  
 **Description:** Most US regions - moderate seasonal variation  
@@ -257,6 +257,10 @@ The GitHub Popup retail system implements sophisticated seasonal demand patterns
 - **Footwear:** [1.0, 1.0, 1.1, 1.1, 1.2, 1.2, 1.3, 1.3, 1.2, 1.1, 1.0, 1.0] - Summer footwear preference
 - **Accessories:** [1.1, 1.1, 1.0, 1.0, 0.9, 0.8, 0.7, 0.8, 0.9, 1.0, 1.1, 1.1] - Lower summer demand
 - **Apparel - Bottoms:** [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] - Stable year-round
+
+### Seasonal Business Intelligence
+
+
 
 ### Seasonal Business Intelligence
 
@@ -382,14 +386,22 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 | is_online | boolean | True for online store, false for popup |
 
 **Valid Store Locations:**
-- Zava Online Store
-- Zava Pop-Up Bellevue Square
-- Zava Pop-Up Everett Station
-- Zava Pop-Up Kirkland Waterfront
-- Zava Pop-Up Pike Place
-- Zava Pop-Up Redmond Town Center
-- Zava Pop-Up Spokane Pavilion
-- Zava Pop-Up Tacoma Mall
+- GitHub Popup Online Store
+- GitHub Popup Atlanta Midtown
+- GitHub Popup Austin Downtown
+- GitHub Popup Boston Back Bay
+- GitHub Popup Chicago Loop
+- GitHub Popup Denver LoDo
+- GitHub Popup Miami Design District
+- GitHub Popup Minneapolis Mill District
+- GitHub Popup Nashville Music Row
+- GitHub Popup NYC Times Square
+- GitHub Popup Phoenix Scottsdale
+- GitHub Popup Portland Pearl District
+- GitHub Popup Raleigh Research Triangle
+- GitHub Popup Salt Lake City Downtown
+- GitHub Popup Seattle Capitol Hill
+- GitHub Popup SF Union Square
 
 ---
 
@@ -694,7 +706,7 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 
 **Database Type:** Azure Database for PostgreSQL (Flexible Server)  
 **Port:** 5432  
-**Database:** zava  
+**Database:** zava (aka GitHub Popup Retail)
 **Username:** postgres  
 **Schema:** retail
 
