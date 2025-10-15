@@ -8,12 +8,14 @@ import logging
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+import json
 
 from app.config import Config
 from app.sales_analysis_postgres import PostgreSQLSchemaProvider
+from app.agents.stock import workflow
 
 # Configure logging
 logging.basicConfig(
@@ -876,6 +878,77 @@ async def get_products(
         await db_provider.release_connection(conn)
 
 
+@app.websocket("/ws/ai-agent/inventory")
+async def websocket_ai_agent_inventory(websocket: WebSocket):
+    """
+    WebSocket endpoint for AI Inventory Agent.
+    Streams workflow events back to the frontend in real-time.
+    """
+    await websocket.accept()
+    
+    try:
+        # Receive the initial request from the client
+        data = await websocket.receive_text()
+        request_data = json.loads(data)
+        
+        logger.info(f"🤖 AI Agent request: {request_data.get('message', 'No message')}")
+        
+        # Send initial acknowledgment
+        await websocket.send_json({
+            "type": "started",
+            "message": "AI Agent workflow initiated...",
+            "timestamp": None
+        })
+        
+        # Run the workflow and stream events
+        input_message = request_data.get("message", "Analyze inventory and recommend restocking priorities")
+        
+        try:
+            async for event in workflow.run_stream(input_message):
+                # Stream each workflow event to the frontend
+                event_data = {
+                    "type": "event",
+                    "event": str(event),
+                    "timestamp": None
+                }
+                await websocket.send_json(event_data)
+                logger.info(f"📤 Sent event: {event}")
+            
+            # Send completion message
+            await websocket.send_json({
+                "type": "completed",
+                "message": "Workflow completed successfully",
+                "timestamp": None
+            })
+            logger.info("✅ AI Agent workflow completed")
+            
+        except Exception as workflow_error:
+            logger.error(f"❌ Workflow error: {workflow_error}")
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Workflow error: {str(workflow_error)}",
+                "timestamp": None
+            })
+    
+    except WebSocketDisconnect:
+        logger.info("🔌 WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"❌ WebSocket error: {e}")
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e),
+                "timestamp": None
+            })
+        except:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except:
+            pass
+
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -893,6 +966,7 @@ async def root():
             "suppliers": "/api/management/suppliers",
             "inventory": "/api/management/inventory",
             "products": "/api/management/products",
+            "ai_agent_inventory": "ws://localhost:8091/ws/ai-agent/inventory (WebSocket)",
         }
     }
 
