@@ -136,9 +136,7 @@
           <i class="bi bi-check-circle-fill success-icon"></i>
           <h3>Analysis Complete</h3>
         </div>
-        <div class="output-content">
-          <pre>{{ finalOutput }}</pre>
-        </div>
+        <div class="output-content markdown-content" v-html="renderedMarkdown"></div>
         <button @click="resetAnalysis" class="reset-button">
           <i class="bi bi-arrow-counterclockwise"></i> Run Another Analysis
         </button>
@@ -161,6 +159,13 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { marked } from 'marked'
+
+// Configure marked options
+marked.setOptions({
+  breaks: true,
+  gfm: true
+})
 
 // State
 const userInstructions = ref('Analyze inventory and recommend restocking priorities')
@@ -191,6 +196,17 @@ const progressSummary = computed(() => {
   }
   const activeStep = progressSteps.value.find(s => s.status === 'active')
   return activeStep ? activeStep.title : 'Connecting to AI Agent...'
+})
+
+// Render markdown output
+const renderedMarkdown = computed(() => {
+  if (!finalOutput.value) return ''
+  try {
+    return marked.parse(finalOutput.value)
+  } catch (err) {
+    console.error('Error rendering markdown:', err)
+    return `<pre>${finalOutput.value}</pre>`
+  }
 })
 
 // Start analysis
@@ -845,14 +861,134 @@ const resetAnalysis = () => {
   margin-bottom: 1.5rem;
 }
 
-.output-content pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  font-family: 'Courier New', monospace;
-  font-size: 0.95rem;
+/* Markdown Content Styling */
+.markdown-content {
   color: #212529;
-  line-height: 1.6;
+  line-height: 1.7;
+}
+
+.markdown-content h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #212529;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.markdown-content h1:first-child {
+  margin-top: 0;
+}
+
+.markdown-content h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #495057;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #495057;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-content p {
+  margin-bottom: 1rem;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: #212529;
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: #495057;
+}
+
+.markdown-content code {
+  background: #e9ecef;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d63384;
+}
+
+.markdown-content pre {
+  background: #2d2d2d;
+  color: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #0d6efd;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 0.75rem;
+  border: 1px solid #dee2e6;
+  text-align: left;
+}
+
+.markdown-content th {
+  background: #e9ecef;
+  font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+  background: #f8f9fa;
+}
+
+.markdown-content a {
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid #dee2e6;
+  margin: 1.5rem 0;
 }
 
 .reset-button {

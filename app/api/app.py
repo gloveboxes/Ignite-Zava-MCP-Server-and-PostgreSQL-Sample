@@ -8,7 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from agent_framework import ChatMessage
+from agent_framework import ChatMessage, WorkflowOutputEvent, WorkflowStartedEvent
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -905,21 +905,38 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         input_message: str = request_data.get("message", "Analyze inventory and recommend restocking priorities")
         input: ChatMessage = ChatMessage(role='user', text=input_message)
 
+        workflow_output = None
         try:
             async for event in workflow.run_stream(input):
-                # Stream each workflow event to the frontend
-                event_data = {
-                    "type": "event",
-                    "event": str(event),
-                    "timestamp": None
-                }
+                if isinstance(event, WorkflowStartedEvent):
+                    event_data = {
+                        "type": "workflow_started",
+                        "event": str(event.data),
+                        "timestamp": None
+                    }
+                elif isinstance(event, WorkflowOutputEvent):
+                    # Capture the workflow output (markdown result)
+                    workflow_output = str(event.data)
+                    event_data = {
+                        "type": "workflow_output",
+                        "event": workflow_output,
+                        "timestamp": None
+                    }
+                else:
+                    # Stream each workflow event to the frontend
+                    event_data = {
+                        "type": "event",
+                        "event": str(event),
+                        "timestamp": None
+                    }
                 await websocket.send_json(event_data)
                 logger.info(f"📤 Sent event: {event}")
             
-            # Send completion message
+            # Send completion message with the workflow output
             await websocket.send_json({
                 "type": "completed",
                 "message": "Workflow completed successfully",
+                "output": workflow_output,
                 "timestamp": None
             })
             logger.info("✅ AI Agent workflow completed")
