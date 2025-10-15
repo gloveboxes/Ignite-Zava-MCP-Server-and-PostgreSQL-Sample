@@ -82,7 +82,7 @@
       "min_order_amount": 1500.00,
       "lead_time_days": 18,
       "is_preferred": true,
-      "rating": 4.9
+      "rating": 4.2
     },
     {
       "name": "Comfort Footwear Wholesale",
@@ -110,7 +110,7 @@
       "min_order_amount": 400.00,
       "lead_time_days": 7,
       "is_preferred": true,
-      "rating": 4.8
+      "rating": 2.8
     },
     {
       "name": "Global Headwear Co",
@@ -208,7 +208,7 @@
       "min_order_amount": 1500.00,
       "lead_time_days": 20,
       "is_preferred": false,
-      "rating": 4.6
+      "rating": 3.6
     },
     {
       "name": "Athletic Footwear Network",
@@ -222,7 +222,7 @@
       "min_order_amount": 900.00,
       "lead_time_days": 12,
       "is_preferred": true,
-      "rating": 4.8
+      "rating": 2.0
     },
     {
       "name": "Formal Wear Specialists",
@@ -264,7 +264,7 @@
       "min_order_amount": 1800.00,
       "lead_time_days": 25,
       "is_preferred": false,
-      "rating": 4.5
+      "rating": 3.5
     },
     {
       "name": "Quality Basics Wholesale",
