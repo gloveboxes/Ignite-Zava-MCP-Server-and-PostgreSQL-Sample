@@ -720,6 +720,162 @@ async def get_inventory(
         await db_provider.release_connection(conn)
 
 
+@app.get("/api/management/products")
+async def get_products(
+    category: str = None,
+    supplier_id: int = None,
+    discontinued: bool = None,
+    search: str = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """
+    Get products with detailed information including pricing, suppliers, and stock status.
+    
+    Args:
+        category: Filter by category name
+        supplier_id: Filter by supplier
+        discontinued: Filter by discontinued status
+        search: Search in product name, SKU, or description
+        limit: Maximum number of records
+        offset: Pagination offset
+    """
+    conn = await db_provider.get_connection()
+    
+    try:
+        logger.info(f"📦 Fetching products...")
+
+        # Build WHERE conditions
+        where_conditions = ["1=1"]
+        params = []
+        param_idx = 1
+
+        if category:
+            where_conditions.append(f"LOWER(c.category_name) = LOWER(${param_idx})")
+            params.append(category)
+            param_idx += 1
+
+        if supplier_id is not None:
+            where_conditions.append(f"p.supplier_id = ${param_idx}")
+            params.append(supplier_id)
+            param_idx += 1
+
+        if discontinued is not None:
+            where_conditions.append(f"p.discontinued = ${param_idx}")
+            params.append(discontinued)
+            param_idx += 1
+
+        if search:
+            where_conditions.append(
+                f"(LOWER(p.product_name) LIKE LOWER(${param_idx}) OR " +
+                f"LOWER(p.sku) LIKE LOWER(${param_idx}) OR " +
+                f"LOWER(p.product_description) LIKE LOWER(${param_idx}))"
+            )
+            params.append(f"%{search}%")
+            param_idx += 1
+
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+
+        # Get total count
+        count_query = f"""
+            SELECT COUNT(*)
+            FROM retail.products p
+            INNER JOIN retail.categories c ON p.category_id = c.category_id
+            LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+            {where_clause}
+        """
+        total_count = await conn.fetchval(count_query, *params)
+
+        # Get products with aggregated stock info
+        query = f"""
+            SELECT
+                p.product_id,
+                p.sku,
+                p.product_name,
+                p.product_description,
+                c.category_name,
+                pt.type_name,
+                p.base_price,
+                p.cost,
+                p.gross_margin_percent,
+                p.discontinued,
+                s.supplier_id,
+                s.supplier_name,
+                s.supplier_code,
+                s.lead_time_days,
+                COALESCE(SUM(i.stock_level), 0) as total_stock,
+                COUNT(i.store_id) as store_count,
+                pie.image_url
+            FROM retail.products p
+            INNER JOIN retail.categories c ON p.category_id = c.category_id
+            INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
+            LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+            LEFT JOIN retail.inventory i ON p.product_id = i.product_id
+            LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
+            {where_clause}
+            GROUP BY p.product_id, c.category_name, pt.type_name, s.supplier_id, s.supplier_name, s.supplier_code, s.lead_time_days, pie.image_url
+            ORDER BY p.product_name
+            LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        """
+
+        params.extend([limit, offset])
+        rows = await conn.fetch(query, *params)
+
+        products = []
+        for row in rows:
+            base_price = float(row['base_price']) if row['base_price'] else 0
+            cost = float(row['cost']) if row['cost'] else 0
+            margin = float(row['gross_margin_percent']) if row['gross_margin_percent'] else 0
+            total_stock = int(row['total_stock'])
+            
+            # Calculate inventory value
+            stock_value = cost * total_stock
+            retail_value = base_price * total_stock
+            
+            products.append({
+                "productId": row['product_id'],
+                "sku": row['sku'],
+                "name": row['product_name'],
+                "description": row['product_description'],
+                "category": row['category_name'],
+                "type": row['type_name'],
+                "basePrice": base_price,
+                "cost": cost,
+                "margin": margin,
+                "discontinued": row['discontinued'],
+                "supplierId": row['supplier_id'],
+                "supplierName": row['supplier_name'],
+                "supplierCode": row['supplier_code'],
+                "leadTime": row['lead_time_days'],
+                "totalStock": total_stock,
+                "storeCount": int(row['store_count']),
+                "stockValue": round(stock_value, 2),
+                "retailValue": round(retail_value, 2),
+                "imageUrl": row['image_url']
+            })
+
+        logger.info(f"✅ Retrieved {len(products)} products (total: {total_count})")
+
+        return {
+            "products": products,
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "hasMore": (offset + len(products)) < total_count
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching products: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch products: {str(e)}"
+        )
+    finally:
+        await db_provider.release_connection(conn)
+
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -736,6 +892,7 @@ async def root():
             "top_categories": "/api/management/dashboard/top-categories",
             "suppliers": "/api/management/suppliers",
             "inventory": "/api/management/inventory",
+            "products": "/api/management/products",
         }
     }
 
