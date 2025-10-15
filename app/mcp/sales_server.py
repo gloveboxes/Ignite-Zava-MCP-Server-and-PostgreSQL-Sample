@@ -13,9 +13,9 @@ from mcp.server.fastmcp import Context, FastMCP
 from opentelemetry.instrumentation.starlette import StarletteInstrumentor
 from pydantic import Field
 
-from .config import Config
-from .sales_analysis_postgres import PostgreSQLSchemaProvider
-from .sales_analysis_text_embeddings import SemanticSearchTextEmbedding
+from ..config import Config
+from ..sales_analysis_postgres import PostgreSQLSchemaProvider
+from ..sales_analysis_text_embeddings import SemanticSearchTextEmbedding
 
 config = Config()
 

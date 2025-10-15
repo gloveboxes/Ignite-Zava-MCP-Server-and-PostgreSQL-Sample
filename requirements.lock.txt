@@ -8,7 +8,7 @@ agent-framework-core==1.0.0b251007
     # via
     #   -r requirements.in
     #   agent-framework-devui
-agent-framework-devui==1.0.0b251007
+agent-framework-devui @ git+https://github.com/microsoft/agent-framework.git@main#subdirectory=python/packages/devui
     # via -r requirements.in
 aiofiles==25.1.0
     # via agent-framework-core

@@ -17,7 +17,7 @@
             "name": "📊 Sales Analysis MCP Server (Port 8000)",
             "type": "debugpy",
             "request": "launch",
-            "module": "app.sales_analysis",
+            "module": "app.mcp.sales_server",
             "console": "integratedTerminal",
             "consoleName": "Sales Analysis MCP",
             "cwd": "${workspaceFolder}",
