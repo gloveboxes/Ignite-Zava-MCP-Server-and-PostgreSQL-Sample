@@ -13,8 +13,18 @@ export const managementService = {
   // Dashboard stats
   async getDashboardStats() {
     try {
-      const response = await managementApi.get('/api/management/dashboard');
-      return response.data;
+      // Get top categories from the real API
+      const topCategoriesResponse = await managementApi.get('/api/management/dashboard/top-categories?limit=5');
+      const topCategories = topCategoriesResponse.data.categories;
+
+      // Get mock data for other stats (will be replaced with real data later)
+      const mockStats = this.getMockDashboardStats();
+
+      // Merge real and mock data
+      return {
+        ...mockStats,
+        topCategories: topCategories
+      };
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
       return this.getMockDashboardStats();

@@ -394,6 +394,83 @@ async def get_product_by_id(product_id: int):
         )
 
 
+@app.get("/api/management/dashboard/top-categories")
+async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Number of top categories to return")):
+    """
+    Get top categories by total inventory value (cost * stock).
+    Returns categories ranked by revenue potential.
+    """
+    if db_provider is None:
+        raise HTTPException(status_code=500, detail="Database not initialized")
+
+    try:
+        conn = await db_provider.get_connection()
+        try:
+            logger.info(f"📊 Fetching top {limit} categories by inventory value...")
+
+            query = """
+                SELECT
+                    c.category_name,
+                    COUNT(DISTINCT p.product_id) as product_count,
+                    SUM(i.stock_level) as total_stock,
+                    SUM(i.stock_level * p.cost) as total_cost_value,
+                    SUM(i.stock_level * p.base_price) as total_retail_value,
+                    SUM(i.stock_level * (p.base_price - p.cost)) as potential_profit
+                FROM retail.inventory i
+                JOIN retail.products p ON i.product_id = p.product_id
+                JOIN retail.categories c ON p.category_id = c.category_id
+                WHERE p.discontinued = false
+                GROUP BY c.category_name
+                ORDER BY total_retail_value DESC
+                LIMIT $1
+            """
+
+            rows = await conn.fetch(query, limit)
+            
+            if not rows:
+                return {
+                    "categories": [],
+                    "total": 0,
+                    "max_value": 0
+                }
+
+            # Calculate max value for percentage calculation
+            max_value = float(rows[0]['total_retail_value']) if rows else 0
+            
+            categories = []
+            for row in rows:
+                retail_value = float(row['total_retail_value'])
+                percentage = round((retail_value / max_value * 100), 1) if max_value > 0 else 0
+                
+                categories.append({
+                    "name": row['category_name'],
+                    "revenue": round(retail_value, 2),
+                    "percentage": percentage,
+                    "product_count": row['product_count'],
+                    "total_stock": row['total_stock'],
+                    "cost_value": round(float(row['total_cost_value']), 2),
+                    "potential_profit": round(float(row['potential_profit']), 2)
+                })
+
+            logger.info(f"✅ Retrieved {len(categories)} categories")
+
+            return {
+                "categories": categories,
+                "total": len(categories),
+                "max_value": round(max_value, 2)
+            }
+
+        finally:
+            await db_provider.release_connection(conn)
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching top categories: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch top categories: {str(e)}"
+        )
+
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -407,6 +484,7 @@ async def root():
             "featured_products": "/api/products/featured",
             "products_by_category": "/api/products/category/{category}",
             "product_by_id": "/api/products/{product_id}",
+            "top_categories": "/api/management/dashboard/top-categories",
         }
     }
 

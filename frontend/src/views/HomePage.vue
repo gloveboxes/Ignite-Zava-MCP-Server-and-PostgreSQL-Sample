@@ -234,7 +234,7 @@ export default {
 .hero {
   position: relative;
   height: 600px;
-  background-image: url('/images/store.png');
+  background-image: url('../assets/images/store.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
