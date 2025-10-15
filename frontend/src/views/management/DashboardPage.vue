@@ -212,7 +212,7 @@
 </template>
 
 <script>
-import { managementService } from '../services/management';
+import { managementService } from '../../services/management';
 
 export default {
   name: 'DashboardPage',
