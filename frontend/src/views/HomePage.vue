@@ -233,14 +233,18 @@ export default {
 /* Hero Section */
 .hero {
   position: relative;
-  height: 500px;
-  background: linear-gradient(135deg, #0d1117 0%, #24292f 50%, #2da44e 100%);
+  height: 600px;
+  background-image: url('/images/store.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   text-align: center;
   margin-bottom: 4rem;
+  overflow: hidden;
 }
 
 .hero::before {
@@ -250,13 +254,17 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: url('/images/hero-pattern.svg') center/cover;
-  opacity: 0.1;
+  background: linear-gradient(135deg, 
+    rgba(13, 17, 23, 0.85) 0%, 
+    rgba(36, 41, 47, 0.75) 50%, 
+    rgba(45, 164, 78, 0.65) 100%
+  );
+  z-index: 1;
 }
 
 .hero-content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   max-width: 800px;
   padding: 2rem;
 }
@@ -266,17 +274,71 @@ export default {
   font-weight: 700;
   margin-bottom: 1rem;
   letter-spacing: 0.05em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .hero-subtitle {
   font-size: 1.5rem;
   margin-bottom: 2rem;
   opacity: 0.95;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .hero-btn {
   font-size: 1.125rem;
   padding: 1rem 2.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Responsive Hero */
+@media (max-width: 1024px) {
+  .hero {
+    height: 500px;
+    background-position: 60% center;
+  }
+  
+  .hero-title {
+    font-size: 3rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    height: 450px;
+    background-position: 65% center;
+  }
+  
+  .hero-title {
+    font-size: 2.5rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1.125rem;
+  }
+  
+  .hero-btn {
+    font-size: 1rem;
+    padding: 0.875rem 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    height: 400px;
+    background-position: 70% center;
+  }
+  
+  .hero-title {
+    font-size: 2rem;
+  }
+  
+  .hero-subtitle {
+    font-size: 1rem;
+  }
 }
 
 /* Categories Section */
