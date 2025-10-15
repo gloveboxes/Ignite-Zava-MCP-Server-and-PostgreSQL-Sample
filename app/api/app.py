@@ -205,6 +205,195 @@ async def get_featured_products(
         )
 
 
+# Get products by category endpoint
+@app.get("/api/products/category/{category}", response_model=ProductList)
+async def get_products_by_category(
+    category: str,
+    limit: int = Query(50, ge=1, le=100, description="Max products to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination")
+):
+    """
+    Get products filtered by category.
+    Category names: Accessories, Apparel - Bottoms, Apparel - Tops, Footwear, Outerwear
+    """
+    if not db_provider or not db_provider.connection_pool:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection not available"
+        )
+
+    try:
+        conn = await db_provider.get_connection()
+
+        try:
+            # Set RLS user if needed
+            if RLS_USER_ID:
+                await conn.execute(
+                    "SELECT set_config('app.current_rls_user_id', $1, false)",
+                    RLS_USER_ID
+                )
+
+            # Query products by category
+            query = """
+                SELECT
+                    p.product_id,
+                    p.sku,
+                    p.product_name,
+                    c.category_name,
+                    pt.type_name,
+                    p.base_price as unit_price,
+                    p.cost,
+                    p.gross_margin_percent,
+                    p.product_description,
+                    s.supplier_name,
+                    p.discontinued
+                FROM retail.products p
+                INNER JOIN retail.categories c ON p.category_id = c.category_id
+                INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
+                LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+                WHERE p.discontinued = false
+                    AND LOWER(c.category_name) = LOWER($1)
+                ORDER BY p.product_name
+                LIMIT $2 OFFSET $3
+            """
+
+            rows = await conn.fetch(query, category, limit, offset)
+
+            if not rows:
+                # Check if category exists
+                category_check = await conn.fetchval(
+                    """SELECT COUNT(*) FROM retail.categories
+                       WHERE LOWER(category_name) = LOWER($1)""",
+                    category
+                )
+                if category_check == 0:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Category '{category}' not found"
+                    )
+
+            products = []
+            for row in rows:
+                products.append(Product(
+                    product_id=row['product_id'],
+                    sku=row['sku'],
+                    product_name=row['product_name'],
+                    category_name=row['category_name'],
+                    type_name=row['type_name'],
+                    unit_price=float(row['unit_price']),
+                    cost=float(row['cost']),
+                    gross_margin_percent=float(row['gross_margin_percent']),
+                    product_description=row['product_description'],
+                    supplier_name=row['supplier_name'],
+                    discontinued=row['discontinued']
+                ))
+
+            logger.info(
+                f"✅ Retrieved {len(products)} products for category '{category}'"
+            )
+
+            return ProductList(
+                products=products,
+                total=len(products)
+            )
+
+        finally:
+            await db_provider.release_connection(conn)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error fetching products by category: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch products: {str(e)}"
+        )
+
+
+# Get product by ID endpoint
+@app.get("/api/products/{product_id}", response_model=Product)
+async def get_product_by_id(product_id: int):
+    """
+    Get a single product by its ID.
+    Returns complete product information including category, type, and supplier.
+    """
+    if not db_provider or not db_provider.connection_pool:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection not available"
+        )
+
+    try:
+        conn = await db_provider.get_connection()
+
+        try:
+            # Set RLS user if needed
+            if RLS_USER_ID:
+                await conn.execute(
+                    "SELECT set_config('app.current_rls_user_id', $1, false)",
+                    RLS_USER_ID
+                )
+
+            # Query single product by ID
+            query = """
+                SELECT
+                    p.product_id,
+                    p.sku,
+                    p.product_name,
+                    c.category_name,
+                    pt.type_name,
+                    p.base_price as unit_price,
+                    p.cost,
+                    p.gross_margin_percent,
+                    p.product_description,
+                    s.supplier_name,
+                    p.discontinued
+                FROM retail.products p
+                INNER JOIN retail.categories c ON p.category_id = c.category_id
+                INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
+                LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+                WHERE p.product_id = $1
+            """
+
+            row = await conn.fetchrow(query, product_id)
+
+            if not row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Product with ID {product_id} not found"
+                )
+
+            product = Product(
+                product_id=row['product_id'],
+                sku=row['sku'],
+                product_name=row['product_name'],
+                category_name=row['category_name'],
+                type_name=row['type_name'],
+                unit_price=float(row['unit_price']),
+                cost=float(row['cost']),
+                gross_margin_percent=float(row['gross_margin_percent']),
+                product_description=row['product_description'],
+                supplier_name=row['supplier_name'],
+                discontinued=row['discontinued']
+            )
+
+            logger.info(f"✅ Retrieved product {product_id}: {product.product_name}")
+
+            return product
+
+        finally:
+            await db_provider.release_connection(conn)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error fetching product {product_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch product: {str(e)}"
+        )
+
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -216,6 +405,8 @@ async def root():
         "endpoints": {
             "health": "/health",
             "featured_products": "/api/products/featured",
+            "products_by_category": "/api/products/category/{category}",
+            "product_by_id": "/api/products/{product_id}",
         }
     }
 
