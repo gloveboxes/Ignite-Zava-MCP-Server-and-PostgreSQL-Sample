@@ -1021,8 +1021,8 @@ async def insert_suppliers(conn):
         # Transform JSON data into database format
         supplier_insert_data = []
         for idx, supplier in enumerate(suppliers_from_json, 1):
-            # Generate supplier code if not provided
-            supplier_code = f"SUP{idx:03d}"
+            # Use supplier code from JSON if provided, otherwise generate
+            supplier_code = supplier.get('supplier_code', f"SUP{idx:03d}")
             
             # Parse address (assuming single address string, split into components)
             address = supplier.get('address', '')
@@ -1045,7 +1045,11 @@ async def insert_suppliers(conn):
             approved_vendor = True  # All loaded suppliers are approved
             esg_compliant = is_preferred  # Preferred vendors are ESG compliant
             
+            # Use supplier_id from JSON if provided, otherwise use auto-increment
+            supplier_id = supplier.get('supplier_id', idx)
+            
             supplier_insert_data.append((
+                supplier_id,
                 supplier.get('name', f'Supplier {idx}'),
                 supplier_code,
                 supplier.get('email', f'contact{idx}@supplier.com'),
@@ -1072,11 +1076,11 @@ async def insert_suppliers(conn):
         # Insert supplier data
         await batch_insert(conn, f"""
             INSERT INTO {SCHEMA_NAME}.suppliers (
-                supplier_name, supplier_code, contact_email, contact_phone,
+                supplier_id, supplier_name, supplier_code, contact_email, contact_phone,
                 address_line1, address_line2, city, state_province, postal_code, country,
                 payment_terms, lead_time_days, minimum_order_amount, bulk_discount_threshold, bulk_discount_percent,
                 supplier_rating, esg_compliant, approved_vendor, preferred_vendor
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         """, supplier_insert_data)
         
         logging.info(f"Successfully inserted {len(supplier_insert_data):,} suppliers!")
@@ -1181,17 +1185,52 @@ async def insert_agent_support_data(conn):
             ) VALUES ($1, $2, $3, $4, $5, $6)
         """, approvers_data)
         
-        # Generate simplified supplier contracts
+        # Generate simplified supplier contracts using data from JSON
+        # Load supplier data to get contract values and end dates
+        try:
+            supplier_json_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'supplier_data.json')
+            with open(supplier_json_path, 'r') as f:
+                supplier_config = json.load(f)
+            suppliers_from_json = supplier_config.get('suppliers', [])
+        except Exception as e:
+            logging.warning(f"Failed to load supplier data for contracts: {e}")
+            suppliers_from_json = []
+        
         contract_data = []
-        for i, supplier_id in enumerate(range(1, 21), 1):  # 20 suppliers
+        
+        # Get actual supplier IDs from database to match with JSON data
+        supplier_rows = await conn.fetch(f"SELECT supplier_id, supplier_name FROM {SCHEMA_NAME}.suppliers ORDER BY supplier_id")
+        
+        for i, supplier_row in enumerate(supplier_rows, 1):
+            supplier_id = supplier_row['supplier_id']
+            
+            # Find matching supplier in JSON data
+            json_supplier = None
+            if i <= len(suppliers_from_json):
+                json_supplier = suppliers_from_json[i-1]  # JSON is 0-indexed, supplier_id is 1-indexed
+            
+            # Use JSON data if available, otherwise fallback to defaults
+            if json_supplier and 'contract_value' in json_supplier and 'contract_end_date' in json_supplier:
+                contract_value = json_supplier['contract_value']
+                end_date_str = json_supplier['contract_end_date']
+                end_date = date.fromisoformat(end_date_str)
+                payment_terms = json_supplier.get('payment_terms', 'Net 30')
+                contract_number = json_supplier.get('contract_number', f"CON-2024-{i:03d}")
+            else:
+                # Fallback values
+                contract_value = random.uniform(50000, 500000)
+                end_date = date(2025, 12, 31)
+                payment_terms = random.choice(["Net 30", "Net 45", "Net 60"])
+                contract_number = f"CON-2024-{i:03d}"
+            
             contract_data.append((
                 supplier_id,
-                f"CON-2024-{i:03d}",
+                contract_number,
                 "active",
                 date(2024, 1, 1),
-                date(2025, 12, 31),
-                random.uniform(50000, 500000),
-                random.choice(["Net 30", "Net 45", "Net 60"]),
+                end_date,
+                contract_value,
+                payment_terms,
                 random.choice([True, False])
             ))
         

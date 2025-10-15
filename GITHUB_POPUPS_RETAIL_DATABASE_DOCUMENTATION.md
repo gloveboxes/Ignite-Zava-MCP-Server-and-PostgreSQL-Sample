@@ -7,6 +7,11 @@ This document provides comprehensive documentation for the GitHub Popup retail d
 **Database:** PostgreSQL - GitHub Popup Retail System  
 **Schema:** retail
 
+**Key Features:**
+- **Static Supplier Data**: All supplier contracts, codes, and values are managed through JSON reference files for consistent database generation
+- **Predictable Contract Values**: All 20 supplier contracts use static values rounded to $10K with standardized numbering and realistic end dates
+- **Reproducible Database**: Static reference data ensures identical results across multiple database generations for reliable testing and development
+
 ---
 
 ## Table of Contents
@@ -59,29 +64,29 @@ This document provides comprehensive documentation for the GitHub Popup retail d
 | Store Name | Unique Products | Total Items | Total Inventory Value (Retail) |
 |------------|----------------|-------------|------------------------------|
 | **Physical Popup Stores** |
-| GitHub Popup Atlanta Midtown | 42 | 360 | $26,251.20 |
-| GitHub Popup Austin Downtown | 50 | 364 | $22,125.82 |
-| GitHub Popup Boston Back Bay | 45 | 402 | $26,059.78 |
-| GitHub Popup Chicago Loop | 47 | 438 | $28,845.66 |
-| GitHub Popup Denver LoDo | 52 | 462 | $32,943.38 |
-| GitHub Popup Miami Design District | 41 | 335 | $20,847.37 |
-| GitHub Popup Minneapolis Mill District | 50 | 392 | $29,362.61 |
-| GitHub Popup Nashville Music Row | 44 | 397 | $23,519.48 |
-| GitHub Popup NYC Times Square | 52 | 523 | $33,947.30 |
-| GitHub Popup Phoenix Scottsdale | 42 | 316 | $20,028.09 |
-| GitHub Popup Portland Pearl District | 42 | 351 | $27,085.25 |
-| GitHub Popup Raleigh Research Triangle | 44 | 357 | $27,827.49 |
-| GitHub Popup Salt Lake City Downtown | 50 | 413 | $31,833.66 |
-| GitHub Popup Seattle Capitol Hill | 45 | 428 | $29,897.69 |
-| GitHub Popup SF Union Square | 47 | 442 | $40,005.26 |
+| GitHub Popup Atlanta Midtown | 42 | 347 | $24,855.89 |
+| GitHub Popup Austin Downtown | 50 | 434 | $26,639.52 |
+| GitHub Popup Boston Back Bay | 45 | 354 | $23,280.00 |
+| GitHub Popup Chicago Loop | 47 | 386 | $26,144.93 |
+| GitHub Popup Denver LoDo | 52 | 433 | $30,455.71 |
+| GitHub Popup Miami Design District | 41 | 288 | $17,989.75 |
+| GitHub Popup Minneapolis Mill District | 50 | 421 | $31,414.38 |
+| GitHub Popup Nashville Music Row | 44 | 376 | $25,649.49 |
+| GitHub Popup NYC Times Square | 52 | 519 | $33,804.13 |
+| GitHub Popup Phoenix Scottsdale | 42 | 346 | $23,184.30 |
+| GitHub Popup Portland Pearl District | 42 | 344 | $28,992.90 |
+| GitHub Popup Raleigh Research Triangle | 44 | 401 | $31,207.56 |
+| GitHub Popup Salt Lake City Downtown | 50 | 411 | $32,906.88 |
+| GitHub Popup Seattle Capitol Hill | 45 | 423 | $32,955.78 |
+| GitHub Popup SF Union Square | 47 | 417 | $34,034.09 |
 | **Online Store** |
-| GitHub Popup Online Store | 129 | 6,904 | $485,931.79 |
+| GitHub Popup Online Store | 129 | 6,217 | $437,821.29 |
 
 **Total Popup Stores:** 16 (15 Physical + 1 Online)  
-**Total Physical Store Inventory Value:** $420,579.83  
-**Total Online Store Inventory Value:** $485,931.79  
-**Total Combined Inventory Value:** $906,511.62  
-**Average Physical Store Inventory Value:** $28,038.66
+**Total Physical Store Inventory Value:** $423,515.31  
+**Total Online Store Inventory Value:** $437,821.29  
+**Total Combined Inventory Value:** $861,336.60  
+**Average Physical Store Inventory Value:** $28,234.35
 
 ### Store Distribution & Themes
 
@@ -146,25 +151,25 @@ This document provides comprehensive documentation for the GitHub Popup retail d
 All GitHub Popup suppliers offer bulk discount programs with varying thresholds and discount rates. **Note**: Discounts apply automatically when order values exceed the specified thresholds.
 
 **Best Discount Rates:**
-- **Athletic Footwear Network (SUP016)**: 9.72% discount on orders $4,500+
-- **Sock & Hosiery Wholesale (SUP012)**: 9.60% discount on orders $1,500+
-- **Urban Threads Wholesale (SUP001)**: 8.98% discount on orders $2,500+
-- **Bag & Luggage Distributors (SUP013)**: 8.94% discount on orders $4,000+
-- **Premier Accessories Ltd (SUP008)**: 8.79% discount on orders $2,000+
+- **Northwest Denim Works (SUP005)**: 9.49% discount on orders $4,000+
+- **Comfort Footwear Wholesale (SUP007)**: 9.26% discount on orders $3,000+
+- **Footwear Direct International (SUP006)**: 9.25% discount on orders $7,500+
+- **Formal Wear Specialists (SUP017)**: 9.07% discount on orders $10,000+
+- **Quality Basics Wholesale (SUP020)**: 8.99% discount on orders $2,500+
 
 **Most Accessible Discounts (Lowest Thresholds):**
-- **Sock & Hosiery Wholesale (SUP012)**: 9.60% discount on orders $1,500+
-- **Premier Accessories Ltd (SUP008)**: 8.79% discount on orders $2,000+
-- **Urban Threads Wholesale (SUP001)**: 8.98% discount on orders $2,500+
-- **Quality Basics Wholesale (SUP020)**: 6.76% discount on orders $2,500+
-- **Global Headwear Co (SUP009)**: 5.72% discount on orders $2,500+
+- **Sock & Hosiery Wholesale (SUP012)**: 7.28% discount on orders $1,500+
+- **Premier Accessories Ltd (SUP008)**: 7.92% discount on orders $2,000+
+- **Quality Basics Wholesale (SUP020)**: 8.99% discount on orders $2,500+
+- **Urban Threads Wholesale (SUP001)**: 6.46% discount on orders $2,500+
+- **Global Headwear Co (SUP009)**: 5.98% discount on orders $2,500+
 
 **Premium Volume Discounts (High Thresholds):**
-- **Classic Outerwear Imports (SUP011)**: 8.53% discount on orders $12,500+
-- **Formal Wear Specialists (SUP017)**: 7.68% discount on orders $10,000+
-- **Metro Style Supply Co (SUP004)**: 5.53% discount on orders $10,000+
+- **Classic Outerwear Imports (SUP011)**: 7.44% discount on orders $12,500+
+- **Formal Wear Specialists (SUP017)**: 9.07% discount on orders $10,000+
+- **Metro Style Supply Co (SUP004)**: 8.86% discount on orders $10,000+
 
-**💡 Procurement Tip**: Sock & Hosiery Wholesale offers the best combination of high discount rate (9.60%) and low threshold ($1,500), making them ideal for frequent smaller orders. Athletic Footwear Network provides the highest discount rate at 9.72%, while Urban Threads Wholesale offers 8.98% with a $2,500 threshold for general apparel needs.
+**💡 Procurement Tip**: Quality Basics Wholesale offers the best combination of high discount rate (8.99%) and accessible threshold ($2,500), making them ideal for regular orders. Northwest Denim Works provides the highest discount rate at 9.49% for denim needs, while Sock & Hosiery Wholesale offers the lowest threshold at $1,500 for smaller frequent orders.
 
 ### Supplier Key Metrics
 
@@ -174,6 +179,24 @@ All GitHub Popup suppliers offer bulk discount programs with varying thresholds 
 - **Preferred Vendors:** 16 (80%)
 - **Average Rating:** 4.00/5.0
 - **Geographic Coverage:** Washington State
+- **Contract Management:** All supplier contracts use static data from JSON reference files for consistent database generation
+
+### Static Supplier Data Implementation
+
+**📋 Controlled Contract Data:**
+All supplier contract information is now managed through static JSON data for consistent, predictable database generation:
+
+- **Contract Values:** Static values ranging from $80K to $600K, all rounded to nearest $10,000
+- **Contract Numbers:** Standardized format `2024-XXXX-NNN` with unique 4-letter codes per supplier
+- **Contract End Dates:** Systematic distribution between 1-2 years from current date
+- **Supplier Codes:** Sequential format `SUP001` through `SUP020` for easy identification
+- **Supplier IDs:** Sequential integers 1-20 matching database primary keys
+
+**Benefits:**
+- **Reproducible Results:** Identical database content across multiple generations
+- **Testing Reliability:** Predictable data for consistent testing scenarios  
+- **Contract Realism:** Realistic contract values and terms based on supplier size and category
+- **Data Integrity:** All supplier-related fields controlled via single JSON source
 
 ### Payment Terms Distribution
 - **Net 30:** 11 suppliers (55%)
@@ -335,7 +358,7 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 - **Total Products:** 129 unique products across 5 categories and 21 product types
 - **Active Suppliers:** 20 suppliers across Washington State
 - **ESG Compliance:** 80% of suppliers are ESG compliant
-- **Inventory Value:** $906,511.62 total retail value ($420K physical + $486K online)
+- **Inventory Value:** $861,336.60 total retail value ($424K physical + $438K online)
 - **Climate Zones:** 3-zone seasonal system (Pacific Northwest, Temperate, Warm)
 
 ### Data Architecture Highlights
@@ -818,8 +841,8 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 - Row-level security for multi-tenant access
 
 ### 2. Comprehensive Product Catalog
-- 5 major categories with 21 product types
-- 145+ unique products
+- **5 major categories with 21 product types
+- 129 unique products
 - Full supplier integration with cost and pricing
 
 ### 3. Advanced Supplier Management

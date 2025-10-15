@@ -83,6 +83,10 @@ Located in the `reference_data/` directory:
 
 The database generator creates a complete retail ecosystem for GitHub Popup Stores, simulating a multi-store retailer with 16 locations across major US cities, including 15 physical popup stores and 1 online store. The generated data supports advanced analytics, seasonal pattern analysis, multimodal AI applications with both image and text embeddings, and agentic applications.
 
+**Key Features:**
+- **Static Reference Data**: All supplier information, contract data, and business-critical values are controlled via JSON files for consistent, predictable database generation
+- **Reproducible Results**: Static data ensures identical database content across multiple generations for reliable testing and development
+
 ## Generated Database Structure
 
 ### Available Users
@@ -135,7 +139,7 @@ The database generator creates a complete retail ecosystem for GitHub Popup Stor
 - **Product hierarchy**: Categories → Product Types → Individual Products
 - **Cost and pricing structure** with consistent 33% gross margin
 - **Complete product specifications**: SKUs, descriptions, pricing
-- **Supplier integration**: Full procurement workflow with 20 suppliers
+- **Supplier integration**: Full procurement workflow with 20 suppliers using static contract data for consistent results
 
 #### **Orders & Sales** (`retail.orders`, `retail.order_items`)
 
@@ -294,10 +298,11 @@ The generator implements **multi-zone seasonal multipliers** across three climat
 
 ### `reference_data/supplier_data.json`
 
-- 20 supplier profiles with contact information
-- ESG compliance status and vendor approval data
-- Bulk discount thresholds and payment terms
-- Performance ratings and lead times
+- **20 supplier profiles** with complete static data for consistent database generation
+- **Static supplier information**: IDs, names, codes, and contact details
+- **Contract management**: Contract numbers, values, and end dates
+- **Procurement workflow**: ESG compliance status, vendor approval data, bulk discount thresholds, payment terms, performance ratings, and lead times
+- **Consistent data generation**: All supplier-related fields use static values from JSON instead of random generation
 
 ### `reference_data/seasonal_multipliers.json`
 
@@ -313,7 +318,7 @@ The generator implements **multi-zone seasonal multipliers** across three climat
 | **Products** | 129 | Complete retail catalog (accessories, apparel, footwear, outerwear) |
 | **Product Images** | 129 | Product images linked to database for image-based searches |
 | **Stores** | 16 | 15 physical popup stores + 1 online store across major US cities |
-| **Suppliers** | 20 | Complete supplier directory with procurement workflow |
+| **Suppliers** | 20 | Complete supplier directory with static contract data and procurement workflow |
 | **Orders** | 200,000+ | Multi-year transaction history with detailed sales data |
 | **Inventory Items** | 3,000+ | Store-specific inventory across multiple locations |
 | **Image Embeddings** | 129 | AI-powered image similarity searches using OpenAI CLIP-ViT-Base-Patch32 |
@@ -384,6 +389,47 @@ Defines store configurations and business rules:
 - Distribution weights: Control customer and sales allocation across stores
 - Order multipliers: Scale order frequency and value by store characteristics
 - Year weights: Create realistic business growth patterns over time (2020-2026)
+
+### `reference_data/supplier_data.json` Schema
+
+Defines comprehensive supplier profiles with static contract data for consistent database generation:
+
+```json
+{
+  "<SUPPLIER_ID>": {
+    "supplier_id": number,                    // Sequential supplier ID (1-20)
+    "supplier_name": "string",               // Company name
+    "supplier_code": "string",               // Standard format: SUP001-SUP020
+    "contact_email": "string",               // Primary contact email
+    "contact_phone": "string",               // Primary contact phone
+    "contracts": [
+      {
+        "contract_id": number,               // Contract identifier
+        "contract_number": "string",         // Format: 2024-XXXX-NNN
+        "contract_value": number,            // Contract value (rounded to $10K)
+        "start_date": "YYYY-MM-DD",          // Contract start date
+        "end_date": "YYYY-MM-DD",            // Contract end date (1-2 years)
+        "contract_status": "active",         // Contract status
+        "payment_terms": "string",           // Payment terms (Net 30/45/60)
+        "auto_renew": boolean,               // Auto-renewal flag
+        "contract_created": "ISO datetime",  // Creation timestamp
+        "renewal_due_soon": boolean,         // Renewal alert flag
+        "days_until_expiry": number          // Calculated days to expiry
+      }
+    ]
+  }
+}
+```
+
+**Key Points:**
+
+- **Static Data Control**: All supplier information is now static and controlled via JSON instead of random generation
+- **Contract Values**: Rounded to nearest $10,000 ranging from $50K to $600K for realistic contract sizes
+- **Contract Dates**: End dates range between 1-2 years from current date for realistic contract terms
+- **Contract Numbers**: Follow standard format `2024-XXXX-NNN` for consistent naming convention
+- **Supplier Codes**: Sequential format `SUP001` through `SUP020` for easy identification
+- **Supplier IDs**: Sequential integers 1-20 matching database primary keys
+- **Database Consistency**: Generator uses these static values to ensure identical data across database recreations
 
 ### Database Connection Configuration
 
