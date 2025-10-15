@@ -8,6 +8,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
+from agent_framework import ChatMessage
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -901,10 +902,11 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         })
         
         # Run the workflow and stream events
-        input_message = request_data.get("message", "Analyze inventory and recommend restocking priorities")
-        
+        input_message: str = request_data.get("message", "Analyze inventory and recommend restocking priorities")
+        input: ChatMessage = ChatMessage(role='user', text=input_message)
+
         try:
-            async for event in workflow.run_stream(input_message):
+            async for event in workflow.run_stream(input):
                 # Stream each workflow event to the frontend
                 event_data = {
                     "type": "event",
