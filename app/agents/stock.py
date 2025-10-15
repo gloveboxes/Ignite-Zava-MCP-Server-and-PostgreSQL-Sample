@@ -4,6 +4,7 @@ from agent_framework import (
     ChatAgent,
     ChatMessage,
     Executor,
+    MCPStreamableHTTPTool,
     WorkflowBuilder,
     WorkflowContext,
     handler,
@@ -14,37 +15,18 @@ from azure.identity import DefaultAzureCredential
 from app.config import Config
 from app.finance_postgres import FinancePostgreSQLProvider
 
-from pydantic import BaseModel
 
-class DepartmentRequest(BaseModel):
-    department: str
+finance_mcp_tools = MCPStreamableHTTPTool(
+    name="FinanceMCP",
+    url="http://localhost:8002/mcp",
+    headers=None,
+    load_tools=True,
+    load_prompts=False,
+    request_timeout=30,
+)
 
-class DepartmentExtractorResponses(Executor):
-    """Custom executor that extracts department information from messages."""
-
-    agent: ChatAgent
-
-    def __init__(self, responses_client: AzureOpenAIResponsesClient, id: str = "writer"):
-        # Create a domain specific agent using your configured AzureOpenAIChatClient.
-        self.agent = responses_client.create_agent(
-            instructions=(
-                "You determine which department the user question is about."
-            ),
-        )
-        # Associate the agent with this executor node. The base Executor stores it on self.agent.
-        super().__init__(id=id)
-
-    @handler
-    async def handle(self, message: ChatMessage, ctx: WorkflowContext[DepartmentRequest]) -> None:
-        """Extract department data"""
-        response = await self.agent.run(message, response_format=DepartmentRequest)
-        if response.value:
-            await ctx.send_message(response.value)
-        else:
-            raise ValueError("Department not found")
-
-class DepartmentExtractor(Executor):
-    """Custom executor that extracts department information from messages."""
+class StockExtractor(Executor):
+    """Custom executor that extracts stock information from messages."""
 
     agent: ChatAgent
 
@@ -52,18 +34,19 @@ class DepartmentExtractor(Executor):
         # Create a domain specific agent using your configured AzureOpenAIChatClient.
         self.agent = responses_client.create_agent(
             instructions=(
-                "You determine which department the user question is about. Reply only with the department name. Nothing else."
+                "You determine strategies for restocking items. Consult the tools for stock levels and prioritise which items to restock first."
             ),
+            tools=finance_mcp_tools,
         )
         # Associate the agent with this executor node. The base Executor stores it on self.agent.
         super().__init__(id=id)
 
     @handler
-    async def handle(self, message: ChatMessage, ctx: WorkflowContext[DepartmentRequest]) -> None:
+    async def handle(self, message: ChatMessage, ctx: WorkflowContext[str]) -> None:
         """Extract department data"""
         response = await self.agent.run(message)
-        department_request = DepartmentRequest(department=response.text)
-        await ctx.send_message(department_request)
+        # TODO: Change to yield_output if you want to pass to another node
+        await ctx.send_message(response.text)
 
 
 # Initialize configuration
@@ -73,20 +56,20 @@ config = Config()
 finance_provider = FinancePostgreSQLProvider()
 
 
-class PolicyExecutor(Executor):
+class FinanceExecutor(Executor):
     """Custom executor that finds policy violations in the workflow."""
 
-    def __init__(self, finance_provider: FinancePostgreSQLProvider, id: str = "policy_executor"):
+    def __init__(self, finance_provider: FinancePostgreSQLProvider, id: str = "finance_executor"):
         self.finance_provider = finance_provider
         super().__init__(id=id)
 
     @handler
-    async def handle(self, department: DepartmentRequest, ctx: WorkflowContext[str]) -> None:
+    async def handle(self, stock: str, ctx: WorkflowContext[str]) -> None:
         """Identify and flag any policy violations in the workflow."""
 
         await self.finance_provider.create_pool()
         result = await self.finance_provider.get_company_order_policy(
-            department=department.department
+            department=stock
         )
 
         await ctx.send_message(result)
@@ -125,10 +108,10 @@ chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deploym
 responses_client = AzureOpenAIResponsesClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
 
 # Instantiate the two agent backed executors.
-writer = DepartmentExtractor(chat_client)
-policy = PolicyExecutor(finance_provider)
+writer = StockExtractor(chat_client)
+# policy = PolicyExecutor(finance_provider)
 summarizer = Summarizer(chat_client)
 
 # Build the workflow using the fluent builder.
 # Set the start node and connect an edge from writer to summarizer.
-workflow = WorkflowBuilder().set_start_executor(writer).add_edge(writer, policy).add_edge(policy, summarizer).build()
+workflow = WorkflowBuilder().set_start_executor(writer).add_edge(writer, summarizer).build()
