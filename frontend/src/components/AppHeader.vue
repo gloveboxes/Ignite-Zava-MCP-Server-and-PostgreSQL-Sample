@@ -17,8 +17,8 @@
       <div class="container">
         <div class="header-content">
           <router-link to="/" class="logo">
-            <h1>ZAVA</h1>
-            <span class="logo-subtitle">Popup Store</span>
+            <h1>GITHUB</h1>
+            <span class="logo-subtitle">Popup Shop</span>
           </router-link>
 
           <nav class="main-nav" :class="{ 'mobile-open': mobileMenuOpen }">
@@ -245,7 +245,7 @@ export default {
 .logo h1 {
   font-size: 1.75rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.05em;
   margin: 0;
   color: var(--primary-color);
 }

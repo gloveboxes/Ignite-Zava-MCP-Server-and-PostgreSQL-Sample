@@ -4,8 +4,8 @@
       <div class="header-content">
         <div class="logo-section">
           <router-link to="/management" class="logo">
-            <h1>ZAVA</h1>
-            <span class="logo-subtitle">Store Management</span>
+            <h1>GITHUB</h1>
+            <span class="logo-subtitle">Shop Management</span>
           </router-link>
         </div>
 

@@ -3,9 +3,9 @@
     <div class="container">
       <div class="footer-content">
         <div class="footer-section">
-          <h3 class="footer-title">ZAVA</h3>
+          <h3 class="footer-title">GITHUB</h3>
           <p class="footer-description">
-            Your destination for quality clothing and accessories at popup locations across Washington.
+            Your destination for GitHub merchandise and accessories at popup shop locations across Washington.
           </p>
           <div class="social-links">
             <a href="#" class="social-link" aria-label="Facebook">

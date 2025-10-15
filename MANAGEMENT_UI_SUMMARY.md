@@ -4,7 +4,7 @@
 
 ### 1. Authentication System (`/workspace/frontend/src/stores/auth.js`)
 - Simple authentication store using Vue reactive state
-- **Login credentials:** username: `admin`, password: `zava`
+- **Login credentials:** username: `admin`, password: `github`
 - Session storage for persistence
 - Auth checking on page load
 
@@ -162,7 +162,7 @@ npm run dev
 
 ### 3. Login
 - Username: `admin`
-- Password: `zava`
+- Password: `github`
 - Click "Login"
 
 ### 4. Explore Management Interface
@@ -244,4 +244,4 @@ npm run dev
 
 ---
 
-**Ready to test!** Login with admin/zava and explore the management interface! 🎉
+**Ready to test!** Login with admin/github and explore the management interface! 🎉

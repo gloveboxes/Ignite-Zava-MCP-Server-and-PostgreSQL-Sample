@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FastAPI Backend for Zava Popup Store
+FastAPI Backend for GitHub Popup Store
 Provides REST API endpoints for the frontend application.
 """
 
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     global db_provider
 
     # Startup
-    logger.info("🚀 Starting Zava API Server...")
+    logger.info("🚀 Starting GitHub API Server...")
     try:
         db_provider = PostgreSQLSchemaProvider()
         await db_provider.create_pool()
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("🛑 Shutting down Zava API Server...")
+    logger.info("🛑 Shutting down GitHub API Server...")
     if db_provider:
         await db_provider.close_pool()
         logger.info("✅ Database connection pool closed")
@@ -80,8 +80,8 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="Zava Popup Store API",
-    description="REST API for Zava popup clothing store",
+    title="GitHub Popup Store API",
+    description="REST API for GitHub popup merchandise store",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -112,7 +112,7 @@ async def health_check():
     )
     return {
         "status": "healthy",
-        "service": "zava-api",
+        "service": "github-api",
         "database": db_status
     }
 
@@ -399,7 +399,7 @@ async def get_product_by_id(product_id: int):
 async def root():
     """Root endpoint"""
     return {
-        "service": "Zava Popup Store API",
+        "service": "GitHub Popup Store API",
         "version": "1.0.0",
         "status": "running",
         "endpoints": {

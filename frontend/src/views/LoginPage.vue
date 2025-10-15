@@ -3,8 +3,8 @@
     <div class="login-container">
       <div class="login-card">
         <div class="login-header">
-          <h1 class="login-logo">ZAVA</h1>
-          <p class="login-subtitle">Store Management</p>
+          <h1 class="login-logo">GITHUB</h1>
+          <p class="login-subtitle">Shop Management</p>
         </div>
 
         <form @submit.prevent="handleLogin" class="login-form">

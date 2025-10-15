@@ -7,7 +7,7 @@ export const authStore = reactive({
   
   login(username, password) {
     // Simple authentication check
-    if (username === 'admin' && password === 'zava') {
+    if (username === 'admin' && password === 'github') {
       this.isAuthenticated = true;
       this.user = {
         username: 'admin',

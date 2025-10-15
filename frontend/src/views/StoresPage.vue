@@ -1,7 +1,7 @@
 <template>
   <div class="stores-page">
     <div class="container">
-      <h1 class="page-title">Our Popup Store Locations</h1>
+      <h1 class="page-title">Our Popup Shop Locations</h1>
       <p class="page-subtitle">Visit us at any of our 7 locations across Washington State</p>
 
       <div class="stores-grid">
@@ -50,7 +50,7 @@ export default {
       stores: [
         {
           id: 1,
-          name: 'Zava Pop-Up Pike Place',
+          name: 'GitHub Shop Pike Place',
           location: 'Pike Place Market, Seattle, WA',
           hours: 'Mon-Sun: 9am-8pm',
           products: 52,
@@ -59,7 +59,7 @@ export default {
         },
         {
           id: 2,
-          name: 'Zava Pop-Up Bellevue Square',
+          name: 'GitHub Shop Bellevue Square',
           location: 'Bellevue Square Mall, Bellevue, WA',
           hours: 'Mon-Sat: 10am-9pm, Sun: 11am-7pm',
           products: 47,
@@ -68,7 +68,7 @@ export default {
         },
         {
           id: 3,
-          name: 'Zava Pop-Up Kirkland Waterfront',
+          name: 'GitHub Shop Kirkland Waterfront',
           location: 'Kirkland Waterfront, Kirkland, WA',
           hours: 'Mon-Sun: 10am-7pm',
           products: 54,
@@ -77,7 +77,7 @@ export default {
         },
         {
           id: 4,
-          name: 'Zava Pop-Up Tacoma Mall',
+          name: 'GitHub Shop Tacoma Mall',
           location: 'Tacoma Mall, Tacoma, WA',
           hours: 'Mon-Sat: 10am-9pm, Sun: 11am-6pm',
           products: 50,
@@ -86,7 +86,7 @@ export default {
         },
         {
           id: 5,
-          name: 'Zava Pop-Up Spokane Pavilion',
+          name: 'GitHub Shop Spokane Pavilion',
           location: 'Spokane Pavilion, Spokane, WA',
           hours: 'Mon-Sun: 10am-8pm',
           products: 52,
@@ -95,7 +95,7 @@ export default {
         },
         {
           id: 6,
-          name: 'Zava Pop-Up Everett Station',
+          name: 'GitHub Shop Everett Station',
           location: 'Everett Station Square, Everett, WA',
           hours: 'Mon-Sat: 10am-8pm, Sun: 11am-6pm',
           products: 47,
@@ -104,7 +104,7 @@ export default {
         },
         {
           id: 7,
-          name: 'Zava Pop-Up Redmond Town Center',
+          name: 'GitHub Shop Redmond Town Center',
           location: 'Redmond Town Center, Redmond, WA',
           hours: 'Mon-Sun: 10am-7pm',
           products: 45,

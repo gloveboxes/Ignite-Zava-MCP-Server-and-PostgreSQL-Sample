@@ -3,8 +3,8 @@
     <!-- Hero Section -->
     <section class="hero">
       <div class="hero-content">
-        <h1 class="hero-title">Welcome to ZAVA</h1>
-        <p class="hero-subtitle">Premium Clothing & Accessories at Popup Locations</p>
+        <h1 class="hero-title">GitHub Popup Shop</h1>
+        <p class="hero-subtitle">Premium Merchandise & Developer Apparel at Popup Locations</p>
         <router-link to="/category/accessories" class="btn btn-primary hero-btn">
           Shop Now
         </router-link>
@@ -67,7 +67,7 @@
     <section class="locations-banner">
       <div class="container">
         <div class="banner-content">
-          <h2>Find a Zava Popup Store Near You</h2>
+          <h2>Find a GitHub Popup Shop Near You</h2>
           <p>7 locations across Washington State</p>
           <router-link to="/stores" class="btn btn-outline">
             View Locations
@@ -234,7 +234,7 @@ export default {
 .hero {
   position: relative;
   height: 500px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0d1117 0%, #24292f 50%, #2da44e 100%);
   display: flex;
   align-items: center;
   justify-content: center;
