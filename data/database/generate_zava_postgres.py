@@ -4,11 +4,11 @@ Customer Sales Database Generator for PostgreSQL with pgvector
 This script generates a comprehensive customer sales database with optimized indexing
 and vector embeddings support for PostgreSQL with pgvector extension.
 
-DATA FILE STRUCTURE:
-- product_data.json: Contains all product information (main_categories with products)
-- reference_data.json: Contains store configurations (weights, year weights)
-- supplier_data.json: Contains supplier information for clothing/apparel vendors
-- store_products.json: Maps which SKUs each store carries (for reproducible inventory)
+DATA FILE STRUCTURE (all in reference_data/ folder):
+- reference_data/stores_reference.json: Consolidated store configurations, product assignments, and seasonal data
+- reference_data/product_data.json: Contains all product information (main_categories with products)
+- reference_data/supplier_data.json: Contains supplier information for clothing/apparel vendors
+- reference_data/seasonal_multipliers.json: Contains seasonal adjustment factors for different climate zones
 
 POSTGRESQL CONNECTION:
 - Requires PostgreSQL with pgvector extension enabled
@@ -17,8 +17,8 @@ POSTGRESQL CONNECTION:
 
 FEATURES:
 - Complete database generation with customers, products, stores, orders
-- Product image embeddings population from product_data.json
-- Product description embeddings population from product_data.json
+- Product image embeddings population from reference_data/product_data.json
+- Product description embeddings population from reference_data/product_data.json
 - Vector similarity indexing with pgvector
 - Performance-optimized indexes
 - Comprehensive statistics and verification
@@ -82,19 +82,29 @@ SUPER_MANAGER_UUID = '00000000-0000-0000-0000-000000000000'
 
 # Load reference data from JSON file
 def load_reference_data():
-    """Load reference data from JSON file"""
+    """Load reference data from consolidated stores_reference.json file"""
     try:
-        json_path = os.path.join(os.path.dirname(__file__), 'reference_data.json')
-        with open(json_path, 'r') as f:
+        consolidated_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'stores_reference.json')
+        with open(consolidated_path, 'r') as f:
             return json.load(f)
     except Exception as e:
-        logging.error(f"Failed to load reference data: {e}")
+        logging.error(f"Failed to load reference_data/stores_reference.json: {e}")
         raise
+
+def load_seasonal_multipliers():
+    """Load seasonal multipliers configuration"""
+    try:
+        seasonal_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'seasonal_multipliers.json')
+        with open(seasonal_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logging.warning(f"Failed to load seasonal multipliers: {e}")
+        return None
 
 def load_product_data():
     """Load product data from JSON file"""
     try:
-        json_path = os.path.join(os.path.dirname(__file__), 'product_data.json')
+        json_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'product_data.json')
         with open(json_path, 'r') as f:
             return json.load(f)
     except Exception as e:
@@ -104,6 +114,7 @@ def load_product_data():
 # Load the reference data
 reference_data = load_reference_data()
 product_data = load_product_data()
+seasonal_config = load_seasonal_multipliers()
 
 # Get reference data from loaded JSON
 main_categories = product_data['main_categories']
@@ -111,40 +122,109 @@ stores = reference_data['stores']
 
 # Load store products configuration
 def load_store_products():
-    """Load store products configuration from JSON file"""
+    """Load store products configuration - now integrated into stores_reference.json"""
     try:
-        store_products_path = os.path.join(os.path.dirname(__file__), 'store_products.json')
-        with open(store_products_path, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        logging.warning("store_products.json not found - using random product selection")
+        # Products are now part of the consolidated stores_reference.json
+        # No need for separate loading - return None to indicate integrated format
         return None
     except Exception as e:
-        logging.warning(f"Error loading store_products.json: {e} - using random product selection")
+        logging.warning(f"Error in store products loading: {e}")
         return None
 
 store_products_config = load_store_products()
 
 # Check if seasonal trends are available
 seasonal_categories = []
-for category_name, category_data in main_categories.items():
-    if 'washington_seasonal_multipliers' in category_data:
-        seasonal_categories.append(category_name)
-
-if seasonal_categories:
-    logging.info(f"🗓️  Washington State seasonal trends active for {len(seasonal_categories)} categories: {', '.join(seasonal_categories)}")
+if seasonal_config and 'climate_zones' in seasonal_config:
+    # Get categories from the multi-zone seasonal config
+    for climate_zone, zone_data in seasonal_config['climate_zones'].items():
+        for category_name in zone_data.get('categories', {}).keys():
+            if category_name not in seasonal_categories:
+                seasonal_categories.append(category_name)
+    logging.info(f"🗓️  Multi-zone seasonal trends active for {len(seasonal_categories)} categories across {len(seasonal_config['climate_zones'])} climate zones")
+    logging.info(f"    Categories: {', '.join(seasonal_categories)}")
+    logging.info(f"    Climate zones: {', '.join(seasonal_config['climate_zones'].keys())}")
 else:
     logging.info("⚠️  No seasonal trends found - using equal weights for all categories")
 
+def get_store_name_from_id(store_id: str) -> str:
+    """Get store name from store ID"""
+    if store_id in stores:
+        return stores[store_id].get('store_name', store_id)
+    # Fallback: assume store_id is already a store name (for backward compatibility)
+    return store_id
+
+def get_store_id_from_name(store_name: str) -> str:
+    """Get store ID from store name"""
+    for store_id, config in stores.items():
+        if config.get('store_name') == store_name:
+            return store_id
+    # Fallback: assume store_name is already a store ID (for backward compatibility)
+    return store_name
+
+def is_using_store_ids() -> bool:
+    """Check if we're using the new ID-based format"""
+    # Check if the first store has a 'store_name' field (new format) vs being the key itself (old format)  
+    first_store_key = next(iter(stores.keys()))
+    return 'store_name' in stores[first_store_key]
+
 def weighted_store_choice():
     """Choose a store based on weighted distribution"""
-    store_names = list(stores.keys())
-    weights = [stores[store]['customer_distribution_weight'] for store in store_names]
-    return random.choices(store_names, weights=weights, k=1)[0]
+    store_keys = list(stores.keys())
+    weights = [stores[store]['customer_distribution_weight'] for store in store_keys]
+    selected_key = random.choices(store_keys, weights=weights, k=1)[0]
+    
+    # Return store name for backward compatibility
+    if is_using_store_ids():
+        return get_store_name_from_id(selected_key)
+    else:
+        return selected_key
 
 def generate_phone_number(region=None):
     """Generate a phone number in North American format (XXX) XXX-XXXX"""
     return f"({random.randint(200, 999)}) {random.randint(200, 999)}-{random.randint(1000, 9999)}"
+
+def get_seasonal_multipliers_for_store_and_category(store_name: str, category: str) -> List[float]:
+    """Get seasonal multipliers for a specific store and category"""
+    try:
+        # Get store configuration (handle both ID-based and name-based formats)
+        store_config = None
+        if is_using_store_ids():
+            # New ID-based format: find store by ID or name
+            store_id = get_store_id_from_name(store_name)
+            store_config = stores.get(store_id, {})
+        else:
+            # Old format: store_name is the key
+            store_config = stores.get(store_name, {})
+        
+        if not store_config:
+            logging.warning(f"Store config not found for {store_name}")
+            return [1.0] * 12
+        
+        # Use the multi-zone seasonal config
+        if seasonal_config and 'climate_zones' in seasonal_config:
+            location = store_config.get('location', {})
+            climate_zone = location.get('climate_zone', 'temperate')
+            
+            climate_zones = seasonal_config.get('climate_zones', {})
+            zone_config = climate_zones.get(climate_zone, {})
+            category_multipliers = zone_config.get('categories', {})
+            
+            return category_multipliers.get(category, [1.0] * 12)
+        
+        # Check if we have simple seasonal multipliers in reference data (consolidated format)
+        if 'seasonal_multipliers' in reference_data:
+            location = store_config.get('location', {})
+            climate_zone = location.get('climate_zone', 'temperate')
+            
+            if climate_zone in reference_data['seasonal_multipliers']:
+                return reference_data['seasonal_multipliers'][climate_zone]
+        
+        # Default to no seasonal variation
+        return [1.0] * 12
+    except Exception as e:
+        logging.warning(f"Error getting seasonal multipliers for {store_name}/{category}: {e}")
+        return [1.0] * 12
 
 async def create_connection():
     """Create async PostgreSQL connection"""
@@ -842,7 +922,13 @@ async def insert_stores(conn):
         
         stores_data = []
         
-        for store_name, store_config in stores.items():
+        for store_key, store_config in stores.items():
+            # Get the actual store name
+            if is_using_store_ids():
+                store_name = store_config.get('store_name', store_key)
+            else:
+                store_name = store_key
+            
             # Determine if this is an online store
             is_online = "online" in store_name.lower()
             # Get the fixed UUID from the reference data
@@ -899,10 +985,6 @@ async def insert_product_types(conn):
         for main_category, subcategories in main_categories.items():
             category_id = category_mapping[main_category]
             for subcategory in subcategories.keys():
-                # Skip the seasonal multipliers key
-                if subcategory == 'washington_seasonal_multipliers':
-                    continue
-                
                 product_types_data.append((category_id, subcategory))
         
         await batch_insert(conn, f"INSERT INTO {SCHEMA_NAME}.product_types (category_id, type_name) VALUES ($1, $2)", product_types_data)
@@ -918,7 +1000,7 @@ async def insert_suppliers(conn):
         logging.info("Loading suppliers from supplier_data.json...")
         
         # Load supplier data from JSON file
-        supplier_json_path = os.path.join(os.path.dirname(__file__), 'supplier_data.json')
+        supplier_json_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'supplier_data.json')
         
         if not os.path.exists(supplier_json_path):
             raise FileNotFoundError(f"Supplier data file not found: {supplier_json_path}")
@@ -1270,10 +1352,6 @@ async def insert_products(conn):
                 category_suppliers = default_suppliers
             
             for subcategory, product_list in subcategories.items():
-                # Skip the seasonal multipliers key, only process actual product types
-                if subcategory == 'washington_seasonal_multipliers':
-                    continue
-                    
                 if not product_list:  # Handle empty product lists
                     continue
                 
@@ -1337,11 +1415,15 @@ def get_store_multipliers(store_name):
 
 def get_yearly_weight(year):
     """Get the weight for each year to create growth pattern"""
-    return reference_data['year_weights'].get(str(year), 1.0)
+    # Map years to the array indices
+    year_mapping = {2021: 0, 2022: 1, 2023: 2, 2024: 3, 2025: 4}
+    if 'year_weights' in reference_data and year in year_mapping:
+        return reference_data['year_weights'][year_mapping[year]]
+    return 1.0  # Default weight
 
 def weighted_year_choice():
     """Choose a year based on growth pattern weights"""
-    years = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
+    years = [2021, 2022, 2023, 2024, 2025]  # Match the years we have weights for
     weights = [get_yearly_weight(year) for year in years]
     return random.choices(years, weights=weights, k=1)[0]
 
@@ -1350,22 +1432,18 @@ async def get_store_id_by_name(conn, store_name):
     row = await conn.fetchrow(f"SELECT store_id FROM {SCHEMA_NAME}.stores WHERE store_name = $1", store_name)
     return row['store_id'] if row else 1  # Default to store_id 1 if not found
 
-def choose_seasonal_product_category(month):
-    """Choose a category based on Washington State seasonal multipliers"""
+def choose_seasonal_product_category(month, store_name=None):
+    """Choose a category based on seasonal multipliers for the store's climate zone"""
     categories = []
     weights = []
     
-    for category_name, category_data in main_categories.items():
-        # Skip if no seasonal multipliers defined for this category
-        if 'washington_seasonal_multipliers' not in category_data:
-            categories.append(category_name)
-            weights.append(1.0)  # Default weight
-        else:
-            seasonal_multipliers = category_data['washington_seasonal_multipliers']
-            # Use month index (0-11) to get the multiplier
-            seasonal_weight = seasonal_multipliers[month - 1]  # month is 1-12, array is 0-11
-            categories.append(category_name)
-            weights.append(seasonal_weight)
+    for category_name in main_categories.keys():
+        # Get seasonal multipliers for this store and category
+        seasonal_multipliers = get_seasonal_multipliers_for_store_and_category(store_name or "Zava Physical Store Seattle", category_name)
+        # Use month index (0-11) to get the multiplier
+        seasonal_weight = seasonal_multipliers[month - 1]  # month is 1-12, array is 0-11
+        categories.append(category_name)
+        weights.append(seasonal_weight)
     
     return random.choices(categories, weights=weights, k=1)[0]
 
@@ -1729,28 +1807,16 @@ async def insert_inventory(conn):
         sku_to_product = {row['sku']: row for row in products_data}
         
         # Build category to seasonal multiplier mapping (using average across year for base inventory)
-        category_seasonal_avg = {}
-        for category_name, category_data in main_categories.items():
-            if 'washington_seasonal_multipliers' in category_data:
-                seasonal_multipliers = category_data['washington_seasonal_multipliers']
-                # Use average seasonal multiplier for inventory planning
-                # seasonal_multipliers is now a list of 12 values (one per month)
-                avg_multiplier = sum(seasonal_multipliers) / len(seasonal_multipliers)
-                category_seasonal_avg[category_name] = avg_multiplier
-            else:
-                category_seasonal_avg[category_name] = 1.0  # Default multiplier
+        # This now varies by store based on their climate zone
+        def get_category_seasonal_avg(store_name, category_name):
+            seasonal_multipliers = get_seasonal_multipliers_for_store_and_category(store_name, category_name)
+            return sum(seasonal_multipliers) / len(seasonal_multipliers)
         
         inventory_data = []
         
-        # Check if we have store products configuration
-        use_config = store_products_config is not None and 'store_specializations' in store_products_config
-        
-        if use_config:
-            logging.info("📦 Using store_products.json configuration for reproducible inventory assignments")
-            store_specializations = store_products_config['store_specializations']
-        else:
-            logging.info("⚠️  store_products.json not found - using random product selection")
-            store_specializations = None
+        # Check if we have consolidated store configuration with product assignments
+        has_consolidated_config = True  # stores_reference.json includes product assignments
+        logging.info("📦 Using consolidated stores_reference.json for reproducible inventory assignments")
         
         for store in stores_data:
             store_id = store['store_id']
@@ -1758,15 +1824,19 @@ async def insert_inventory(conn):
             is_online = store['is_online']
             
             # Get store configuration for inventory distribution
-            store_config = stores.get(store_name, {})
+            if is_using_store_ids():
+                store_id_key = get_store_id_from_name(store_name)
+                store_config = stores.get(store_id_key, {})
+            else:
+                store_config = stores.get(store_name, {})
             base_stock_multiplier = store_config.get('customer_distribution_weight', 1.0)
             
             # Determine which products this store carries
-            if use_config and store_name in store_specializations:
-                # Use configured SKU list for this store
-                assigned_skus = store_specializations[store_name]['product_skus']
+            if has_consolidated_config and 'product_skus' in store_config:
+                # Use configured SKU list from consolidated store data
+                assigned_skus = store_config['product_skus']
                 selected_products = [sku_to_product[sku] for sku in assigned_skus if sku in sku_to_product]
-                logging.info(f"  {store_name}: carrying {len(selected_products)} products (from config)")
+                logging.info(f"  {store_name}: carrying {len(selected_products)} products (from consolidated config)")
             elif not is_online:
                 # Fallback: Randomly select 45-55 products for popup stores
                 num_products = random.randint(45, 55)
@@ -1781,8 +1851,8 @@ async def insert_inventory(conn):
                 product_id = product['product_id']
                 category_name = product['category_name']
                 
-                # Get seasonal multiplier for this category
-                seasonal_multiplier = category_seasonal_avg.get(category_name, 1.0)
+                # Get seasonal multiplier for this category based on store's climate zone
+                seasonal_multiplier = get_category_seasonal_avg(store_name, category_name)
                 
                 # Popup stores have limited inventory - much lower stock levels
                 # Online stores can have more inventory
@@ -1889,7 +1959,7 @@ async def insert_orders(conn, num_customers: int = 100000, product_lookup: Optio
                 # Choose category based on seasonal multipliers for this month
                 # Increase seasonal bias by selecting seasonal category with higher probability
                 if random.random() < 0.85:  # 85% seasonal selection
-                    selected_category = choose_seasonal_product_category(month)
+                    selected_category = choose_seasonal_product_category(month, preferred_store)
                 else:
                     selected_category = random.choice(list(main_categories.keys()))
             else:
@@ -2199,12 +2269,17 @@ async def verify_seasonal_patterns(conn):
         month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         
-        for category_name, category_config in main_categories.items():
-            if 'washington_seasonal_multipliers' not in category_config:
-                continue
-                
+        # Get seasonal categories from the new system
+        if not seasonal_config or 'climate_zones' not in seasonal_config:
+            logging.warning("   ⚠️  No seasonal config available for verification")
+            return
+            
+        # Use pacific_northwest as reference for validation (most stores are there)
+        pnw_zone = seasonal_config['climate_zones'].get('pacific_northwest', {})
+        pnw_categories = pnw_zone.get('categories', {})
+        
+        for category_name, seasonal_multipliers in pnw_categories.items():
             total_seasonal_categories += 1
-            seasonal_multipliers = category_config['washington_seasonal_multipliers']
             
             if category_name not in category_data:
                 logging.warning(f"   ⚠️  No orders found for seasonal category: {category_name}")
@@ -2275,9 +2350,12 @@ async def verify_seasonal_patterns(conn):
         
         # Calculate expected inventory ratios based on seasonal averages
         expected_inventory = {}
-        for category_name, category_config in main_categories.items():
-            if 'washington_seasonal_multipliers' in category_config:
-                seasonal_multipliers = category_config['washington_seasonal_multipliers']
+        if seasonal_config and 'climate_zones' in seasonal_config:
+            # Use pacific_northwest as reference for validation
+            pnw_zone = seasonal_config['climate_zones'].get('pacific_northwest', {})
+            pnw_categories = pnw_zone.get('categories', {})
+            
+            for category_name, seasonal_multipliers in pnw_categories.items():
                 avg_multiplier = sum(seasonal_multipliers) / len(seasonal_multipliers)
                 expected_inventory[category_name] = avg_multiplier
         

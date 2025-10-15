@@ -1,10 +1,10 @@
-# Zava Popup Shop Retail Database Documentation
+# GitHub Popup Stores Retail Database Documentation
 
 ## Overview
-This document provides comprehensive documentation for the Zava retail database schema, including product catalog, inventory management, supplier information, and database structure.
+This document provides comprehensive documentation for the GitHub Popup retail database schema, including product catalog, inventory management, supplier information, and database structure across 16 store locations.
 
-**Generated:** October 15, 2025  
-**Database:** PostgreSQL - Zava Retail System  
+**Generated:** October 15, 2025 (Updated)  
+**Database:** PostgreSQL - GitHub Popup Retail System  
 **Schema:** retail
 
 ---
@@ -48,41 +48,69 @@ This document provides comprehensive documentation for the Zava retail database 
 
 **Total Product Categories:** 5  
 **Total Product Types:** 21  
-**Total Unique Products:** 145
+**Total Unique Products:** 129
 
 ---
 
-## Popup Store Inventory Status
+## GitHub Popup Store Inventory Status
 
 ### Inventory Summary by Store
 
-| Store Name | Unique Products | Total Items | Total Inventory Value |
-|------------|----------------|-------------|---------------------|
-| Zava Pop-Up Bellevue Square | 47 | 509 | $43,257.86 |
-| Zava Pop-Up Everett Station | 47 | 426 | $28,651.85 |
-| Zava Pop-Up Kirkland Waterfront | 54 | 448 | $34,411.07 |
-| Zava Pop-Up Pike Place | 52 | 728 | $48,910.07 |
-| Zava Pop-Up Redmond Town Center | 45 | 347 | $21,806.75 |
-| Zava Pop-Up Spokane Pavilion | 52 | 429 | $32,888.56 |
-| Zava Pop-Up Tacoma Mall | 50 | 626 | $39,530.69 |
+| Store Name | Unique Products | Total Items | Total Inventory Value (Retail) |
+|------------|----------------|-------------|------------------------------|
+| **Physical Popup Stores** |
+| GitHub Popup Atlanta Midtown | 42 | 360 | $26,251.20 |
+| GitHub Popup Austin Downtown | 50 | 364 | $22,125.82 |
+| GitHub Popup Boston Back Bay | 45 | 402 | $26,059.78 |
+| GitHub Popup Chicago Loop | 47 | 438 | $28,845.66 |
+| GitHub Popup Denver LoDo | 52 | 462 | $32,943.38 |
+| GitHub Popup Miami Design District | 41 | 335 | $20,847.37 |
+| GitHub Popup Minneapolis Mill District | 50 | 392 | $29,362.61 |
+| GitHub Popup Nashville Music Row | 44 | 397 | $23,519.48 |
+| GitHub Popup NYC Times Square | 52 | 523 | $33,947.30 |
+| GitHub Popup Phoenix Scottsdale | 42 | 316 | $20,028.09 |
+| GitHub Popup Portland Pearl District | 42 | 351 | $27,085.25 |
+| GitHub Popup Raleigh Research Triangle | 44 | 357 | $27,827.49 |
+| GitHub Popup Salt Lake City Downtown | 50 | 413 | $31,833.66 |
+| GitHub Popup Seattle Capitol Hill | 45 | 428 | $29,897.69 |
+| GitHub Popup SF Union Square | 47 | 442 | $40,005.26 |
+| **Online Store** |
+| GitHub Popup Online Store | 129 | 6,904 | $485,931.79 |
 
-**Total Popup Stores:** 7  
-**Total Inventory Value:** $249,456.85  
-**Average Store Inventory Value:** $35,636.69
+**Total Popup Stores:** 16 (15 Physical + 1 Online)  
+**Total Physical Store Inventory Value:** $420,579.83  
+**Total Online Store Inventory Value:** $485,931.79  
+**Total Combined Inventory Value:** $906,511.62  
+**Average Physical Store Inventory Value:** $28,038.66
 
-### Sample Inventory by Store (Bellevue Square)
+### Store Distribution & Themes
 
-| Product Name | Category | Type | Stock Level | Unit Price | Inventory Value |
-|-------------|----------|------|-------------|------------|----------------|
-| Laptop Commuter Backpack | Accessories | Backpacks & Bags | 19 | $82.07 | $1,559.33 |
-| Rolling Travel Backpack | Accessories | Backpacks & Bags | 4 | $119.39 | $477.56 |
-| Leather Dress Belt | Accessories | Belts | 17 | $44.76 | $760.92 |
-| Reversible Belt | Accessories | Belts | 21 | $52.22 | $1,096.62 |
-| Baseball Cap Classic | Accessories | Caps & Hats | 5 | $29.84 | $149.20 |
-| Classic Straight Leg Jeans | Apparel - Bottoms | Jeans | 23 | $74.61 | $1,716.03 |
-| Raw Selvedge Jeans | Apparel - Bottoms | Jeans | 19 | $119.39 | $2,268.41 |
+**Geographic Coverage:** 15 major US cities + online presence
 
-*Note: This is a sample showing the first 20 items from Bellevue Square. Each store carries a similar range of products with varying stock levels.*
+| Store Location | Theme | Climate Zone | Product Strategy |
+|---------------|--------|--------------|-----------------|
+| NYC Times Square | Urban Tech Hub | Temperate | Curated Selection |
+| SF Union Square | West Coast Tech | Warm | Curated Selection |
+| Austin Downtown | Creative Tech | Warm | Curated Selection |
+| Denver LoDo | Mountain Tech | Temperate | Curated Selection |
+| Chicago Loop | Midwest Professional | Temperate | Curated Selection |
+| Boston Back Bay | Academic Tech | Temperate | Curated Selection |
+| Seattle Capitol Hill | Grunge Tech Revival | Pacific Northwest | Curated Selection |
+| Atlanta Midtown | Southern Tech Hub | Warm | Curated Selection |
+| Miami Design District | Tropical Tech Style | Warm | Curated Selection |
+| Portland Pearl District | Eco-Tech Portland | Pacific Northwest | Curated Selection |
+| Nashville Music Row | Music City Tech | Temperate | Curated Selection |
+| Phoenix Scottsdale | Desert Tech Oasis | Warm | Curated Selection |
+| Minneapolis Mill District | Northern Tech Heritage | Temperate | Curated Selection |
+| Raleigh Research Triangle | Research Park Professional | Temperate | Curated Selection |
+| Salt Lake City Downtown | Mountain West Tech | Temperate | Curated Selection |
+| **Online Store** | Global Developer Community | All Zones | Complete Catalog |
+
+### Product Distribution Strategy
+- **Physical Stores:** Each store carries 40-55 curated products (~30% average of total catalog)
+- **Online Store:** Complete product catalog (129 products)
+- **Product Overlap:** ~20-30% core essentials shared across stores
+- **Unique Assortment:** 70-80% store-specific products based on local themes and demographics
 
 ---
 
@@ -115,28 +143,28 @@ This document provides comprehensive documentation for the Zava retail database 
 
 #### 💰 Supplier Bulk Discount Programs
 
-All Zava suppliers offer bulk discount programs with varying thresholds and discount rates. **Note**: Discounts apply automatically when order values exceed the specified thresholds.
+All GitHub Popup suppliers offer bulk discount programs with varying thresholds and discount rates. **Note**: Discounts apply automatically when order values exceed the specified thresholds.
 
 **Best Discount Rates:**
-- **Global Headwear Co (SUP009)**: 9.58% discount on orders $2,500+
-- **Fashion Forward Wholesale (SUP014)**: 9.56% discount on orders $6,000+
-- **Active Wear Solutions (SUP010)**: 9.49% discount on orders $5,000+
-- **Quality Basics Wholesale (SUP020)**: 9.31% discount on orders $2,500+
-- **Northwest Denim Works (SUP005)**: 9.25% discount on orders $4,000+
+- **Athletic Footwear Network (SUP016)**: 9.72% discount on orders $4,500+
+- **Sock & Hosiery Wholesale (SUP012)**: 9.60% discount on orders $1,500+
+- **Bag & Luggage Distributors (SUP013)**: 8.94% discount on orders $4,000+
+- **Urban Threads Wholesale (SUP001)**: 8.98% discount on orders $2,500+
+- **Premier Accessories Ltd (SUP008)**: 8.79% discount on orders $2,000+
 
 **Most Accessible Discounts (Lowest Thresholds):**
-- **Sock & Hosiery Wholesale (SUP012)**: 8.09% discount on orders $1,500+
-- **Premier Accessories Ltd (SUP008)**: 6.25% discount on orders $2,000+
-- **Global Headwear Co (SUP009)**: 9.58% discount on orders $2,500+
-- **Quality Basics Wholesale (SUP020)**: 9.31% discount on orders $2,500+
-- **Urban Threads Wholesale (SUP001)**: 7.17% discount on orders $2,500+
+- **Sock & Hosiery Wholesale (SUP012)**: 9.60% discount on orders $1,500+
+- **Premier Accessories Ltd (SUP008)**: 8.79% discount on orders $2,000+
+- **Urban Threads Wholesale (SUP001)**: 8.98% discount on orders $2,500+
+- **Quality Basics Wholesale (SUP020)**: 6.76% discount on orders $2,500+
+- **Global Headwear Co (SUP009)**: 5.72% discount on orders $2,500+
 
 **Premium Volume Discounts (High Thresholds):**
-- **Classic Outerwear Imports (SUP011)**: 7.50% discount on orders $12,500+
-- **Metro Style Supply Co (SUP004)**: 8.84% discount on orders $10,000+
-- **Formal Wear Specialists (SUP017)**: 6.69% discount on orders $10,000+
+- **Classic Outerwear Imports (SUP011)**: 8.53% discount on orders $12,500+
+- **Formal Wear Specialists (SUP017)**: 7.68% discount on orders $10,000+
+- **Metro Style Supply Co (SUP004)**: 5.53% discount on orders $10,000+
 
-**💡 Procurement Tip**: Consolidate orders to reach bulk discount thresholds. For example, combining smaller orders to reach Global Headwear Co's $2,500 threshold saves 9.58% on cap and hat purchases.
+**💡 Procurement Tip**: Sock & Hosiery Wholesale offers the best combination of high discount rate (9.60%) and low threshold ($1,500), making them ideal for frequent smaller orders. For footwear, Athletic Footwear Network provides the highest discount rate at 9.72%.
 
 ### Supplier Key Metrics
 
@@ -191,14 +219,90 @@ All Zava suppliers offer bulk discount programs with varying thresholds and disc
 
 ---
 
+## Seasonality and Climate Zone System
+
+### Climate Zone Classification
+
+The GitHub Popup retail system implements sophisticated seasonal demand patterns based on three climate zones:
+
+#### 🌲 Pacific Northwest Zone
+**Description:** Washington, Oregon, Northern California - mild, wet winters and dry summers  
+**Stores:** Seattle Capitol Hill, Portland Pearl District
+
+**Seasonal Multipliers by Category (Jan-Dec):**
+- **Outerwear:** [1.8, 1.7, 1.5, 1.3, 1.0, 0.7, 0.6, 0.6, 0.9, 1.3, 1.6, 1.8] - High winter demand
+- **Apparel - Tops:** [0.7, 0.7, 0.8, 0.9, 1.1, 1.3, 1.4, 1.3, 1.1, 0.9, 0.7, 0.6] - Summer peak
+- **Footwear:** [0.9, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.3, 1.2, 1.1, 0.9, 0.8] - Spring/summer preference
+- **Accessories:** [1.2, 1.2, 1.1, 1.0, 1.0, 1.1, 1.2, 1.2, 1.1, 1.0, 1.1, 1.3] - Winter accessories demand
+- **Apparel - Bottoms:** [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] - Stable year-round
+
+#### 🌡️ Temperate Zone  
+**Description:** Most US regions - moderate seasonal variation  
+**Stores:** NYC Times Square, Denver LoDo, Chicago Loop, Boston Back Bay, Nashville Music Row, Minneapolis Mill District, Raleigh Research Triangle, Salt Lake City Downtown
+
+**Seasonal Multipliers by Category (Jan-Dec):**
+- **Outerwear:** [1.6, 1.6, 1.4, 1.1, 0.8, 0.6, 0.5, 0.6, 0.8, 1.0, 1.3, 1.6] - Strong winter pattern
+- **Apparel - Tops:** [0.8, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.2, 1.1, 1.0, 0.8, 0.7] - Summer focused
+- **Footwear:** [0.9, 0.9, 1.0, 1.1, 1.1, 1.2, 1.2, 1.2, 1.1, 1.0, 0.9, 0.9] - Moderate variation
+- **Accessories:** [1.2, 1.2, 1.1, 1.0, 1.0, 0.9, 0.8, 0.9, 1.0, 1.0, 1.1, 1.2] - Winter accessory preference
+- **Apparel - Bottoms:** [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] - Stable year-round
+
+#### ☀️ Warm Zone
+**Description:** Southern US regions - milder winters, hot summers  
+**Stores:** SF Union Square, Austin Downtown, Atlanta Midtown, Miami Design District, Phoenix Scottsdale
+
+**Seasonal Multipliers by Category (Jan-Dec):**
+- **Outerwear:** [1.3, 1.3, 1.2, 1.0, 0.7, 0.5, 0.4, 0.5, 0.7, 0.9, 1.1, 1.3] - Mild winter demand
+- **Apparel - Tops:** [0.9, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.3, 1.2, 1.1, 0.9, 0.8] - Strong summer demand
+- **Footwear:** [1.0, 1.0, 1.1, 1.1, 1.2, 1.2, 1.3, 1.3, 1.2, 1.1, 1.0, 1.0] - Summer footwear preference
+- **Accessories:** [1.1, 1.1, 1.0, 1.0, 0.9, 0.8, 0.7, 0.8, 0.9, 1.0, 1.1, 1.1] - Lower summer demand
+- **Apparel - Bottoms:** [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0] - Stable year-round
+
+### Seasonal Business Intelligence
+
+**Key Insights:**
+- **Outerwear** shows the strongest seasonal variation across all zones (0.4x to 1.8x multipliers)
+- **Apparel - Bottoms** (jeans, pants, shorts) maintain stable demand year-round in all climates
+- **Pacific Northwest** has the most extreme seasonal patterns due to distinct wet/dry seasons
+- **Warm zones** show inverted patterns - higher summer demand for most categories except outerwear
+- **Q4 (Oct-Dec)** is universally strong for outerwear and accessories across all zones
+
+**Procurement Strategy:**
+- Stock outerwear heavily in Q3 for Q4/Q1 demand, especially in temperate and Pacific Northwest zones
+- Summer apparel (tops, footwear) should peak in Q2 inventory for Q2/Q3 sales
+- Warm zone stores need different inventory timing compared to northern stores
+
+---
+
 ## Complete Database Schema
+
+### Row Level Security (RLS) Implementation
+
+The GitHub Popup retail database implements PostgreSQL Row Level Security to ensure data isolation between stores:
+
+**RLS User System:**
+- Each store has a unique `rls_user_id` (UUID) that controls data access
+- **Super Manager UUID:** `00000000-0000-0000-0000-000000000000` - Has access to all data across stores
+- Store-specific UUIDs restrict access to relevant data only
+
+**Key RLS Tables:**
+- `retail.stores` - Each store has unique rls_user_id for access control
+- `retail.customers` - Customer data tied to primary store via foreign key
+- `retail.orders` - Order access controlled by store association
+- `retail.inventory` - Inventory visible only to authorized store users
+
+**Security Benefits:**
+- Multi-tenant architecture within single database
+- Store managers only see their store's data
+- Corporate users (with super manager UUID) have full access
+- Prevents accidental data exposure between stores
 
 ### Core Tables Overview
 
-The Zava retail database consists of 17 tables organized into the following functional areas:
+The GitHub Popup retail database consists of 17 tables organized into the following functional areas:
 
 1. **Customer Management**: `customers`
-2. **Store Management**: `stores`
+2. **Store Management**: `stores` (with RLS user mapping)
 3. **Product Catalog**: `categories`, `product_types`, `products`
 4. **Order Management**: `orders`, `order_items`
 5. **Inventory Management**: `inventory`
@@ -206,9 +310,48 @@ The Zava retail database consists of 17 tables organized into the following func
 7. **Procurement**: `procurement_requests`, `company_policies`, `approvers`, `notifications`
 8. **AI/ML Features**: `product_image_embeddings`, `product_description_embeddings`
 
+**Recent Schema Enhancements:**
+- **Enhanced Store Model**: Added `is_online` boolean field to distinguish physical vs online stores
+- **RLS Integration**: All stores now have `rls_user_id` for row-level security
+- **Comprehensive Supplier Data**: Full supplier contracts and performance tracking
+- **Bulk Discount System**: Supplier-specific discount thresholds and percentages
+- **Climate Zone Support**: Seasonal multipliers integrated with geographic store data
+
 ---
 
 ### Table Schemas
+
+---
+
+## Database Summary & Key Metrics
+
+### Current Database State (October 2025)
+- **Total Stores:** 16 (15 Physical Popup Stores + 1 Online Store)
+- **Geographic Coverage:** 15 major US cities with themed popup locations
+- **Total Products:** 129 unique products across 5 categories and 21 product types
+- **Active Suppliers:** 20 suppliers across Washington State
+- **ESG Compliance:** 80% of suppliers are ESG compliant
+- **Inventory Value:** $906,511.62 total retail value ($420K physical + $486K online)
+- **Climate Zones:** 3-zone seasonal system (Pacific Northwest, Temperate, Warm)
+
+### Data Architecture Highlights
+- **Row Level Security (RLS):** Multi-tenant database with store-level data isolation
+- **Vector Embeddings:** AI-powered product search via pgvector extension  
+- **Seasonal Intelligence:** Climate zone-based demand forecasting
+- **Supplier Integration:** Comprehensive procurement workflow with bulk discounts
+- **Real-time Inventory:** Live stock levels across all store locations
+
+### Use Cases & Applications
+- **Store Operations:** Individual store inventory management and sales tracking
+- **Corporate Analytics:** Cross-store performance analysis and trend identification
+- **Procurement Optimization:** Supplier selection, bulk discount utilization, ESG compliance
+- **Seasonal Planning:** Climate-aware inventory planning and seasonal product mix
+- **Customer Intelligence:** Purchase pattern analysis and store preference insights
+- **AI-Powered Search:** Semantic product discovery using vector embeddings
+
+---
+
+## Table Schemas
 
 #### 1. retail.customers
 **Purpose:** Customer information and store associations
