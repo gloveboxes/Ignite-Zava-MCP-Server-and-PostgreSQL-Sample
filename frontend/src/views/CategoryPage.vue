@@ -138,7 +138,10 @@ export default {
 
       try {
         const category = this.subcategorySlug || this.categorySlug;
-        const data = await apiService.getProductsByCategory(category);
+        const response = await apiService.getProductsByCategory(category);
+        
+        // API returns {products: [...], total: ...}
+        const data = response.products || response;
         
         // Transform API data
         if (Array.isArray(data)) {
@@ -148,7 +151,8 @@ export default {
             category: item.category_name || item.category,
             price: item.unit_price || item.price,
             originalPrice: item.original_price,
-            badge: item.badge
+            badge: item.badge,
+            image_url: item.image_url
           }));
         } else {
           this.products = this.getMockProducts(category);
