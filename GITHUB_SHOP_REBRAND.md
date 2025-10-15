@@ -14,9 +14,9 @@ The project has been rebranded from **Zava Popup Clothing Store** to **GitHub Sh
 - **White**: `#ffffff` (For text on dark backgrounds)
 
 ### Typography
-- **Font**: Inter (already in use, compatible with GitHub's design)
-- **Logo**: "GITHUB" in uppercase, bold
-- **Subtitle**: "Popup Shop" / "Shop Management"
+- **Font**: GitHub system font stack: `-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif`
+- **Logo**: Official GitHub Octocat SVG icon (32px in headers, 48px in login)
+- **Subtitle**: "Shop" / "Shop Management" in clean sans-serif
 
 ### Reference
 - Website: https://thegithubshop.com/
@@ -42,6 +42,7 @@ The project has been rebranded from **Zava Popup Clothing Store** to **GitHub Sh
   - `--accent-color: #2da44e`
   - `--github-green: #2da44e`
   - `--dark-bg: #0d1117`
+  - Updated body font to GitHub system font stack
 
 ### Components
 - [x] `/workspace/frontend/src/components/AppHeader.vue`
