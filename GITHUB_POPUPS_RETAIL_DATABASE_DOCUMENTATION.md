@@ -702,20 +702,6 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 
 ---
 
-## Database Connection Information
-
-**Database Type:** Azure Database for PostgreSQL (Flexible Server)  
-**Port:** 5432  
-**Database:** zava (aka GitHub Popup Retail)
-**Username:** postgres  
-**Schema:** retail
-
-> **Note:** Connection details are automatically configured in the `.env` file after running the Azure deployment script (`deploy.sh`). The host will be your Azure PostgreSQL server FQDN (e.g., `psql-zava-mcp-server-xxxx.postgres.database.azure.com`).
-
----
-
----
-
 ## Seasonal Variations and Trends
 
 ### Sales Performance by Season (2024 Data)
