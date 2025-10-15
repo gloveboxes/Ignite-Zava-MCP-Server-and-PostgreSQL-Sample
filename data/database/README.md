@@ -1,12 +1,12 @@
-# Zava DIY PostgreSQL Database Generator
+# GitHub Popup Stores PostgreSQL Database Generator
 
-This directory contains the PostgreSQL database generator for **Zava DIY**, a fictional home improvement retail company. The generator creates a comprehensive sales database with realistic retail data patterns, seasonal variations, and advanced features for data analysis and agentic applications.
+This directory contains the PostgreSQL database generator for **GitHub Popup Stores**, a fictional home improvement retail company. The generator creates a comprehensive sales database with realistic retail data patterns, seasonal variations, and advanced features for data analysis and agentic applications.
 
 ## Quick Start
 
-### How to Generate the Zava DIY PostgreSQL Database
+### How to Generate the GitHub Popup Stores PostgreSQL Database
 
-To generate the complete Zava DIY PostgreSQL database:
+To generate the complete GitHub Popup Stores PostgreSQL database:
 
 ```bash
 # Navigate to the database directory
@@ -15,17 +15,17 @@ cd data/database
 pip install -r requirements.txt
 
 # Run the generator (creates complete database)
-python generate_zava_postgres.py
+python generate_github_postgres.py
 
 # Or run with specific options
-python generate_zava_postgres.py --show-stats          # Show database statistics
-python generate_zava_postgres.py --embeddings-only     # Populate embeddings only
-python generate_zava_postgres.py --verify-embeddings   # Verify embeddings table
-python generate_zava_postgres.py --verify-seasonal     # Verify seasonal patterns
-python generate_zava_postgres.py --clear-embeddings    # Clear existing embeddings
-python generate_zava_postgres.py --batch-size 200      # Set embedding batch size
-python generate_zava_postgres.py --num-customers 100000 # Set number of customers
-python generate_zava_postgres.py --help                # Show all options
+python generate_github_postgres.py --show-stats          # Show database statistics
+python generate_github_postgres.py --embeddings-only     # Populate embeddings only
+python generate_github_postgres.py --verify-embeddings   # Verify embeddings table
+python generate_github_postgres.py --verify-seasonal     # Verify seasonal patterns
+python generate_github_postgres.py --clear-embeddings    # Clear existing embeddings
+python generate_github_postgres.py --batch-size 200      # Set embedding batch size
+python generate_github_postgres.py --num-customers 100000 # Set number of customers
+python generate_github_postgres.py --help                # Show all options
 ```
 
 **Prerequisites:**
@@ -34,7 +34,7 @@ python generate_zava_postgres.py --help                # Show all options
 - Python 3.13+ with required packages (asyncpg, faker, python-dotenv)
 - Required JSON data files: `product_data.json` and `reference_data.json`
 
-### How to Generate the Zava DIY SQL Server Database
+### How to Generate the GitHub Popup Stores SQL Server Database
 
 To generate the SQL Server compatible database schema and data:
 
@@ -43,19 +43,19 @@ To generate the SQL Server compatible database schema and data:
 cd data/database
 pip install -r requirements.txt
 # Run the SQL Server generator
-python generate_zava_sql_server.py
+python generate_github_sql_server.py
 ```
 
 This will create a SQL Server compatible schema and populate it with the same data as the PostgreSQL version.
 
 ## Available Tools
 
-This directory contains several utility tools for managing and working with the Zava DIY database:
+This directory contains several utility tools for managing and working with the GitHub Popup Stores database:
 
 ### **Core Database Tools**
 
-- **`generate_zava_postgres.py`** - Main database generator that creates the complete Zava DIY retail database with realistic sales data, seasonal patterns, and AI embeddings
-- **`generate_zava_sql_server.py`** - Generates a SQL Server compatible database schema and data
+- **`generate_github_postgres.py`** - Main database generator that creates the complete GitHub Popup Stores retail database with realistic sales data, seasonal patterns, and AI embeddings
+- **`generate_github_sql_server.py`** - Generates a SQL Server compatible database schema and data
 - **`count_products.py`** - Analyzes and reports product counts across categories and embedding status from the JSON data files
 
 ### **Product Management Tools**
@@ -86,7 +86,7 @@ This directory contains several utility tools for managing and working with the 
 
 ## Overview
 
-The database generator creates a complete retail ecosystem for Zava DIY, simulating a multi-store home improvement retailer with 8 locations across Washington State, including physical stores and online sales. The generated data supports advanced analytics, seasonal pattern analysis, multimodal AI applications with both image and text embeddings, and agentic applications.
+The database generator creates a complete retail ecosystem for GitHub Popup Stores, simulating a multi-store home improvement retailer with 8 locations across Washington State, including physical stores and online sales. The generated data supports advanced analytics, seasonal pattern analysis, multimodal AI applications with both image and text embeddings, and agentic applications.
 
 ## Generated Database Structure
 
@@ -120,7 +120,7 @@ The database generator creates a complete retail ecosystem for Zava DIY, simulat
 
 - **8 retail locations** across Washington State:
   - Physical stores: Seattle, Bellevue, Tacoma, Spokane, Everett, Redmond, Kirkland
-  - Online store: Zava Retail Online
+  - Online store: GitHub Popups Retail Online
 - Each store has unique characteristics:
   - Customer distribution weights (traffic patterns)
   - Order frequency multipliers
