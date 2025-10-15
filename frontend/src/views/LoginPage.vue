@@ -41,7 +41,6 @@
         </form>
 
         <div class="login-footer">
-          <p class="demo-notice">Demo Credentials: admin / zava</p>
           <router-link to="/" class="back-link">← Back to Store</router-link>
         </div>
       </div>
