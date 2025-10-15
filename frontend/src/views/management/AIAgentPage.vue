@@ -54,28 +54,76 @@
         </button>
       </div>
 
-      <!-- Progress Section -->
-      <div class="progress-section" v-if="isRunning">
-        <div class="progress-header">
-          <div class="spinner"></div>
-          <h3>Analysis in Progress...</h3>
-        </div>
-        <p class="progress-subtitle">The AI agent is analyzing your inventory. This may take a moment.</p>
-      </div>
-
-      <!-- Events Display -->
-      <div class="events-section" v-if="events.length > 0">
-        <h3><i class="bi bi-activity"></i> Live Activity Stream</h3>
-        <div class="events-container">
-          <div 
-            v-for="(event, index) in events" 
-            :key="index" 
-            class="event-item"
-            :class="{ 'fade-in': index === events.length - 1 }"
-          >
-            <div class="event-time">{{ formatTime(event.timestamp) }}</div>
-            <div class="event-content">{{ event.message }}</div>
+      <!-- Progress Section with Steps -->
+      <div class="progress-section" v-if="isRunning || events.length > 0">
+        <div class="progress-card">
+          <!-- Progress Header -->
+          <div class="progress-header">
+            <div class="header-left">
+              <div class="spinner" v-if="isRunning"></div>
+              <i class="bi bi-check-circle-fill complete-icon" v-else></i>
+              <div>
+                <h3>{{ isRunning ? 'AI Analysis in Progress' : 'Analysis Complete' }}</h3>
+                <p class="progress-subtitle">{{ progressSummary }}</p>
+              </div>
+            </div>
+            <button 
+              v-if="events.length > 0" 
+              @click="showDetails = !showDetails" 
+              class="details-toggle"
+            >
+              <i :class="showDetails ? 'bi bi-chevron-up' : 'bi bi-chevron-down'"></i>
+              {{ showDetails ? 'Hide Details' : 'Show Details' }}
+            </button>
           </div>
+
+          <!-- Progress Steps (always visible) -->
+          <div class="progress-steps">
+            <div 
+              v-for="step in progressSteps" 
+              :key="step.id"
+              class="progress-step"
+              :class="{ 
+                'active': step.status === 'active', 
+                'complete': step.status === 'complete',
+                'pending': step.status === 'pending'
+              }"
+            >
+              <div class="step-indicator">
+                <div class="spinner-small" v-if="step.status === 'active'"></div>
+                <i class="bi bi-check-circle-fill" v-else-if="step.status === 'complete'"></i>
+                <i class="bi bi-circle" v-else></i>
+              </div>
+              <div class="step-content">
+                <div class="step-title">{{ step.title }}</div>
+                <div class="step-description" v-if="step.description">{{ step.description }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detailed Events (collapsible) -->
+          <transition name="slide">
+            <div class="events-details" v-if="showDetails && events.length > 0">
+              <div class="details-header">
+                <i class="bi bi-list-ul"></i>
+                <span>Detailed Activity Log</span>
+              </div>
+              <div class="events-container">
+                <div 
+                  v-for="(event, index) in events" 
+                  :key="index" 
+                  class="event-item"
+                  :class="{ 'fade-in': index === events.length - 1 }"
+                >
+                  <div class="event-bullet"></div>
+                  <div class="event-details">
+                    <div class="event-content">{{ event.message }}</div>
+                    <div class="event-time">{{ formatTime(event.timestamp) }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </transition>
         </div>
       </div>
 
@@ -109,7 +157,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 // State
 const userInstructions = ref('Analyze inventory and recommend restocking priorities')
@@ -118,7 +166,26 @@ const hasCompleted = ref(false)
 const events = ref([])
 const finalOutput = ref(null)
 const error = ref(null)
+const showDetails = ref(false)
+const currentStep = ref(0)
 let ws = null
+
+// Progress steps
+const progressSteps = ref([
+  { id: 1, title: 'Starting Analysis', description: '', status: 'pending' },
+  { id: 2, title: 'Analyzing Inventory', description: '', status: 'pending' },
+  { id: 3, title: 'Checking Policies', description: '', status: 'pending' },
+  { id: 4, title: 'Generating Recommendations', description: '', status: 'pending' }
+])
+
+// Progress summary
+const progressSummary = computed(() => {
+  if (!isRunning.value && hasCompleted.value) {
+    return `Analysis completed successfully with ${events.value.length} events processed`
+  }
+  const activeStep = progressSteps.value.find(s => s.status === 'active')
+  return activeStep ? activeStep.title : 'Connecting to AI Agent...'
+})
 
 // Start analysis
 const startAnalysis = () => {
@@ -128,6 +195,14 @@ const startAnalysis = () => {
   error.value = null
   isRunning.value = true
   hasCompleted.value = false
+  showDetails.value = false
+  currentStep.value = 0
+  
+  // Reset progress steps
+  progressSteps.value.forEach(step => {
+    step.status = 'pending'
+    step.description = ''
+  })
 
   // Connect to WebSocket
   const wsUrl = 'ws://localhost:8091/ws/ai-agent/inventory'
@@ -135,6 +210,7 @@ const startAnalysis = () => {
 
   ws.onopen = () => {
     addEvent('Connected to AI Agent')
+    updateStep(0, 'active', 'Connecting to AI Agent')
     // Send the user instructions
     ws.send(JSON.stringify({
       request: userInstructions.value
@@ -147,12 +223,22 @@ const startAnalysis = () => {
       
       if (data.type === 'started') {
         addEvent('AI Agent workflow started')
+        updateStep(0, 'complete', 'Connected successfully')
+        updateStep(1, 'active', 'Processing inventory data')
       } else if (data.type === 'event') {
         // Display the event
         addEvent(data.event)
+        // Update steps based on event content
+        updateStepsFromEvent(data.event)
       } else if (data.type === 'completed') {
         addEvent('Analysis completed successfully')
         finalOutput.value = data.output
+        // Complete all steps
+        progressSteps.value.forEach(step => {
+          if (step.status !== 'complete') {
+            step.status = 'complete'
+          }
+        })
         isRunning.value = false
         hasCompleted.value = true
         ws.close()
@@ -181,6 +267,40 @@ const startAnalysis = () => {
   }
 }
 
+// Update step status
+const updateStep = (stepIndex, status, description = '') => {
+  if (stepIndex >= 0 && stepIndex < progressSteps.value.length) {
+    progressSteps.value[stepIndex].status = status
+    if (description) {
+      progressSteps.value[stepIndex].description = description
+    }
+  }
+}
+
+// Update steps based on event content
+const updateStepsFromEvent = (eventMessage) => {
+  const msg = eventMessage.toLowerCase()
+  
+  // Analyzing inventory
+  if (msg.includes('inventory') || msg.includes('stock') || msg.includes('department')) {
+    if (progressSteps.value[1].status !== 'complete') {
+      updateStep(1, 'active', 'Analyzing stock levels across stores')
+    }
+  }
+  
+  // Checking policies
+  if (msg.includes('policy') || msg.includes('policies') || msg.includes('budget')) {
+    updateStep(1, 'complete', 'Inventory analysis complete')
+    updateStep(2, 'active', 'Reviewing company policies and budgets')
+  }
+  
+  // Generating recommendations
+  if (msg.includes('recommend') || msg.includes('summary') || msg.includes('priorit')) {
+    updateStep(2, 'complete', 'Policy check complete')
+    updateStep(3, 'active', 'Preparing restocking recommendations')
+  }
+}
+
 // Add event to the list
 const addEvent = (message) => {
   events.value.push({
@@ -205,6 +325,12 @@ const resetAnalysis = () => {
   error.value = null
   isRunning.value = false
   hasCompleted.value = false
+  showDetails.value = false
+  currentStep.value = 0
+  progressSteps.value.forEach(step => {
+    step.status = 'pending'
+    step.description = ''
+  })
   if (ws) {
     ws.close()
     ws = null
@@ -382,16 +508,43 @@ const resetAnalysis = () => {
 
 /* Progress Section */
 .progress-section {
-  text-align: center;
-  padding: 3rem 0;
+  margin-top: 2rem;
+}
+
+.progress-card {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e9ecef;
 }
 
 .progress-header {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.header-left {
+  display: flex;
+  align-items: flex-start;
   gap: 1rem;
-  margin-bottom: 1rem;
+}
+
+.progress-header h3 {
+  color: #212529;
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.progress-subtitle {
+  color: #6c757d;
+  font-size: 0.95rem;
+  margin: 0;
 }
 
 .spinner {
@@ -401,40 +554,149 @@ const resetAnalysis = () => {
   border-top-color: #0d6efd;
   border-radius: 50%;
   animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner-small {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 3px solid #e9ecef;
+  border-top-color: #0d6efd;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.progress-section h3 {
-  color: #0d6efd;
+.complete-icon {
+  font-size: 2.5rem;
+  color: #28a745;
+  flex-shrink: 0;
+}
+
+.details-toggle {
+  padding: 0.5rem 1rem;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  color: #495057;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.details-toggle:hover {
+  background: #e9ecef;
+  border-color: #ced4da;
+}
+
+/* Progress Steps */
+.progress-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.progress-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+}
+
+.progress-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 0.75rem;
+  top: 2rem;
+  width: 2px;
+  height: calc(100% + 1rem);
+  background: #e9ecef;
+}
+
+.progress-step.complete:not(:last-child)::before {
+  background: #28a745;
+}
+
+.progress-step.active:not(:last-child)::before {
+  background: linear-gradient(to bottom, #28a745 50%, #e9ecef 50%);
+}
+
+.step-indicator {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.step-indicator i {
   font-size: 1.5rem;
-  font-weight: 600;
 }
 
-.progress-subtitle {
-  color: #6c757d;
+.progress-step.pending .step-indicator i {
+  color: #dee2e6;
+}
+
+.progress-step.active .step-indicator i {
+  color: #0d6efd;
+}
+
+.progress-step.complete .step-indicator i {
+  color: #28a745;
+}
+
+.step-content {
+  flex: 1;
+  padding-top: 0.15rem;
+}
+
+.step-title {
   font-size: 1.05rem;
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 0.25rem;
 }
 
-/* Events Section */
-.events-section {
+.progress-step.pending .step-title {
+  color: #adb5bd;
+}
+
+.step-description {
+  font-size: 0.9rem;
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* Events Details */
+.events-details {
   margin-top: 2rem;
   padding-top: 2rem;
   border-top: 1px solid #e9ecef;
 }
 
-.events-section h3 {
-  font-size: 1.25rem;
+.details-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 600;
   color: #495057;
   margin-bottom: 1rem;
+  font-size: 1rem;
 }
 
-.events-section h3 i {
+.details-header i {
   color: #0d6efd;
-  margin-right: 0.5rem;
 }
 
 .events-container {
@@ -446,15 +708,14 @@ const resetAnalysis = () => {
 }
 
 .event-item {
-  padding: 0.75rem;
-  margin-bottom: 0.5rem;
-  background: white;
-  border-left: 3px solid #0d6efd;
-  border-radius: 4px;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e9ecef;
 }
 
 .event-item:last-child {
-  margin-bottom: 0;
+  border-bottom: none;
 }
 
 .event-item.fade-in {
@@ -472,15 +733,42 @@ const resetAnalysis = () => {
   }
 }
 
-.event-time {
-  font-size: 0.85rem;
-  color: #6c757d;
-  margin-bottom: 0.25rem;
+.event-bullet {
+  width: 6px;
+  height: 6px;
+  background: #0d6efd;
+  border-radius: 50%;
+  margin-top: 0.5rem;
+  flex-shrink: 0;
+}
+
+.event-details {
+  flex: 1;
 }
 
 .event-content {
   color: #212529;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.event-time {
+  font-size: 0.8rem;
+  color: #868e96;
+}
+
+/* Slide transition */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.3s ease;
+  max-height: 500px;
+  overflow: hidden;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  max-height: 0;
+  opacity: 0;
 }
 
 /* Output Section */
