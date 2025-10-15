@@ -35,7 +35,8 @@ export const managementService = {
   async getSuppliers() {
     try {
       const response = await managementApi.get('/api/management/suppliers');
-      return response.data;
+      // API returns {suppliers: [...], total: ...}
+      return response.data.suppliers || response.data;
     } catch (error) {
       console.error('Error fetching suppliers:', error);
       return this.getMockSuppliers();

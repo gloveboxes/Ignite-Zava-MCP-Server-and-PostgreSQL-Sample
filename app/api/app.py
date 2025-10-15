@@ -481,6 +481,245 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
         )
 
 
+@app.get("/api/management/suppliers")
+async def get_suppliers():
+    """
+    Get all suppliers with their details and associated product categories.
+    Returns comprehensive supplier information for management interface.
+    """
+    if db_provider is None:
+        raise HTTPException(status_code=500, detail="Database not initialized")
+
+    try:
+        conn = await db_provider.get_connection()
+        try:
+            logger.info("📊 Fetching suppliers...")
+
+            query = """
+                SELECT
+                    s.supplier_id,
+                    s.supplier_name,
+                    s.supplier_code,
+                    s.contact_email,
+                    s.contact_phone,
+                    s.city,
+                    s.state_province,
+                    s.payment_terms,
+                    s.lead_time_days,
+                    s.minimum_order_amount,
+                    s.bulk_discount_percent,
+                    s.supplier_rating,
+                    s.esg_compliant,
+                    s.approved_vendor,
+                    s.preferred_vendor,
+                    s.active_status,
+                    ARRAY_AGG(DISTINCT c.category_name) 
+                        FILTER (WHERE c.category_name IS NOT NULL) as categories
+                FROM retail.suppliers s
+                LEFT JOIN retail.products p ON s.supplier_id = p.supplier_id
+                LEFT JOIN retail.categories c ON p.category_id = c.category_id
+                WHERE s.active_status = true
+                GROUP BY s.supplier_id
+                ORDER BY s.preferred_vendor DESC, s.supplier_rating DESC, s.supplier_name
+            """
+
+            rows = await conn.fetch(query)
+
+            suppliers = []
+            for row in rows:
+                # Format location
+                location = f"{row['city']}, {row['state_province']}" if row['city'] else "N/A"
+                
+                suppliers.append({
+                    "id": row['supplier_id'],
+                    "name": row['supplier_name'],
+                    "code": row['supplier_code'],
+                    "location": location,
+                    "contact": row['contact_email'],
+                    "phone": row['contact_phone'] or "N/A",
+                    "rating": float(row['supplier_rating']) if row['supplier_rating'] else 0.0,
+                    "esgCompliant": row['esg_compliant'],
+                    "approved": row['approved_vendor'],
+                    "preferred": row['preferred_vendor'],
+                    "categories": row['categories'] or [],
+                    "leadTime": row['lead_time_days'],
+                    "paymentTerms": row['payment_terms'],
+                    "minOrder": float(row['minimum_order_amount']) if row['minimum_order_amount'] else 0,
+                    "bulkDiscount": float(row['bulk_discount_percent']) if row['bulk_discount_percent'] else 0
+                })
+
+            logger.info(f"✅ Retrieved {len(suppliers)} suppliers")
+
+            return {
+                "suppliers": suppliers,
+                "total": len(suppliers)
+            }
+
+        finally:
+            await db_provider.release_connection(conn)
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching suppliers: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch suppliers: {str(e)}"
+        )
+
+
+@app.get("/api/management/inventory")
+async def get_inventory(
+    store_id: int = None,
+    category: str = None,
+    low_stock_only: bool = False,
+    limit: int = 100
+):
+    """
+    Get inventory levels across stores with product and category details.
+    
+    Args:
+        store_id: Optional filter by specific store
+        category: Optional filter by product category
+        low_stock_only: Show only items with stock below reorder threshold
+        limit: Maximum number of records to return
+    """
+    conn = await db_provider.get_connection()
+    
+    try:
+        logger.info(f"📦 Fetching inventory (store={store_id}, category={category}, low_stock={low_stock_only})...")
+
+        # Build dynamic WHERE clause
+        where_conditions = []
+        params = []
+        param_idx = 1
+
+        if store_id is not None:
+            where_conditions.append(f"st.store_id = ${param_idx}")
+            params.append(store_id)
+            param_idx += 1
+
+        if category:
+            where_conditions.append(f"LOWER(c.category_name) = LOWER(${param_idx})")
+            params.append(category)
+            param_idx += 1
+
+        # For low stock, we'll filter after the query since reorder_point may vary
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+
+        query = f"""
+            SELECT
+                i.store_id,
+                st.store_name,
+                st.is_online,
+                i.product_id,
+                p.product_name,
+                p.sku,
+                c.category_name,
+                pt.type_name,
+                i.stock_level,
+                p.base_price,
+                p.cost,
+                s.supplier_name,
+                s.supplier_code,
+                s.lead_time_days,
+                pie.image_url
+            FROM retail.inventory i
+            INNER JOIN retail.stores st ON i.store_id = st.store_id
+            INNER JOIN retail.products p ON i.product_id = p.product_id
+            INNER JOIN retail.categories c ON p.category_id = c.category_id
+            INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
+            LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+            LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
+            {where_clause}
+            ORDER BY i.stock_level ASC, st.store_name, p.product_name
+            LIMIT ${param_idx}
+        """
+
+        params.append(limit)
+        rows = await conn.fetch(query, *params)
+
+        inventory_items = []
+        for row in rows:
+            stock_level = row['stock_level']
+            # Calculate reorder point as 20% of typical stock (simple heuristic)
+            # In production, this would come from a products or inventory_settings table
+            reorder_point = 50  # Default threshold
+            
+            is_low_stock = stock_level < reorder_point
+            
+            # Skip if filtering for low stock only
+            if low_stock_only and not is_low_stock:
+                continue
+            
+            # Calculate inventory value
+            stock_value = float(row['cost']) * stock_level if row['cost'] else 0
+            retail_value = float(row['base_price']) * stock_level if row['base_price'] else 0
+            
+            # Extract location from store name
+            # Format: "Zava Pop-Up Location Name" or "Zava Online Store"
+            store_location = "Online Store"
+            if row['is_online']:
+                store_location = "Online Warehouse"
+            else:
+                # Extract location from name (e.g., "Zava Pop-Up Bellevue Square" -> "Bellevue Square")
+                name_parts = row['store_name'].split('Pop-Up ')
+                if len(name_parts) > 1:
+                    store_location = name_parts[1]
+                else:
+                    store_location = row['store_name']
+            
+            inventory_items.append({
+                "storeId": row['store_id'],
+                "storeName": row['store_name'],
+                "storeLocation": store_location,
+                "isOnline": row['is_online'],
+                "productId": row['product_id'],
+                "productName": row['product_name'],
+                "sku": row['sku'],
+                "category": row['category_name'],
+                "type": row['type_name'],
+                "stockLevel": stock_level,
+                "reorderPoint": reorder_point,
+                "isLowStock": is_low_stock,
+                "unitCost": float(row['cost']) if row['cost'] else 0,
+                "unitPrice": float(row['base_price']) if row['base_price'] else 0,
+                "stockValue": round(stock_value, 2),
+                "retailValue": round(retail_value, 2),
+                "supplierName": row['supplier_name'],
+                "supplierCode": row['supplier_code'],
+                "leadTime": row['lead_time_days'],
+                "imageUrl": row['image_url']
+            })
+
+        # Calculate summary statistics
+        total_items = len(inventory_items)
+        low_stock_count = sum(1 for item in inventory_items if item['isLowStock'])
+        total_stock_value = sum(item['stockValue'] for item in inventory_items)
+        total_retail_value = sum(item['retailValue'] for item in inventory_items)
+
+        logger.info(f"✅ Retrieved {total_items} inventory items ({low_stock_count} low stock)")
+
+        return {
+            "inventory": inventory_items,
+            "summary": {
+                "totalItems": total_items,
+                "lowStockCount": low_stock_count,
+                "totalStockValue": round(total_stock_value, 2),
+                "totalRetailValue": round(total_retail_value, 2),
+                "avgStockLevel": round(sum(item['stockLevel'] for item in inventory_items) / total_items, 1) if total_items > 0 else 0
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching inventory: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch inventory: {str(e)}"
+        )
+    finally:
+        await db_provider.release_connection(conn)
+
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -495,6 +734,8 @@ async def root():
             "products_by_category": "/api/products/category/{category}",
             "product_by_id": "/api/products/{product_id}",
             "top_categories": "/api/management/dashboard/top-categories",
+            "suppliers": "/api/management/suppliers",
+            "inventory": "/api/management/inventory",
         }
     }
 
