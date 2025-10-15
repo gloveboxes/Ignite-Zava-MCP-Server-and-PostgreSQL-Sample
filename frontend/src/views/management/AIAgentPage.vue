@@ -61,9 +61,10 @@
           <div class="progress-header">
             <div class="header-left">
               <div class="spinner" v-if="isRunning"></div>
+              <i class="bi bi-x-circle-fill error-icon" v-else-if="error"></i>
               <i class="bi bi-check-circle-fill complete-icon" v-else></i>
               <div>
-                <h3>{{ isRunning ? 'AI Analysis in Progress' : 'Analysis Complete' }}</h3>
+                <h3>{{ error ? 'Analysis Failed' : (isRunning ? 'AI Analysis in Progress' : 'Analysis Complete') }}</h3>
                 <p class="progress-subtitle">{{ progressSummary }}</p>
               </div>
             </div>
@@ -86,12 +87,14 @@
               :class="{ 
                 'active': step.status === 'active', 
                 'complete': step.status === 'complete',
-                'pending': step.status === 'pending'
+                'pending': step.status === 'pending',
+                'error': step.status === 'error'
               }"
             >
               <div class="step-indicator">
                 <div class="spinner-small" v-if="step.status === 'active'"></div>
                 <i class="bi bi-check-circle-fill" v-else-if="step.status === 'complete'"></i>
+                <i class="bi bi-x-circle-fill" v-else-if="step.status === 'error'"></i>
                 <i class="bi bi-circle" v-else></i>
               </div>
               <div class="step-content">
@@ -180,6 +183,9 @@ const progressSteps = ref([
 
 // Progress summary
 const progressSummary = computed(() => {
+  if (error.value) {
+    return 'Analysis failed - please review the error below'
+  }
   if (!isRunning.value && hasCompleted.value) {
     return `Analysis completed successfully with ${events.value.length} events processed`
   }
@@ -243,13 +249,26 @@ const startAnalysis = () => {
         hasCompleted.value = true
         ws.close()
       } else if (data.type === 'error') {
-        error.value = data.error
+        // Handle error - support both 'error' and 'message' fields
+        const errorMessage = data.error || data.message || 'An unknown error occurred'
+        addEvent(`Error: ${errorMessage}`)
+        error.value = errorMessage
         isRunning.value = false
+        hasCompleted.value = false
+        // Mark current active step as failed
+        const activeStep = progressSteps.value.find(s => s.status === 'active')
+        if (activeStep) {
+          activeStep.status = 'error'
+          activeStep.description = 'Failed'
+        }
         ws.close()
       }
     } catch (err) {
       console.error('Failed to parse WebSocket message:', err)
-      addEvent(`Received: ${event.data}`)
+      const errorMsg = 'Failed to process server response'
+      addEvent(errorMsg)
+      error.value = errorMsg
+      isRunning.value = false
     }
   }
 
@@ -576,6 +595,12 @@ const resetAnalysis = () => {
   flex-shrink: 0;
 }
 
+.error-icon {
+  font-size: 2.5rem;
+  color: #dc3545;
+  flex-shrink: 0;
+}
+
 .details-toggle {
   padding: 0.5rem 1rem;
   background: #f8f9fa;
@@ -629,6 +654,10 @@ const resetAnalysis = () => {
   background: linear-gradient(to bottom, #28a745 50%, #e9ecef 50%);
 }
 
+.progress-step.error:not(:last-child)::before {
+  background: linear-gradient(to bottom, #28a745 50%, #dc3545 50%);
+}
+
 .step-indicator {
   width: 1.5rem;
   height: 1.5rem;
@@ -656,6 +685,10 @@ const resetAnalysis = () => {
   color: #28a745;
 }
 
+.progress-step.error .step-indicator i {
+  color: #dc3545;
+}
+
 .step-content {
   flex: 1;
   padding-top: 0.15rem;
@@ -672,10 +705,19 @@ const resetAnalysis = () => {
   color: #adb5bd;
 }
 
+.progress-step.error .step-title {
+  color: #dc3545;
+}
+
 .step-description {
   font-size: 0.9rem;
   color: #6c757d;
   font-style: italic;
+}
+
+.progress-step.error .step-description {
+  color: #dc3545;
+  font-weight: 500;
 }
 
 /* Events Details */
