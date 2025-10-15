@@ -3,7 +3,7 @@
 ## Overview
 This document provides comprehensive documentation for the Zava retail database schema, including product catalog, inventory management, supplier information, and database structure.
 
-**Generated:** October 13, 2025  
+**Generated:** October 15, 2025  
 **Database:** PostgreSQL - Zava Retail System  
 **Schema:** retail
 
@@ -93,25 +93,25 @@ This document provides comprehensive documentation for the Zava retail database 
 | Supplier Name | Code | Location | Contact | ESG Compliant | Approved | Preferred | Rating |
 |--------------|------|----------|---------|---------------|----------|-----------|--------|
 | **Active Wear Solutions** | SUP010 | Tacoma, WA | amanda@activewear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Athletic Footwear Network** | SUP016 | Everett, WA | ryan.clark@athleticfootwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
+| **Athletic Footwear Network** | SUP016 | Everett, WA | ryan.clark@athleticfootwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 2.00 |
 | **Bag & Luggage Distributors** | SUP013 | Spokane, WA | daniel.white@bagluggage.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
 | **Classic Outerwear Imports** | SUP011 | Seattle, WA | thomas.brown@classicouterwear.com | ❌ No | ✅ Yes | ❌ No | 4.40 |
 | **Comfort Footwear Wholesale** | SUP007 | Everett, WA | robert@comfortfootwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
 | **Elite Fashion Distributors** | SUP002 | Bellevue, WA | sarah.j@elitefashion.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.90 |
 | **Fashion Forward Wholesale** | SUP014 | Redmond, WA | michelle@fashionforward.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Footwear Direct International** | SUP006 | Redmond, WA | lisa.t@footweardirect.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.90 |
-| **Formal Wear Specialists** | SUP017 | Seattle, WA | susan.moore@formalwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.90 |
-| **Global Headwear Co** | SUP009 | Kirkland, WA | chris.w@globalheadwear.com | ❌ No | ✅ Yes | ❌ No | 4.50 |
-| **Metro Style Supply Co** | SUP004 | Seattle, WA | e.rodriguez@metrostyle.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.60 |
+| **Footwear Direct International** | SUP006 | Redmond, WA | lisa.t@footweardirect.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.20 |
+| **Formal Wear Specialists** | SUP017 | Seattle, WA | susan.moore@formalwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 3.70 |
+| **Global Headwear Co** | SUP009 | Kirkland, WA | chris.w@globalheadwear.com | ❌ No | ✅ Yes | ❌ No | 2.00 |
+| **Metro Style Supply Co** | SUP004 | Seattle, WA | e.rodriguez@metrostyle.com | ✅ Yes | ✅ Yes | ⭐ Yes | 2.50 |
 | **Northwest Denim Works** | SUP005 | Spokane, WA | david.kim@nwdenim.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
 | **Pacific Apparel Group** | SUP003 | Tacoma, WA | james@pacificapparel.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
-| **Premier Accessories Ltd** | SUP008 | Seattle, WA | j.lee@premieraccessories.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Premium Denim Source** | SUP015 | Tacoma, WA | kevin@premiumdenim.com | ❌ No | ✅ Yes | ❌ No | 4.60 |
+| **Premier Accessories Ltd** | SUP008 | Seattle, WA | j.lee@premieraccessories.com | ✅ Yes | ✅ Yes | ⭐ Yes | 2.80 |
+| **Premium Denim Source** | SUP015 | Tacoma, WA | kevin@premiumdenim.com | ❌ No | ✅ Yes | ❌ No | 3.60 |
 | **Quality Basics Wholesale** | SUP020 | Tacoma, WA | mark.j@qualitybasics.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
 | **Sock & Hosiery Wholesale** | SUP012 | Bellevue, WA | patricia@socksupply.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.90 |
 | **Streetwear Collective** | SUP018 | Kirkland, WA | jason@streetwearcollective.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
-| **Urban Threads Wholesale** | SUP001 | Seattle, WA | michael.chen@urbanthreads.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Winter Wear Supply Co** | SUP019 | Spokane, WA | karen@winterwear.com | ❌ No | ✅ Yes | ❌ No | 4.50 |
+| **Urban Threads Wholesale** | SUP001 | Seattle, WA | michael.chen@urbanthreads.com | ✅ Yes | ✅ Yes | ⭐ Yes | 3.50 |
+| **Winter Wear Supply Co** | SUP019 | Spokane, WA | karen@winterwear.com | ❌ No | ✅ Yes | ❌ No | 3.50 |
 
 #### 💰 Supplier Bulk Discount Programs
 
@@ -144,7 +144,7 @@ All Zava suppliers offer bulk discount programs with varying thresholds and disc
 - **ESG Compliant:** 16 (80%)
 - **Approved Vendors:** 20 (100%)
 - **Preferred Vendors:** 16 (80%)
-- **Average Rating:** 4.72/5.0
+- **Average Rating:** 4.00/5.0
 - **Geographic Coverage:** Washington State
 
 ### Payment Terms Distribution
