@@ -2,10 +2,22 @@
   <div class="stores-page">
     <div class="container">
       <h1 class="page-title">Our Popup Shop Locations</h1>
-      <p class="page-subtitle">Visit us at any of our 7 locations across Washington State</p>
+      <p class="page-subtitle">Visit us at any of our {{ stores.length }} locations across Washington State</p>
 
-      <div class="stores-grid">
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading stores...</p>
+      </div>
+
+      <div class="stores-grid" v-if="!loading">
         <div v-for="store in stores" :key="store.id" class="store-card">
+          <img 
+            :src="getStoreImage(store)" 
+            :alt="store.name"
+            class="store-image"
+            @error="handleImageError"
+          />
           <div class="store-header">
             <h3 class="store-name">{{ store.name }}</h3>
             <span class="store-badge" :class="store.status">{{ store.status }}</span>
@@ -43,80 +55,132 @@
 </template>
 
 <script>
+import axios from 'axios';
+
 export default {
   name: 'StoresPage',
   data() {
     return {
-      stores: [
+      stores: [],
+      loading: true,
+      error: null,
+      // Static fallback data
+      staticStores: [
         {
           id: 1,
-          name: 'GitHub Shop Pike Place',
+          name: 'Zava Pop-Up Pike Place',
           location: 'Pike Place Market, Seattle, WA',
+          locationKey: 'pike_place',
           hours: 'Mon-Sun: 9am-8pm',
           products: 52,
           status: 'Open',
-          inventory: '$48,910'
+          isOnline: false
         },
         {
           id: 2,
-          name: 'GitHub Shop Bellevue Square',
+          name: 'Zava Pop-Up Bellevue Square',
           location: 'Bellevue Square Mall, Bellevue, WA',
+          locationKey: 'bellevue_square',
           hours: 'Mon-Sat: 10am-9pm, Sun: 11am-7pm',
           products: 47,
           status: 'Open',
-          inventory: '$43,258'
+          isOnline: false
         },
         {
           id: 3,
-          name: 'GitHub Shop Kirkland Waterfront',
+          name: 'Zava Pop-Up Kirkland Waterfront',
           location: 'Kirkland Waterfront, Kirkland, WA',
+          locationKey: 'kirkland_waterfront',
           hours: 'Mon-Sun: 10am-7pm',
           products: 54,
           status: 'Open',
-          inventory: '$34,411'
+          isOnline: false
         },
         {
           id: 4,
-          name: 'GitHub Shop Tacoma Mall',
+          name: 'Zava Pop-Up Tacoma Mall',
           location: 'Tacoma Mall, Tacoma, WA',
+          locationKey: 'tacoma_mall',
           hours: 'Mon-Sat: 10am-9pm, Sun: 11am-6pm',
           products: 50,
           status: 'Open',
-          inventory: '$39,531'
+          isOnline: false
         },
         {
           id: 5,
-          name: 'GitHub Shop Spokane Pavilion',
+          name: 'Zava Pop-Up Spokane Pavilion',
           location: 'Spokane Pavilion, Spokane, WA',
+          locationKey: 'spokane_pavilion',
           hours: 'Mon-Sun: 10am-8pm',
           products: 52,
           status: 'Open',
-          inventory: '$32,889'
+          isOnline: false
         },
         {
           id: 6,
-          name: 'GitHub Shop Everett Station',
+          name: 'Zava Pop-Up Everett Station',
           location: 'Everett Station Square, Everett, WA',
+          locationKey: 'everett_station',
           hours: 'Mon-Sat: 10am-8pm, Sun: 11am-6pm',
           products: 47,
           status: 'Open',
-          inventory: '$28,652'
+          isOnline: false
         },
         {
           id: 7,
-          name: 'GitHub Shop Redmond Town Center',
+          name: 'Zava Pop-Up Redmond Town Center',
           location: 'Redmond Town Center, Redmond, WA',
+          locationKey: 'redmond_town_center',
           hours: 'Mon-Sun: 10am-7pm',
           products: 45,
           status: 'Open',
-          inventory: '$21,807'
+          isOnline: false
+        },
+        {
+          id: 8,
+          name: 'Zava Online Store',
+          location: 'Online Warehouse, Seattle, WA',
+          locationKey: 'online',
+          hours: '24/7 Online',
+          products: 120,
+          status: 'Online',
+          isOnline: true
         }
       ]
     };
   },
+  mounted() {
+    this.fetchStores();
+  },
   methods: {
+    async fetchStores() {
+      try {
+        const response = await axios.get('http://localhost:8091/api/stores', {
+          timeout: 5000 // 5 second timeout
+        });
+        this.stores = response.data.stores;
+        this.loading = false;
+        console.log('✅ Loaded stores from API:', this.stores.length);
+      } catch (err) {
+        console.error('❌ Error fetching stores:', err);
+        this.error = 'Unable to load live store data from server';
+        this.stores = this.staticStores;
+        this.loading = false;
+      }
+    },
+    getStoreImage(store) {
+      // Use locationKey if available, otherwise generate from name
+      const key = store.locationKey || store.name.toLowerCase().replace(/\s+/g, '_');
+      return `/images/store_${key}.png`;
+    },
+    handleImageError(event) {
+      // Fallback to generic store image
+      event.target.src = '/images/store.png';
+    },
     handleDirections(store) {
-      alert(`Directions to ${store.name} - Coming soon!`);
+      // Open Google Maps with store location
+      const query = encodeURIComponent(store.location);
+      window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
     }
   }
 };
@@ -142,6 +206,52 @@ export default {
   margin-bottom: 3rem;
 }
 
+/* Loading State */
+.loading-state {
+  text-align: center;
+  padding: 4rem 0;
+}
+
+.spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-state p {
+  color: var(--secondary-color);
+  font-size: 1.1rem;
+}
+
+/* Error State */
+.error-state {
+  text-align: center;
+  padding: 2rem;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.error-state p {
+  margin: 0.5rem 0;
+  color: #856404;
+  font-size: 1rem;
+}
+
+.error-sub {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
 .stores-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -152,7 +262,7 @@ export default {
   background: white;
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 2rem;
+  overflow: hidden;
   transition: all 0.3s;
 }
 
@@ -161,11 +271,19 @@ export default {
   transform: translateY(-4px);
 }
 
+.store-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  background: var(--hover-color);
+}
+
 .store-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1.5rem;
+  padding: 1.5rem 2rem 0 2rem;
 }
 
 .store-name {
@@ -188,11 +306,17 @@ export default {
   color: #155724;
 }
 
+.store-badge.Online {
+  background: #cce5ff;
+  color: #004085;
+}
+
 .store-details {
   display: flex;
   flex-direction: column;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  padding: 0 2rem;
 }
 
 .detail-item {
@@ -209,7 +333,8 @@ export default {
 }
 
 .store-btn {
-  width: 100%;
+  width: calc(100% - 4rem);
+  margin: 0 2rem 2rem 2rem;
 }
 
 /* Responsive */

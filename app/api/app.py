@@ -121,6 +121,105 @@ async def health_check():
     }
 
 
+# Stores endpoint
+@app.get("/api/stores")
+async def get_stores():
+    """
+    Get all store locations with inventory counts and details.
+    Returns comprehensive store information for the stores page.
+    """
+    if not db_provider or not db_provider.connection_pool:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection not available"
+        )
+
+    try:
+        conn = await db_provider.get_connection()
+
+        try:
+            # Set RLS user if needed
+            if RLS_USER_ID:
+                await conn.execute(
+                    "SELECT set_config('app.current_rls_user_id', $1, false)",
+                    RLS_USER_ID
+                )
+
+            # Query stores with product counts and inventory values
+            query = """
+                SELECT
+                    s.store_id,
+                    s.store_name,
+                    s.is_online,
+                    COUNT(DISTINCT i.product_id) as product_count,
+                    SUM(i.stock_level) as total_stock,
+                    SUM(i.stock_level * p.cost) as inventory_cost_value,
+                    SUM(i.stock_level * p.base_price) as inventory_retail_value
+                FROM retail.stores s
+                LEFT JOIN retail.inventory i ON s.store_id = i.store_id
+                LEFT JOIN retail.products p ON i.product_id = p.product_id
+                GROUP BY s.store_id, s.store_name, s.is_online
+                ORDER BY s.is_online ASC, s.store_name
+            """
+
+            rows = await conn.fetch(query)
+
+            stores = []
+            for row in rows:
+                store_name = row['store_name']
+                
+                # Extract location key for images
+                if row['is_online']:
+                    location_key = "online"
+                    location = "Online Warehouse, Seattle, WA"
+                else:
+                    # Extract location from "Zava Pop-Up Location" format
+                    parts = store_name.split('Pop-Up ')
+                    if len(parts) > 1:
+                        location_name = parts[1]
+                        location_key = location_name.lower().replace(' ', '_')
+                        # Format address from location name
+                        location = f"{location_name}, WA"
+                    else:
+                        location_key = store_name.lower().replace(' ', '_')
+                        location = "Washington State"
+
+                stores.append({
+                    "id": row['store_id'],
+                    "name": store_name,
+                    "location": location,
+                    "isOnline": row['is_online'],
+                    "locationKey": location_key,
+                    "products": int(row['product_count'] or 0),
+                    "totalStock": int(row['total_stock'] or 0),
+                    "inventoryValue": round(
+                        float(row['inventory_retail_value'] or 0), 2
+                    ),
+                    "status": "Online" if row['is_online'] else "Open",
+                    "hours": (
+                        "24/7 Online" if row['is_online']
+                        else "Mon-Sun: 10am-7pm"
+                    )
+                })
+
+            logger.info(f"✅ Retrieved {len(stores)} stores")
+
+            return {
+                "stores": stores,
+                "total": len(stores)
+            }
+
+        finally:
+            await db_provider.release_connection(conn)
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching stores: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch stores: {str(e)}"
+        )
+
+
 # Featured products endpoint
 @app.get("/api/products/featured", response_model=ProductList)
 async def get_featured_products(
