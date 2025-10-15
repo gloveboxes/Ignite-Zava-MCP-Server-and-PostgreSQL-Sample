@@ -55,7 +55,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import { apiClient, config } from '../config/api';
 
 export default {
   name: 'StoresPage',
@@ -155,9 +155,7 @@ export default {
   methods: {
     async fetchStores() {
       try {
-        const response = await axios.get('http://localhost:8091/api/stores', {
-          timeout: 5000 // 5 second timeout
-        });
+        const response = await apiClient.get('/api/stores');
         this.stores = response.data.stores;
         this.loading = false;
         console.log('✅ Loaded stores from API:', this.stores.length);
