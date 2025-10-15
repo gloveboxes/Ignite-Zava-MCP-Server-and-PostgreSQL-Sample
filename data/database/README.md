@@ -1,6 +1,6 @@
 # GitHub Popup Stores PostgreSQL Database Generator
 
-This directory contains the PostgreSQL database generator for **GitHub Popup Stores**, a fictional home improvement retail company. The generator creates a comprehensive sales database with realistic retail data patterns, seasonal variations, and advanced features for data analysis and agentic applications.
+This directory contains the PostgreSQL database generator for **GitHub Popup Stores**, a fictional retail company with popup locations across the US. The generator creates a comprehensive sales database with realistic retail data patterns, seasonal variations, and advanced features for data analysis and agentic applications.
 
 ## Quick Start
 
@@ -32,21 +32,19 @@ python generate_github_postgres.py --help                # Show all options
 
 - PostgreSQL 17+ with pgvector extension
 - Python 3.13+ with required packages (asyncpg, faker, python-dotenv)
-- Required JSON data files: `product_data.json` and `reference_data.json`
+- Required JSON reference files (see Reference Data Files section below)
 
-### How to Generate the GitHub Popup Stores SQL Server Database
+### Database Schema Reference
 
-To generate the SQL Server compatible database schema and data:
+A complete schema backup is available at `/workspace/zava_retail_schema.sql` containing:
+- **17 Tables** - Complete retail schema with all column definitions
+- **14 Sequences** - Auto-increment sequences for primary keys  
+- **60 Indexes** - Performance optimization including vector indexes
+- **19 Foreign Key Constraints** - Referential integrity relationships
+- **13 RLS Policies** - Row Level Security for multi-tenant access
+- **11 Check Constraints** - Data validation constraints
 
-```bash
-# Navigate to the database directory
-cd data/database
-pip install -r requirements.txt
-# Run the SQL Server generator
-python generate_github_sql_server.py
-```
-
-This will create a SQL Server compatible schema and populate it with the same data as the PostgreSQL version.
+This schema file can be used to recreate the database structure on any PostgreSQL instance with pgvector extension.
 
 ## Available Tools
 
@@ -55,13 +53,7 @@ This directory contains several utility tools for managing and working with the 
 ### **Core Database Tools**
 
 - **`generate_github_postgres.py`** - Main database generator that creates the complete GitHub Popup Stores retail database with realistic sales data, seasonal patterns, and AI embeddings
-- **`generate_github_sql_server.py`** - Generates a SQL Server compatible database schema and data
-- **`count_products.py`** - Analyzes and reports product counts across categories and embedding status from the JSON data files
-
-### **Product Management Tools**
-
-- **`add_product.py`** - Interactive CLI tool for adding new products to the `product_data.json` file with proper validation and formatting
-- **`generate_skus.py`** - Generates and populates missing SKU codes for products using a standardized format (e.g., LBPLW001 for Lumber & Building Materials)
+- **`count_products.py`** - Analyzes and reports product counts across categories and embedding status from the JSON reference files
 
 ### **AI/ML and Embedding Tools**
 
@@ -76,17 +68,20 @@ This directory contains several utility tools for managing and working with the 
 
 ### **Documentation**
 
-- **`README_query_by_description.md`** - Detailed guide for using the semantic search functionality
 - **`RLS_USER_GUIDE.md`** & **`row_level_security_guide.md`** - Documentation for Row-Level Security implementation and usage
 
-### **Configuration Files**
+### **Reference Data Files**
 
-- **`product_data.json`** - Complete product catalog with categories, seasonal multipliers, and AI embeddings
-- **`reference_data.json`** - Store configurations, customer distribution weights, and business rules
+Located in the `reference_data/` directory:
+
+- **`stores_reference.json`** - Consolidated store configurations, product assignments, and seasonal data
+- **`product_data.json`** - Complete product catalog with categories, seasonal multipliers, and AI embeddings  
+- **`supplier_data.json`** - Supplier information for retail vendors
+- **`seasonal_multipliers.json`** - Seasonal adjustment factors for different climate zones
 
 ## Overview
 
-The database generator creates a complete retail ecosystem for GitHub Popup Stores, simulating a multi-store home improvement retailer with 8 locations across Washington State, including physical stores and online sales. The generated data supports advanced analytics, seasonal pattern analysis, multimodal AI applications with both image and text embeddings, and agentic applications.
+The database generator creates a complete retail ecosystem for GitHub Popup Stores, simulating a multi-store retailer with 16 locations across major US cities, including 15 physical popup stores and 1 online store. The generated data supports advanced analytics, seasonal pattern analysis, multimodal AI applications with both image and text embeddings, and agentic applications.
 
 ## Generated Database Structure
 
@@ -118,24 +113,29 @@ The database generator creates a complete retail ecosystem for GitHub Popup Stor
 
 #### **Stores** (`retail.stores`)
 
-- **8 retail locations** across Washington State:
-  - Physical stores: Seattle, Bellevue, Tacoma, Spokane, Everett, Redmond, Kirkland
-  - Online store: GitHub Popups Retail Online
+- **16 retail locations** across major US cities:
+  - **Physical stores (15)**: NYC Times Square, SF Union Square, Austin Downtown, Denver LoDo, Chicago Loop, Boston Back Bay, Seattle Capitol Hill, Atlanta Midtown, Miami Design District, Portland Pearl District, Nashville Music Row, Phoenix Scottsdale, Minneapolis Mill District, Raleigh Research Triangle, Salt Lake City Downtown
+  - **Online store (1)**: GitHub Popup Online Store
 - Each store has unique characteristics:
   - Customer distribution weights (traffic patterns)
   - Order frequency multipliers
   - Order value multipliers
+  - Geographic and climate zone assignments
 - Row-Level Security (RLS) support for store manager access control
 
 #### **Product Catalog** (`retail.categories`, `retail.product_types`, `retail.products`)
 
-- **9 main product categories** with realistic home improvement inventory:
-  - Hand Tools, Power Tools, Paint & Finishes, Hardware
-  - Lumber & Building Materials, Electrical, Plumbing
-  - Garden & Outdoor, Storage & Organization
+- **5 main product categories** with comprehensive retail inventory:
+  - **Accessories**: Backpacks & Bags, Belts, Caps & Hats, Gloves, Scarves, Socks, Sunglasses
+  - **Apparel - Bottoms**: Jeans, Pants, Shorts
+  - **Apparel - Tops**: Flannel Shirts, Formal Shirts, Hoodies, Sweatshirts, T-Shirts
+  - **Footwear**: Boots, Dress Shoes, Sandals, Sneakers
+  - **Outerwear**: Coats, Jackets
+- **129 unique products** across 21 product types
 - **Product hierarchy**: Categories → Product Types → Individual Products
 - **Cost and pricing structure** with consistent 33% gross margin
 - **Complete product specifications**: SKUs, descriptions, pricing
+- **Supplier integration**: Full procurement workflow with 20 suppliers
 
 #### **Orders & Sales** (`retail.orders`, `retail.order_items`)
 
@@ -168,37 +168,27 @@ The database generator creates a complete retail ecosystem for GitHub Popup Stor
 
 ### 📊 Seasonal Variations
 
-The generator implements **Washington State seasonal multipliers** for realistic business patterns:
+The generator implements **multi-zone seasonal multipliers** across three climate zones for realistic business patterns:
 
-#### **Hand Tools**
+#### **🌲 Pacific Northwest Zone** (Seattle, Portland)
+- **Outerwear**: Peak winter demand (1.8x), low summer (0.6x)
+- **Apparel - Tops**: Summer peak (1.4x), winter low (0.6x)
+- **Pattern**: Mild, wet winters and dry summers
 
-- **Peak season**: May-August (1.4-1.6x normal volume)
-- **Low season**: December (0.9x normal volume)
-- **Pattern**: Spring/summer home improvement surge
+#### **🌡️ Temperate Zone** (NYC, Denver, Chicago, Boston, Nashville, Minneapolis, Raleigh, Salt Lake City)
+- **Outerwear**: Strong winter pattern (1.6x), minimal summer (0.5x)
+- **Apparel - Tops**: Summer focused (1.3x), winter low (0.7x)
+- **Pattern**: Moderate seasonal variation with distinct seasons
 
-#### **Power Tools**
+#### **☀️ Warm Zone** (SF, Austin, Atlanta, Miami, Phoenix)
+- **Outerwear**: Mild winter demand (1.3x), very low summer (0.4x)
+- **Apparel - Tops**: Strong summer demand (1.4x)
+- **Pattern**: Milder winters, hot summers
 
-- **Peak season**: June-July (2.0-2.1x normal volume)
-- **Low season**: December-February (0.8-0.9x normal volume)
-- **Pattern**: Strong summer construction activity
-
-#### **Paint & Finishes**
-
-- **Peak season**: April (2.2x normal volume)
-- **Strong season**: March-August (1.6-2.0x normal volume)
-- **Pattern**: Spring painting season with sustained summer activity
-
-#### **Lumber & Building Materials**
-
-- **Peak season**: June-July (2.1-2.2x normal volume)
-- **Low season**: November-February (0.7-0.8x normal volume)
-- **Pattern**: Construction/renovation season alignment
-
-#### **Garden & Outdoor**
-
-- **Extreme seasonality**: 50% of normal volume in winter
-- **Peak season**: Spring through early fall
-- **Pattern**: Weather-dependent outdoor activity
+#### **Seasonal Business Intelligence**
+- **Outerwear** shows strongest seasonal variation (0.4x to 1.8x multipliers)
+- **Apparel - Bottoms** maintain stable year-round demand
+- **Q4 (Oct-Dec)** universally strong for outerwear and accessories
 
 ### 💰 Financial Structure
 
@@ -220,19 +210,23 @@ The generator implements **Washington State seasonal multipliers** for realistic
 
 #### **High-Performance Stores**
 
-- **Seattle**: 30% customer distribution, 3.0x order frequency, 1.3x order value
-- **Bellevue**: 25% customer distribution, 2.6x order frequency, 1.2x order value
-- **Online**: 30% customer distribution, 3.0x order frequency, 1.5x order value
+- **NYC Times Square**: Premium urban location with high traffic
+- **SF Union Square**: West coast flagship with strong performance
+- **Online Store**: Complete product catalog (129 products) vs curated physical store selection (40-55 products)
 
-#### **Regional Stores**
+#### **Geographic Distribution**
 
-- **Tacoma**: 20% customer distribution, 2.4x order frequency, 1.1x order value
-- **Spokane**: 8% customer distribution, 2.0x order frequency, 1.0x order value
+- **15 major US cities** with themed popup locations
+- **Strategic positioning**: Tech hubs, cultural districts, downtown cores
+- **Market coverage**: East Coast, West Coast, Mountain West, Midwest, South
+- **Climate-aware inventory**: Seasonal product mix based on local weather patterns
 
-#### **Specialty/Smaller Markets**
+#### **Store Performance Characteristics**
 
-- **Everett, Redmond, Kirkland**: Lower distribution weights with adjusted multipliers
-- **Geographic clustering**: Realistic market penetration patterns
+- **Physical stores**: 40-55 curated products (~30% of total catalog)
+- **Online store**: Complete product catalog access
+- **Product overlap**: ~20-30% core essentials shared across stores
+- **Unique assortment**: 70-80% store-specific products based on local themes
 
 ### 🔒 Security & Access Control
 
@@ -281,42 +275,57 @@ The generator implements **Washington State seasonal multipliers** for realistic
 - **Memory**: Recommended 4GB+ for large datasets
 - **Storage**: ~2GB for complete database with embeddings
 
-## Configuration Files
+## Reference Data Files
 
-### `product_data.json`
+### `reference_data/stores_reference.json`
+
+- Consolidated store configurations and product assignments
+- Store location data with climate zone assignments
+- Customer distribution weights and performance multipliers
+- Store manager RLS UUID mappings
+- Product assignments for each store
+
+### `reference_data/product_data.json`
 
 - Complete product catalog with categories and types
-- Seasonal multiplier coefficients for each category
 - Product specifications, pricing, and descriptions
-- Image embedding data for AI/ML applications
+- Image and description embedding data for AI/ML applications
+- SKUs and supplier relationships
 
-### `reference_data.json`
+### `reference_data/supplier_data.json`
 
-- Store configurations and performance characteristics
-- Customer distribution weights by store
-- Year-over-year growth patterns and multipliers
-- Store manager RLS UUID mappings
+- 20 supplier profiles with contact information
+- ESG compliance status and vendor approval data
+- Bulk discount thresholds and payment terms
+- Performance ratings and lead times
+
+### `reference_data/seasonal_multipliers.json`
+
+- Climate zone definitions (Pacific Northwest, Temperate, Warm)
+- Monthly seasonal multipliers by category and zone
+- Store-to-climate-zone mappings
 
 ## Data Volume Summary
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| **Customers** | 50,000+ | Realistic demographic profiles across Washington State and online |
-| **Products** | 400+ | Complete DIY home improvement catalog (tools, outdoor equipment, supplies) |
-| **Product Images** | 400+ | Product images linked to database for image-based searches |
-| **Stores** | 8 | Physical + online locations across Washington State |
+| **Customers** | 50,000+ | Realistic demographic profiles across 15 US cities and online |
+| **Products** | 129 | Complete retail catalog (accessories, apparel, footwear, outerwear) |
+| **Product Images** | 129 | Product images linked to database for image-based searches |
+| **Stores** | 16 | 15 physical popup stores + 1 online store across major US cities |
+| **Suppliers** | 20 | Complete supplier directory with procurement workflow |
 | **Orders** | 200,000+ | Multi-year transaction history with detailed sales data |
 | **Inventory Items** | 3,000+ | Store-specific inventory across multiple locations |
-| **Image Embeddings** | 400+ | AI-powered image similarity searches using OpenAI CLIP-ViT-Base-Patch32 |
-| **Description Embeddings** | 400+ | AI-powered text similarity searches using text-embedding-3-small |
+| **Image Embeddings** | 129 | AI-powered image similarity searches using OpenAI CLIP-ViT-Base-Patch32 |
+| **Description Embeddings** | 129 | AI-powered text similarity searches using text-embedding-3-small |
 
-This database provides a realistic foundation for retail analytics, machine learning experimentation, seasonal trend analysis, and multi-tenant application development in the home improvement industry. The database is powered by Azure Database for PostgreSQL flexible server with pgvector extension, enabling advanced AI-powered product similarity searches and comprehensive sales analytics.
+This database provides a realistic foundation for retail analytics, machine learning experimentation, seasonal trend analysis, and multi-tenant application development in the retail industry. The database supports PostgreSQL with pgvector extension, enabling advanced AI-powered product similarity searches, comprehensive sales analytics, and sophisticated procurement workflows.
 
 ## JSON Data File Schemas
 
 The generator requires two JSON configuration files that define the product catalog and store configurations:
 
-### `product_data.json` Schema
+### `reference_data/product_data.json` Schema
 
 Defines the complete product catalog with embeddings and seasonal patterns:
 
@@ -324,7 +333,6 @@ Defines the complete product catalog with embeddings and seasonal patterns:
 {
   "main_categories": {
     "<CATEGORY_NAME>": {
-      "washington_seasonal_multipliers": [float, ...],  // 12 monthly multipliers (Jan-Dec)
       "<PRODUCT_TYPE>": [
         {
           "name": "string",                    // Product display name
@@ -344,13 +352,13 @@ Defines the complete product catalog with embeddings and seasonal patterns:
 
 **Key Points:**
 
-- `washington_seasonal_multipliers`: Optional 12-element array for seasonal demand patterns (January through December)
 - `image_embedding`: 512-dimensional vector for image similarity search with pgvector
 - `description_embedding`: 1536-dimensional vector for text similarity search with pgvector
 - `price`: Treated as wholesale cost; retail price calculated with 33% gross margin
 - Each category can contain multiple product types, each with an array of products
+- Seasonal multipliers are now defined separately in `seasonal_multipliers.json`
 
-### `reference_data.json` Schema
+### `reference_data/stores_reference.json` Schema
 
 Defines store configurations and business rules:
 
@@ -389,3 +397,47 @@ The generator connects to PostgreSQL using these default settings:
 - **Password**: `P@ssw0rd!`
 
 Connection settings can be overridden using environment variables or a `.env` file.
+
+## Database Schema Reference
+
+The complete database schema is available in `/workspace/zava_retail_schema.sql`. This file contains the full DDL (Data Definition Language) for recreating the entire database structure.
+
+### Schema Highlights
+
+#### **Core Tables (17 total)**
+- `retail.stores` - Store locations with RLS user mappings
+- `retail.customers` - Customer profiles with store associations
+- `retail.categories` - Product category hierarchy
+- `retail.product_types` - Product type definitions within categories
+- `retail.products` - Complete product catalog with supplier relationships
+- `retail.suppliers` - Supplier directory with procurement terms
+- `retail.orders` - Order header information
+- `retail.order_items` - Detailed line items for each order
+- `retail.inventory` - Store-specific stock levels
+- `retail.supplier_performance` - Supplier evaluation and ratings
+- `retail.procurement_requests` - Purchase requisition workflow
+- `retail.company_policies` - Business rules and approval policies
+- `retail.supplier_contracts` - Contract management
+- `retail.approvers` - Approval authority definitions
+- `retail.notifications` - System notifications
+- `retail.product_image_embeddings` - AI image vector embeddings (512-dim)
+- `retail.product_description_embeddings` - AI text vector embeddings (1536-dim)
+
+#### **Advanced Features**
+- **Row Level Security (RLS)**: Multi-tenant data isolation with store-specific access control
+- **Vector Search**: pgvector integration for AI-powered product similarity searches
+- **Performance Optimization**: 60+ indexes including covering indexes and vector indexes
+- **Data Integrity**: 19 foreign key constraints and 11 check constraints
+- **Seasonal Intelligence**: Climate zone-based seasonal multipliers
+- **Procurement Workflow**: Complete supplier management and approval processes
+
+#### **Usage**
+```bash
+# Restore schema to a new PostgreSQL database
+psql -h localhost -U postgres -d your_database -f /workspace/zava_retail_schema.sql
+
+# Or use with Docker
+docker exec -i postgres_container psql -U postgres -d zava < /workspace/zava_retail_schema.sql
+```
+
+The schema file includes all necessary DDL statements to recreate the complete database structure on any PostgreSQL 17+ instance with the pgvector extension.
