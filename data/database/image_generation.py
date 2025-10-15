@@ -1,9 +1,10 @@
 """
-Azure OpenAI DALL-E 3 Image Generation Script using Azure OpenAI SDK
+Azure OpenAI GPT-Image-1 Image Generation Script using direct HTTP requests
 Generates images for products in product_data.json and updates the JSON with image file paths.
-Uses managed identity for authentication.
+Uses API key for authentication.
 """
 
+import base64
 import json
 import os
 import re
@@ -13,37 +14,32 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import requests
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from dotenv import load_dotenv
-from openai import AzureOpenAI
 
 # Load environment variables from same directory only
-script_dir = Path(__file__).parent
+script_dir = Path(__file__).parent.parent.parent
 env_path = script_dir / ".env"
 load_dotenv(dotenv_path=env_path, override=True)
 
 
-class DalleImageGenerator:
+class GptImageGenerator:
     def __init__(self):
-        """Initialize the DALL-E image generator with Azure OpenAI SDK and managed identity."""
+        """Initialize the GPT-Image-1 generator with direct HTTP requests and API key authentication."""
         # You will need to set these environment variables
-        self.endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
-        self.api_version = os.getenv('OPENAI_API_VERSION', '2024-04-01-preview')
-        self.deployment = os.getenv('DEPLOYMENT_NAME', 'dall-e-3')
+        self.endpoint = os.getenv('AZURE_IMAGE_ENDPOINT')
+        self.api_key = os.getenv('AZURE_IMAGE_APIKEY')
+        self.api_version = os.getenv('OPENAI_API_VERSION', '2025-04-01-preview')
+        self.deployment = os.getenv('DEPLOYMENT_NAME', 'gpt-image-1')
 
         if not self.endpoint:
-            raise ValueError("Missing AZURE_OPENAI_ENDPOINT in environment variables")
-
-        # Set up Azure OpenAI client with managed identity
-        token_provider = get_bearer_token_provider(
-            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-        )
-
-        self.client = AzureOpenAI(
-            api_version=self.api_version,
-            azure_endpoint=self.endpoint,
-            azure_ad_token_provider=token_provider
-        )        # Paths - relative to script location
+            raise ValueError("Missing AZURE_IMAGE_ENDPOINT in environment variables")
+        
+        if not self.api_key:
+            raise ValueError("Missing AZURE_IMAGE_APIKEY in environment variables")
+        
+        # Build the full API URL (ensure no double slashes)
+        endpoint = self.endpoint.rstrip('/')
+        self.api_url = f"{endpoint}/openai/deployments/{self.deployment}/images/generations?api-version={self.api_version}"        # Paths - relative to script location
         script_dir = Path(__file__).parent
         self.product_data_path = script_dir / "product_data.json"
         self.images_dir = Path("/workspace/images")
@@ -90,45 +86,73 @@ class DalleImageGenerator:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"{safe_category}_{safe_subcategory}_{safe_name}_{timestamp}.png"
 
-    def generate_image(self, product: Dict[str, Any], category: str, subcategory: str) -> Optional[str]:
-        """Generate an image using DALL-E 3 for a specific product."""
+    def get_api_key(self) -> str:
+        """Get API key from environment variables."""
+        if not self.api_key:
+            raise RuntimeError("API key not found in environment variables")
+        return self.api_key
 
-        image_prompt = f"""
-A simple realistic image of a "{product['description']}", isolated on a white background, centered, with no shadows.
-"""
+    def generate_image(self, product: Dict[str, Any], category: str, subcategory: str) -> Optional[str]:
+        """Generate an image using GPT-Image-1 for a specific product."""
+
+        image_prompt = f"""A simple realistic image of a "{product['description']}", isolated on a white background, centered, with no shadows."""
 
         try:
             print(f"Generating image for: {product['name']}")
             
-            result = self.client.images.generate(
-                model=self.deployment,
-                prompt=image_prompt,
-                n=1,
-                size="1024x1024",
-                quality="standard",
-                style="vivid"
-            )
-
-            # Extract image URL from the response
-            image_url = json.loads(result.model_dump_json())['data'][0]['url']
-
-            # Download and save the image
-            filename = self.create_safe_filename(
-                product['name'], category, subcategory)
-            image_path = self.images_dir / filename
-
-            # Download the image
-            image_response = requests.get(image_url)
-            if image_response.status_code == 200:
-                with open(image_path, 'wb') as f:
-                    f.write(image_response.content)
-
-                print(f"Image saved: {filename}")
-                # Return relative path for JSON storage
-                return f"images/{filename}"
-            print(
-                f"Failed to download image: {image_response.status_code}")
-            return None
+            # Get API key
+            api_key = self.get_api_key()
+            
+            # Prepare headers
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            }
+            
+            # Prepare request payload
+            payload = {
+                "prompt": image_prompt,
+                "size": "1024x1024",
+                "quality": "medium",
+                "output_compression": 100,
+                "output_format": "png",
+                "n": 1
+            }
+            
+            # Make the API request
+            response = requests.post(self.api_url, headers=headers, json=payload, timeout=60)
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    
+                    # Extract base64 image data
+                    if 'data' in result and len(result['data']) > 0 and 'b64_json' in result['data'][0]:
+                        b64_image = result['data'][0]['b64_json']
+                        
+                        # Create filename and save image
+                        filename = self.create_safe_filename(
+                            product['name'], category, subcategory)
+                        image_path = self.images_dir / filename
+                        
+                        # Decode base64 and save image
+                        image_data = base64.b64decode(b64_image)
+                        with open(image_path, 'wb') as f:
+                            f.write(image_data)
+                        
+                        print(f"Image saved: {filename}")
+                        # Return relative path for JSON storage
+                        return f"images/{filename}"
+                    else:
+                        print(f"No image data found in response. Response structure: {list(result.keys()) if result else 'Empty response'}")
+                        return None
+                except json.JSONDecodeError as e:
+                    print(f"Failed to parse JSON response: {e}")
+                    print(f"Response content: {response.text[:500]}...")
+                    return None
+            else:
+                print(f"API request failed with status {response.status_code}: {response.text[:500]}...")
+                return None
 
         except Exception as e:
             print(f"Error generating image for {product['name']}: {e}")
@@ -249,7 +273,7 @@ A simple realistic image of a "{product['description']}", isolated on a white ba
 def main():
     """Main function to run the image generation process."""
     try:
-        generator = DalleImageGenerator()
+        generator = GptImageGenerator()
 
         # Show initial statistics
         stats = generator.get_statistics()
@@ -264,7 +288,7 @@ def main():
 
         # Ask user for preferences
         print("\n" + "="*50)
-        print("DALL-E 3 Image Generation Options:")
+        print("GPT-Image-1 Image Generation Options:")
         print("="*50)
 
         # Get user input for generation limit
