@@ -5,7 +5,7 @@
         <div class="header-top-content">
           <span class="header-message">Free shipping on orders over $50</span>
           <div class="header-actions">
-            <button class="header-link" @click="handleLogin">Login</button>
+            <router-link to="/login" class="header-link">Login</router-link>
             <span class="divider">|</span>
             <button class="header-link" @click="handleSignup">Sign Up</button>
           </div>
@@ -165,9 +165,6 @@ export default {
     closeMobileMenu() {
       this.mobileMenuOpen = false;
       this.activeDropdown = null;
-    },
-    handleLogin() {
-      alert('Login feature - Coming soon!');
     },
     handleSignup() {
       alert('Sign up feature - Coming soon!');

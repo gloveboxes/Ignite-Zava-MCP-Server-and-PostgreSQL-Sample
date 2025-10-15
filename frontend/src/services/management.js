@@ -1,0 +1,270 @@
+import axios from 'axios';
+import { managementConfig } from '../config/management';
+
+const managementApi = axios.create({
+  baseURL: managementConfig.apiBaseUrl,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+export const managementService = {
+  // Dashboard stats
+  async getDashboardStats() {
+    try {
+      const response = await managementApi.get('/api/management/dashboard');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      return this.getMockDashboardStats();
+    }
+  },
+
+  // Suppliers
+  async getSuppliers() {
+    try {
+      const response = await managementApi.get('/api/management/suppliers');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+      return this.getMockSuppliers();
+    }
+  },
+
+  // Inventory
+  async getInventory(params = {}) {
+    try {
+      const response = await managementApi.get('/api/management/inventory', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      return this.getMockInventory();
+    }
+  },
+
+  // Products
+  async getProducts(params = {}) {
+    try {
+      const response = await managementApi.get('/api/management/products', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      return this.getMockProducts();
+    }
+  },
+
+  // Policies
+  async getPolicies() {
+    try {
+      const response = await managementApi.get('/api/management/policies');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching policies:', error);
+      return this.getMockPolicies();
+    }
+  },
+
+  // Mock data methods
+  getMockDashboardStats() {
+    return {
+      totalRevenue: 249456.85,
+      totalProducts: 145,
+      totalSuppliers: 20,
+      totalStores: 7,
+      lowStockItems: 12,
+      pendingOrders: 8,
+      revenueChange: 12.5,
+      inventoryValue: 249456.85,
+      topCategories: [
+        { name: 'Footwear', revenue: 65000, percentage: 26 },
+        { name: 'Outerwear', revenue: 55000, percentage: 22 },
+        { name: 'Apparel - Tops', revenue: 48000, percentage: 19 },
+        { name: 'Apparel - Bottoms', revenue: 45000, percentage: 18 },
+        { name: 'Accessories', revenue: 36456, percentage: 15 }
+      ],
+      recentActivity: [
+        { id: 1, action: 'Low stock alert', item: 'Classic White Sneakers', store: 'Pike Place', time: '2 hours ago' },
+        { id: 2, action: 'New supplier approved', item: 'Urban Threads Wholesale', time: '5 hours ago' },
+        { id: 3, action: 'Inventory updated', item: 'Bomber Jacket', store: 'Bellevue Square', time: '1 day ago' }
+      ]
+    };
+  },
+
+  getMockSuppliers() {
+    return [
+      {
+        id: 1,
+        name: 'Urban Threads Wholesale',
+        code: 'SUP001',
+        location: 'Seattle, WA',
+        contact: 'michael.chen@urbanthreads.com',
+        phone: '(206) 555-0101',
+        rating: 4.8,
+        esgCompliant: true,
+        approved: true,
+        preferred: true,
+        categories: ['Apparel - Tops', 'Accessories'],
+        leadTime: 12,
+        paymentTerms: 'Net 30',
+        minOrder: 2500,
+        bulkDiscount: 7.17
+      },
+      {
+        id: 2,
+        name: 'Elite Fashion Distributors',
+        code: 'SUP002',
+        location: 'Bellevue, WA',
+        contact: 'sarah.j@elitefashion.com',
+        phone: '(425) 555-0102',
+        rating: 4.9,
+        esgCompliant: true,
+        approved: true,
+        preferred: true,
+        categories: ['Apparel - Tops', 'Apparel - Bottoms'],
+        leadTime: 10,
+        paymentTerms: 'Net 30',
+        minOrder: 5000,
+        bulkDiscount: 8.5
+      },
+      {
+        id: 3,
+        name: 'Pacific Apparel Group',
+        code: 'SUP003',
+        location: 'Tacoma, WA',
+        contact: 'james@pacificapparel.com',
+        phone: '(253) 555-0103',
+        rating: 4.7,
+        esgCompliant: true,
+        approved: true,
+        preferred: true,
+        categories: ['Apparel - Tops'],
+        leadTime: 14,
+        paymentTerms: 'Net 45',
+        minOrder: 3000,
+        bulkDiscount: 6.8
+      }
+    ];
+  },
+
+  getMockInventory() {
+    return [
+      {
+        id: 1,
+        productName: 'Classic White Sneakers',
+        sku: 'FOOT-SNK-001',
+        category: 'Footwear',
+        stores: [
+          { name: 'Pike Place', stock: 8, status: 'low' },
+          { name: 'Bellevue Square', stock: 15, status: 'ok' },
+          { name: 'Kirkland', stock: 12, status: 'ok' }
+        ],
+        totalStock: 35,
+        unitPrice: 79.99,
+        totalValue: 2799.65,
+        reorderPoint: 20,
+        supplier: 'Athletic Footwear Network'
+      },
+      {
+        id: 2,
+        productName: 'Laptop Commuter Backpack',
+        sku: 'ACC-BAG-002',
+        category: 'Accessories',
+        stores: [
+          { name: 'Pike Place', stock: 12, status: 'ok' },
+          { name: 'Bellevue Square', stock: 19, status: 'ok' },
+          { name: 'Kirkland', stock: 8, status: 'low' }
+        ],
+        totalStock: 39,
+        unitPrice: 82.07,
+        totalValue: 3200.73,
+        reorderPoint: 15,
+        supplier: 'Bag & Luggage Distributors'
+      }
+    ];
+  },
+
+  getMockProducts() {
+    return [
+      {
+        id: 1,
+        name: 'Classic White Sneakers',
+        sku: 'FOOT-SNK-001',
+        category: 'Footwear',
+        type: 'Sneakers',
+        supplier: 'Athletic Footwear Network',
+        unitPrice: 79.99,
+        costPrice: 45.00,
+        margin: 43.7,
+        totalStock: 35,
+        status: 'active',
+        lastRestocked: '2025-10-10'
+      },
+      {
+        id: 2,
+        name: 'Laptop Commuter Backpack',
+        sku: 'ACC-BAG-002',
+        category: 'Accessories',
+        type: 'Backpacks & Bags',
+        supplier: 'Bag & Luggage Distributors',
+        unitPrice: 82.07,
+        costPrice: 48.50,
+        margin: 40.9,
+        totalStock: 39,
+        status: 'active',
+        lastRestocked: '2025-10-12'
+      }
+    ];
+  },
+
+  getMockPolicies() {
+    return [
+      {
+        id: 1,
+        name: 'Procurement Policy',
+        type: 'Procurement',
+        department: 'Procurement',
+        content: 'All purchases over $5,000 require manager approval. Competitive bidding required for orders over $25,000.',
+        minThreshold: 5000,
+        approvalRequired: true,
+        effectiveDate: '2025-01-01',
+        status: 'active'
+      },
+      {
+        id: 2,
+        name: 'Budget Authorization',
+        type: 'Budget Authorization',
+        department: 'Finance',
+        content: 'Spending limits: Manager $50K, Director $250K, Executive $1M+',
+        minThreshold: null,
+        approvalRequired: true,
+        effectiveDate: '2025-01-01',
+        status: 'active'
+      },
+      {
+        id: 3,
+        name: 'Vendor Approval',
+        type: 'Vendor Approval',
+        department: 'Procurement',
+        content: 'All new vendors require approval and background check completion.',
+        minThreshold: null,
+        approvalRequired: true,
+        effectiveDate: '2025-01-01',
+        status: 'active'
+      },
+      {
+        id: 4,
+        name: 'Order Processing Policy',
+        type: 'Order Processing',
+        department: 'Operations',
+        content: 'Orders processed within 24 hours. Rush orders require $50 fee and manager approval.',
+        minThreshold: null,
+        approvalRequired: false,
+        effectiveDate: '2025-01-01',
+        status: 'active'
+      }
+    ];
+  }
+};
+
+export default managementApi;
