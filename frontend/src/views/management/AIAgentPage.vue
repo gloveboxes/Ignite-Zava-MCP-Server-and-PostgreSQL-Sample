@@ -867,12 +867,15 @@ const resetAnalysis = () => {
   line-height: 1.7;
 }
 
+.markdown-content > * {
+  margin-left: 0 !important;
+}
+
 .markdown-content h1 {
   font-size: 1.75rem;
   font-weight: 700;
   color: #212529;
-  margin-top: 1.5rem;
-  margin-bottom: 1rem;
+  margin: 1.5rem 0 1rem 0;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid #dee2e6;
 }
@@ -885,30 +888,62 @@ const resetAnalysis = () => {
   font-size: 1.5rem;
   font-weight: 600;
   color: #495057;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
+  margin: 1.5rem 0 0.75rem 0;
 }
 
 .markdown-content h3 {
   font-size: 1.25rem;
   font-weight: 600;
   color: #495057;
-  margin-top: 1.25rem;
-  margin-bottom: 0.75rem;
+  margin: 1.25rem 0 0.75rem 0;
 }
 
 .markdown-content p {
-  margin-bottom: 1rem;
+  margin: 0 0 1rem 0;
 }
 
 .markdown-content ul,
 .markdown-content ol {
-  margin-bottom: 1rem;
+  margin: 0 0 1rem 0;
   padding-left: 2rem;
+  list-style-position: outside;
+}
+
+.markdown-content ul {
+  list-style-type: disc;
+}
+
+.markdown-content ol {
+  list-style-type: decimal;
 }
 
 .markdown-content li {
-  margin-bottom: 0.5rem;
+  margin: 0.5rem 0;
+  padding-left: 0.5rem;
+}
+
+.markdown-content ul ul,
+.markdown-content ol ul {
+  margin: 0.5rem 0;
+  padding-left: 2rem;
+  list-style-type: circle;
+}
+
+.markdown-content ul ul ul,
+.markdown-content ol ol ul {
+  list-style-type: square;
+}
+
+.markdown-content ol ol,
+.markdown-content ul ol {
+  margin: 0.5rem 0;
+  padding-left: 2rem;
+  list-style-type: lower-alpha;
+}
+
+.markdown-content ol ol ol,
+.markdown-content ul ul ol {
+  list-style-type: lower-roman;
 }
 
 .markdown-content strong {
@@ -936,7 +971,7 @@ const resetAnalysis = () => {
   padding: 1rem;
   border-radius: 6px;
   overflow-x: auto;
-  margin-bottom: 1rem;
+  margin: 1rem 0;
 }
 
 .markdown-content pre code {
@@ -948,16 +983,25 @@ const resetAnalysis = () => {
 
 .markdown-content blockquote {
   border-left: 4px solid #0d6efd;
-  padding-left: 1rem;
+  padding: 1rem 0 1rem 1rem;
   margin: 1rem 0;
   color: #6c757d;
   font-style: italic;
 }
 
+.markdown-content blockquote p {
+  margin: 0;
+}
+
+.markdown-content blockquote p:not(:last-child) {
+  margin-bottom: 0.5rem;
+}
+
 .markdown-content table {
   width: 100%;
   border-collapse: collapse;
-  margin-bottom: 1rem;
+  margin: 1rem 0;
+  display: table;
 }
 
 .markdown-content th,
@@ -972,7 +1016,7 @@ const resetAnalysis = () => {
   font-weight: 600;
 }
 
-.markdown-content tr:nth-child(even) {
+.markdown-content tbody tr:nth-child(even) {
   background: #f8f9fa;
 }
 
@@ -989,6 +1033,21 @@ const resetAnalysis = () => {
   border: none;
   border-top: 1px solid #dee2e6;
   margin: 1.5rem 0;
+}
+
+/* Ensure nested lists have proper indentation */
+.markdown-content li > ul,
+.markdown-content li > ol {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Fix for any inline elements */
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  margin: 1rem 0;
+  display: block;
 }
 
 .reset-button {
