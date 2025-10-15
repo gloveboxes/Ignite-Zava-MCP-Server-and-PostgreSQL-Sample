@@ -48,9 +48,18 @@ export default {
   computed: {
     productImageUrl() {
       if (this.imageError) {
+        console.log(this.product.image_url);
         return config.placeholderImage;
       }
-      return config.getProductImageUrl(this.product.id);
+      // Use image_url from API if available, otherwise fall back to default
+      if (this.product.image_url) {
+        // If the image_url doesn't start with /, prepend /images/
+        return this.product.image_url.startsWith('/') 
+          ? this.product.image_url 
+          : `/images/${this.product.image_url}`;
+      }
+      console.log("No image url");
+      this.imageError=true;
     }
   },
   methods: {

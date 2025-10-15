@@ -10,5 +10,5 @@ export const config = {
   },
   // Placeholder for product images - you'll add these later
   getProductImageUrl: (productId) => `/images/products/${productId}.jpg`,
-  placeholderImage: '/images/placeholder.jpg'
+  placeholderImage: '/images/placeholder.png'
 };

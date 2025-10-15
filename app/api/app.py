@@ -45,6 +45,7 @@ class Product(BaseModel):
     product_description: Optional[str] = Field(None, description="Product description")
     supplier_name: Optional[str] = Field(None, description="Supplier name")
     discontinued: bool = Field(False, description="Product availability status")
+    image_url: Optional[str] = Field(None, description="Product image URL")
 
 
 class ProductList(BaseModel):
@@ -159,11 +160,13 @@ async def get_featured_products(
                     p.gross_margin_percent,
                     p.product_description,
                     s.supplier_name,
-                    p.discontinued
+                    p.discontinued,
+                    pie.image_url
                 FROM retail.products p
                 INNER JOIN retail.categories c ON p.category_id = c.category_id
                 INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
                 LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
                 WHERE p.discontinued = false
                 ORDER BY p.gross_margin_percent DESC, RANDOM()
                 LIMIT $1
@@ -184,7 +187,8 @@ async def get_featured_products(
                     gross_margin_percent=float(row['gross_margin_percent']),
                     product_description=row['product_description'],
                     supplier_name=row['supplier_name'],
-                    discontinued=row['discontinued']
+                    discontinued=row['discontinued'],
+                    image_url=row['image_url']
                 ))
             
             logger.info(f"✅ Retrieved {len(products)} featured products")
@@ -246,11 +250,13 @@ async def get_products_by_category(
                     p.gross_margin_percent,
                     p.product_description,
                     s.supplier_name,
-                    p.discontinued
+                    p.discontinued,
+                    pie.image_url
                 FROM retail.products p
                 INNER JOIN retail.categories c ON p.category_id = c.category_id
                 INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
                 LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
                 WHERE p.discontinued = false
                     AND LOWER(c.category_name) = LOWER($1)
                 ORDER BY p.product_name
@@ -285,7 +291,8 @@ async def get_products_by_category(
                     gross_margin_percent=float(row['gross_margin_percent']),
                     product_description=row['product_description'],
                     supplier_name=row['supplier_name'],
-                    discontinued=row['discontinued']
+                    discontinued=row['discontinued'],
+                    image_url=row['image_url']
                 ))
 
             logger.info(
@@ -347,11 +354,13 @@ async def get_product_by_id(product_id: int):
                     p.gross_margin_percent,
                     p.product_description,
                     s.supplier_name,
-                    p.discontinued
+                    p.discontinued,
+                    pie.image_url
                 FROM retail.products p
                 INNER JOIN retail.categories c ON p.category_id = c.category_id
                 INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
                 LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
                 WHERE p.product_id = $1
             """
 
@@ -374,7 +383,8 @@ async def get_product_by_id(product_id: int):
                 gross_margin_percent=float(row['gross_margin_percent']),
                 product_description=row['product_description'],
                 supplier_name=row['supplier_name'],
-                discontinued=row['discontinued']
+                discontinued=row['discontinued'],
+                image_url=row['image_url']
             )
 
             logger.info(f"✅ Retrieved product {product_id}: {product.product_name}")

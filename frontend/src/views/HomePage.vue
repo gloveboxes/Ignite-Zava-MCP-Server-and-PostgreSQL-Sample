@@ -140,7 +140,10 @@ export default {
       this.error = null;
 
       try {
-        const data = await apiService.getFeaturedProducts(8);
+        const response = await apiService.getFeaturedProducts(8);
+        
+        // API returns {products: [...], total: ...}
+        const data = response.products || response;
         
         // Transform API data to component format
         if (Array.isArray(data)) {
@@ -150,7 +153,8 @@ export default {
             category: item.category_name || item.category,
             price: item.unit_price || item.price,
             originalPrice: item.original_price,
-            badge: item.badge
+            badge: item.badge,
+            image_url: item.image_url
           }));
         } else {
           // Handle mock/test data format
