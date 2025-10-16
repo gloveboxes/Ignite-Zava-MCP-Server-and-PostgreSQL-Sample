@@ -58,8 +58,8 @@ export default {
           ? this.product.image_url 
           : `/images/${this.product.image_url}`;
       }
-      console.log("No image url");
       this.imageError=true;
+      return config.placeholderImage;
     }
   },
   methods: {

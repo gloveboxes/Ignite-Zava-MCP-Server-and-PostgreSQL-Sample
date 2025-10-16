@@ -1022,7 +1022,7 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
                 elif isinstance(event, WorkflowOutputEvent):
                     # Capture the workflow output (markdown result)
                     if isinstance(event.data, BaseModel):
-                        workflow_output = event.data.model_dumps()
+                        workflow_output = event.data.model_dump()
                     else:
                         workflow_output = str(event.data)
                     event_data = {

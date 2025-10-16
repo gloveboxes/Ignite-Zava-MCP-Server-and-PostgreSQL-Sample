@@ -80,6 +80,7 @@ async def get_company_order_policy(
         >>> print(f"Found {data['n']} policies")
     """
     try:
+        logger.info(f"Retrieving company order policy for department: {department}")
         provider = await get_finance_provider()
         result = await provider.get_company_order_policy(
             department=department
@@ -124,6 +125,7 @@ async def get_supplier_contract(
         >>>     print(f"Contract expires in {contract['days_until_expiry']} days")
     """
     try:
+        logger.info(f"Retrieving supplier contract for supplier_id: {supplier_id}")
         provider = await get_finance_provider()
         result = await provider.get_supplier_contract(
             supplier_id=supplier_id
@@ -172,6 +174,7 @@ async def get_historical_sales_data(
         >>> total_revenue = sum(row[data['c'].index('total_revenue')] for row in data['r'])
     """
     try:
+        logger.info(f"Retrieving historical sales data for store_id: {store_id}, category_name: {category_name}, days_back: {days_back}")
         provider = await get_finance_provider()
         result = await provider.get_historical_sales_data(
             days_back=days_back,
@@ -226,6 +229,7 @@ async def get_current_inventory_status(
         >>>                    if row[data['c'].index('low_stock_alert')]]
     """
     try:
+        logger.info(f"Retrieving current inventory status for store_id: {store_id}, category_name: {category_name}, low_stock_threshold: {low_stock_threshold}")
         provider = await get_finance_provider()
         result = await provider.get_current_inventory_status(
             store_id=store_id,
