@@ -86,8 +86,8 @@
       <div class="filters-bar">
         <div class="filter-group">
           <label>Store</label>
-          <select v-model="filters.storeId" @change="loadInventory">
-            <option :value="null">All Stores</option>
+          <select v-model="filters.storeId" @change="loadInventory" :disabled="loadingStores">
+            <option :value="null">{{ loadingStores ? 'Loading stores...' : 'All Stores' }}</option>
             <option v-for="store in stores" :key="store.id" :value="store.id">
               {{ store.name }}
             </option>
@@ -223,12 +223,14 @@
 
 <script>
 import { managementService } from '../../services/management';
+import { apiClient } from '../../config/api';
 
 export default {
   name: 'InventoryPage',
   data() {
     return {
       loading: false,
+      loadingStores: true,
       inventory: [],
       summary: null,
       filters: {
@@ -236,16 +238,7 @@ export default {
         category: null,
         lowStockOnly: false
       },
-      stores: [
-        { id: 1, name: 'Zava Online Store' },
-        { id: 2, name: 'Zava Pop-Up Bellevue Square' },
-        { id: 3, name: 'Zava Pop-Up Everett Station' },
-        { id: 4, name: 'Zava Pop-Up Kirkland Waterfront' },
-        { id: 5, name: 'Zava Pop-Up Pike Place' },
-        { id: 6, name: 'Zava Pop-Up Redmond Town Center' },
-        { id: 7, name: 'Zava Pop-Up Spokane Pavilion' },
-        { id: 8, name: 'Zava Pop-Up Tacoma Mall' }
-      ],
+      stores: [],
       categories: [
         'Accessories',
         'Apparel - Bottoms',
@@ -257,9 +250,43 @@ export default {
     };
   },
   async mounted() {
-    await this.loadInventory();
+    // Load stores and inventory in parallel
+    await Promise.all([
+      this.loadStores(),
+      this.loadInventory()
+    ]);
   },
   methods: {
+    async loadStores() {
+      this.loadingStores = true;
+      try {
+        const response = await apiClient.get('/api/stores');
+        // API returns {stores: [...]}
+        if (response.data && response.data.stores) {
+          this.stores = response.data.stores.map(store => ({
+            id: store.id,
+            name: store.name
+          }));
+          console.log(`✅ Loaded ${this.stores.length} stores from API`);
+        }
+      } catch (error) {
+        console.error('Error loading stores:', error);
+        // Fallback to hardcoded stores if API fails
+        this.stores = [
+          { id: 1, name: 'Zava Online Store' },
+          { id: 2, name: 'Zava Pop-Up Bellevue Square' },
+          { id: 3, name: 'Zava Pop-Up Everett Station' },
+          { id: 4, name: 'Zava Pop-Up Kirkland Waterfront' },
+          { id: 5, name: 'Zava Pop-Up Pike Place' },
+          { id: 6, name: 'Zava Pop-Up Redmond Town Center' },
+          { id: 7, name: 'Zava Pop-Up Spokane Pavilion' },
+          { id: 8, name: 'Zava Pop-Up Tacoma Mall' }
+        ];
+        console.log('⚠️ Using fallback hardcoded stores');
+      } finally {
+        this.loadingStores = false;
+      }
+    },
     async loadInventory() {
       this.loading = true;
       try {
