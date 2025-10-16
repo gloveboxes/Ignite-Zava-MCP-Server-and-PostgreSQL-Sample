@@ -40,7 +40,7 @@ psql -U postgres -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE zava TO store_
 }
 
 echo "Restoring database from backup file..."
-BACKUP_FILE="/backup_data/zava_retail_with_supplier_2025_10_09.backup"
+BACKUP_FILE="/backup_data/github_retail_with_supplier_2025_10_16.backup"
 
 if [ -f "$BACKUP_FILE" ]; then
   echo "Found backup file: $BACKUP_FILE"

@@ -177,38 +177,31 @@ class SupplierPostgreSQLProvider:
                 "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
             )
 
-            # Base query to find suppliers
+            # Base query using view
             query = f"""
-                SELECT DISTINCT
-                    s.supplier_id,
-                    s.supplier_name,
-                    s.supplier_code,
-                    s.contact_email,
-                    s.contact_phone,
-                    s.supplier_rating,
-                    s.esg_compliant,
-                    s.preferred_vendor,
-                    s.approved_vendor,
-                    s.lead_time_days,
-                    s.minimum_order_amount,
-                    s.bulk_discount_threshold,
-                    s.bulk_discount_percent,
-                    s.payment_terms,
-                    COUNT(p.product_id) as available_products,
-                    COALESCE(AVG(sp.overall_score), s.supplier_rating) as avg_performance_score,
-                    sc.contract_status,
-                    sc.contract_number
-                FROM {SCHEMA_NAME}.suppliers s
-                LEFT JOIN {SCHEMA_NAME}.products p ON s.supplier_id = p.supplier_id
-                LEFT JOIN {SCHEMA_NAME}.categories c ON p.category_id = c.category_id
-                LEFT JOIN {SCHEMA_NAME}.supplier_performance sp ON s.supplier_id = sp.supplier_id
-                    AND sp.evaluation_date >= CURRENT_DATE - INTERVAL '6 months'
-                LEFT JOIN {SCHEMA_NAME}.supplier_contracts sc ON s.supplier_id = sc.supplier_id
-                    AND sc.contract_status = 'active'
-                WHERE s.active_status = true
-                    AND s.approved_vendor = true
-                    AND s.supplier_rating >= $1
-                    AND s.lead_time_days <= $2
+                SELECT 
+                    supplier_id,
+                    supplier_name,
+                    supplier_code,
+                    contact_email,
+                    contact_phone,
+                    supplier_rating,
+                    esg_compliant,
+                    preferred_vendor,
+                    approved_vendor,
+                    lead_time_days,
+                    minimum_order_amount,
+                    bulk_discount_threshold,
+                    bulk_discount_percent,
+                    payment_terms,
+                    available_products,
+                    avg_performance_score,
+                    contract_status,
+                    contract_number,
+                    category_name
+                FROM {SCHEMA_NAME}.vw_suppliers_for_request
+                WHERE supplier_rating >= $1
+                    AND lead_time_days <= $2
             """
             
             params = [min_rating, max_lead_time]
@@ -216,34 +209,29 @@ class SupplierPostgreSQLProvider:
             
             # Add ESG filter if required
             if esg_required:
-                query += f" AND s.esg_compliant = ${param_index}"
+                query += f" AND esg_compliant = ${param_index}"
                 params.append(True)
                 param_index += 1
             
             # Add product category filter if specified
             if product_category:
-                query += f" AND UPPER(c.category_name) = UPPER(${param_index})"
+                query += f" AND UPPER(category_name) = UPPER(${param_index})"
                 params.append(product_category)
                 param_index += 1
             
             # Add budget filters if specified
             if budget_min is not None:
-                query += f" AND s.minimum_order_amount <= ${param_index}"
+                query += f" AND minimum_order_amount <= ${param_index}"
                 params.append(budget_min)
                 param_index += 1
                 
             if budget_max is not None:
-                query += f" AND s.bulk_discount_threshold <= ${param_index}"
+                query += f" AND bulk_discount_threshold <= ${param_index}"
                 params.append(budget_max)
                 param_index += 1
             
             query += f"""
-                GROUP BY s.supplier_id, s.supplier_name, s.supplier_code, s.contact_email,
-                         s.contact_phone, s.supplier_rating, s.esg_compliant, s.preferred_vendor,
-                         s.approved_vendor, s.lead_time_days, s.minimum_order_amount,
-                         s.bulk_discount_threshold, s.bulk_discount_percent, s.payment_terms,
-                         sc.contract_status, sc.contract_number
-                ORDER BY s.preferred_vendor DESC, avg_performance_score DESC, s.supplier_rating DESC
+                ORDER BY preferred_vendor DESC, avg_performance_score DESC, supplier_rating DESC
                 LIMIT ${param_index}
             """
             params.append(limit)
@@ -299,34 +287,31 @@ class SupplierPostgreSQLProvider:
                 "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
             )
 
-            # Get supplier basic info and performance history
+            # Get supplier basic info and performance history using view
             query = f"""
                 SELECT 
-                    s.supplier_name,
-                    s.supplier_code,
-                    s.supplier_rating,
-                    s.esg_compliant,
-                    s.preferred_vendor,
-                    s.lead_time_days,
-                    s.created_at as supplier_since,
+                    supplier_name,
+                    supplier_code,
+                    supplier_rating,
+                    esg_compliant,
+                    preferred_vendor,
+                    lead_time_days,
+                    supplier_since,
                     -- Performance metrics
-                    sp.evaluation_date,
-                    sp.cost_score,
-                    sp.quality_score,
-                    sp.delivery_score,
-                    sp.compliance_score,
-                    sp.overall_score,
-                    sp.notes as performance_notes,
+                    evaluation_date,
+                    cost_score,
+                    quality_score,
+                    delivery_score,
+                    compliance_score,
+                    overall_score,
+                    performance_notes,
                     -- Recent procurement activity
-                    COUNT(pr.request_id) OVER (PARTITION BY s.supplier_id) as total_requests,
-                    SUM(pr.total_cost) OVER (PARTITION BY s.supplier_id) as total_value
-                FROM {SCHEMA_NAME}.suppliers s
-                LEFT JOIN {SCHEMA_NAME}.supplier_performance sp ON s.supplier_id = sp.supplier_id
-                    AND sp.evaluation_date >= CURRENT_DATE - INTERVAL '{months_back} months'
-                LEFT JOIN {SCHEMA_NAME}.procurement_requests pr ON s.supplier_id = pr.supplier_id
-                    AND pr.request_date >= CURRENT_DATE - INTERVAL '{months_back} months'
-                WHERE s.supplier_id = $1
-                ORDER BY sp.evaluation_date DESC
+                    total_requests,
+                    total_value
+                FROM {SCHEMA_NAME}.vw_supplier_history_performance
+                WHERE supplier_id = $1
+                    AND (evaluation_date >= CURRENT_DATE - INTERVAL '{months_back} months' OR evaluation_date IS NULL)
+                ORDER BY evaluation_date DESC
             """
 
             rows = await conn.fetch(query, supplier_id)
@@ -381,36 +366,26 @@ class SupplierPostgreSQLProvider:
 
             query = f"""
                 SELECT 
-                    s.supplier_name,
-                    s.supplier_code,
-                    s.contact_email,
-                    s.contact_phone,
+                    supplier_name,
+                    supplier_code,
+                    contact_email,
+                    contact_phone,
                     -- Contract details
-                    sc.contract_id,
-                    sc.contract_number,
-                    sc.contract_status,
-                    sc.start_date,
-                    sc.end_date,
-                    sc.contract_value,
-                    sc.payment_terms,
-                    sc.auto_renew,
-                    sc.created_at as contract_created,
+                    contract_id,
+                    contract_number,
+                    contract_status,
+                    start_date,
+                    end_date,
+                    contract_value,
+                    payment_terms,
+                    auto_renew,
+                    contract_created,
                     -- Calculated fields
-                    CASE 
-                        WHEN sc.end_date IS NOT NULL 
-                        THEN sc.end_date - CURRENT_DATE 
-                        ELSE NULL 
-                    END as days_until_expiry,
-                    CASE 
-                        WHEN sc.end_date IS NOT NULL AND sc.end_date <= CURRENT_DATE + INTERVAL '90 days'
-                        THEN true 
-                        ELSE false 
-                    END as renewal_due_soon
-                FROM {SCHEMA_NAME}.suppliers s
-                LEFT JOIN {SCHEMA_NAME}.supplier_contracts sc ON s.supplier_id = sc.supplier_id
-                WHERE s.supplier_id = $1
-                    AND (sc.contract_status = 'active' OR sc.contract_status IS NULL)
-                ORDER BY sc.start_date DESC
+                    days_until_expiry,
+                    renewal_due_soon
+                FROM {SCHEMA_NAME}.vw_supplier_contract_details
+                WHERE supplier_id = $1
+                ORDER BY start_date DESC
             """
 
             rows = await conn.fetch(query, supplier_id)
@@ -474,29 +449,31 @@ class SupplierPostgreSQLProvider:
                     minimum_order_threshold,
                     approval_required,
                     is_active,
-                    -- Additional context
-                    CASE 
-                        WHEN policy_type = 'procurement' THEN 'Covers supplier selection and procurement processes'
-                        WHEN policy_type = 'vendor_approval' THEN 'Defines vendor approval and onboarding requirements'
-                        WHEN policy_type = 'budget_authorization' THEN 'Specifies budget limits and authorization levels'
-                        WHEN policy_type = 'order_processing' THEN 'Outlines order processing and fulfillment procedures'
-                        ELSE 'General company policy'
-                    END as policy_description,
-                    LENGTH(policy_content) as content_length
-                FROM {SCHEMA_NAME}.company_policies
-                WHERE is_active = true
+                    policy_description,
+                    content_length
+                FROM {SCHEMA_NAME}.vw_company_supplier_policies
             """
             
             params = []
             param_index = 1
             
+            # Add WHERE clause if we have filters
+            where_added = False
             if policy_type:
-                query += f" AND policy_type = ${param_index}"
+                if not where_added:
+                    query += " WHERE"
+                    where_added = True
+                query += f" policy_type = ${param_index}"
                 params.append(policy_type)
                 param_index += 1
                 
             if department:
-                query += f" AND (department = ${param_index} OR department IS NULL)"
+                if not where_added:
+                    query += " WHERE"
+                    where_added = True
+                else:
+                    query += " AND"
+                query += f" (department = ${param_index} OR department IS NULL)"
                 params.append(department)
                 param_index += 1
             
