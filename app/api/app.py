@@ -8,12 +8,17 @@ import logging
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
-from agent_framework import ChatMessage, WorkflowOutputEvent, WorkflowStartedEvent
+from agent_framework import (ChatMessage,
+                             ExecutorInvokedEvent,
+                             ExecutorCompletedEvent,
+                             ExecutorFailedEvent,
+                             WorkflowOutputEvent,
+                             WorkflowStartedEvent)
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import json
-
+import datetime
 from app.config import Config
 from app.sales_analysis_postgres import PostgreSQLSchemaProvider
 from app.agents.stock import workflow
@@ -997,7 +1002,7 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         await websocket.send_json({
             "type": "started",
             "message": "AI Agent workflow initiated...",
-            "timestamp": None
+            "timestamp": datetime.datetime.now(datetime.timezone.utc)
         })
         
         # Run the workflow and stream events
@@ -1007,11 +1012,12 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         workflow_output = None
         try:
             async for event in workflow.run_stream(input):
+                now = datetime.datetime.now(datetime.timezone.utc)
                 if isinstance(event, WorkflowStartedEvent):
                     event_data = {
                         "type": "workflow_started",
                         "event": str(event.data),
-                        "timestamp": None
+                        "timestamp": now
                     }
                 elif isinstance(event, WorkflowOutputEvent):
                     # Capture the workflow output (markdown result)
@@ -1019,27 +1025,48 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
                     event_data = {
                         "type": "workflow_output",
                         "event": workflow_output,
-                        "timestamp": None
+                        "timestamp": now
+                    }
+                elif isinstance(event, ExecutorInvokedEvent):
+                    event_data = {
+                        "type": "step_started",
+                        "event": event.data,
+                        "id": event.executor_id,
+                        "timestamp": now
+                    }
+                elif isinstance(event, ExecutorCompletedEvent):
+                    event_data = {
+                        "type": "step_completed",
+                        "event": event.data,
+                        "id": event.executor_id,
+                        "timestamp": now
+                    }
+                elif isinstance(event, ExecutorFailedEvent):
+                    event_data = {
+                        "type": "step_failed",
+                        "event": event.details.message,
+                        "id": event.executor_id,
+                        "timestamp": now
                     }
                 else:
                     # Stream each workflow event to the frontend
                     event_data = {
                         "type": "event",
                         "event": str(event),
-                        "timestamp": None
+                        "timestamp": now
                     }
                 await websocket.send_json(event_data)
                 logger.info(f"📤 Sent event: {event}")
-            
+
             # Send completion message with the workflow output
             await websocket.send_json({
                 "type": "completed",
                 "message": "Workflow completed successfully",
                 "output": workflow_output,
-                "timestamp": None
+                "timestamp": datetime.datetime.now(datetime.timezone.utc)
             })
             logger.info("✅ AI Agent workflow completed")
-            
+
         except Exception as workflow_error:
             logger.error(f"❌ Workflow error: {workflow_error}")
             await websocket.send_json({

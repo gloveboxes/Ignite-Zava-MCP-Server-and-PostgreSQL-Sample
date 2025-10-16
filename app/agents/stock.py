@@ -11,10 +11,7 @@ from agent_framework import (
 )
 from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
 from azure.identity import DefaultAzureCredential
-
-from app.config import Config
-from app.finance_postgres import FinancePostgreSQLProvider
-
+from pydantic import BaseModel
 
 finance_mcp_tools = MCPStreamableHTTPTool(
     name="FinanceMCP",
@@ -25,12 +22,25 @@ finance_mcp_tools = MCPStreamableHTTPTool(
     request_timeout=30,
 )
 
+
+class StockItem(BaseModel):
+    sku: str
+    product_name: str
+    category_name: str
+    stock_level: int
+    cost: float
+
+
+class StockItemCollection(BaseModel):
+    items: list[StockItem]
+
+
 class StockExtractor(Executor):
     """Custom executor that extracts stock information from messages."""
 
     agent: ChatAgent
 
-    def __init__(self, responses_client: AzureOpenAIChatClient, id: str = "writer"):
+    def __init__(self, responses_client: AzureOpenAIChatClient, id: str = "Stock Analyzer"):
         # Create a domain specific agent using your configured AzureOpenAIChatClient.
         self.agent = responses_client.create_agent(
             instructions=(
@@ -42,37 +52,11 @@ class StockExtractor(Executor):
         super().__init__(id=id)
 
     @handler
-    async def handle(self, message: ChatMessage, ctx: WorkflowContext[str]) -> None:
+    async def handle(self, message: ChatMessage, ctx: WorkflowContext[StockItemCollection]) -> None:
         """Extract department data"""
-        response = await self.agent.run(message)
+        response = await self.agent.run(message, response_format=StockItemCollection)
         # TODO: Change to yield_output if you want to pass to another node
-        await ctx.send_message(response.text)
-
-
-# Initialize configuration
-config = Config()
-
-# Create database provider
-finance_provider = FinancePostgreSQLProvider()
-
-
-class FinanceExecutor(Executor):
-    """Custom executor that finds policy violations in the workflow."""
-
-    def __init__(self, finance_provider: FinancePostgreSQLProvider, id: str = "finance_executor"):
-        self.finance_provider = finance_provider
-        super().__init__(id=id)
-
-    @handler
-    async def handle(self, stock: str, ctx: WorkflowContext[str]) -> None:
-        """Identify and flag any policy violations in the workflow."""
-
-        await self.finance_provider.create_pool()
-        result = await self.finance_provider.get_company_order_policy(
-            department=stock
-        )
-
-        await ctx.send_message(result)
+        await ctx.send_message(response.value)
 
 
 class Summarizer(Executor):
@@ -85,7 +69,7 @@ class Summarizer(Executor):
 
     agent: ChatAgent
 
-    def __init__(self, chat_client: AzureOpenAIChatClient, id: str = "summarizer"):
+    def __init__(self, chat_client: AzureOpenAIChatClient, id: str = "Summarizer"):
         # Create a domain specific agent that summarizes content.
         self.agent = chat_client.create_agent(
             instructions=(
@@ -95,21 +79,21 @@ class Summarizer(Executor):
         super().__init__(id=id)
 
     @handler
-    async def handle(self, messages: str, ctx: WorkflowContext[list[ChatMessage], str]) -> None:
+    async def handle(self, messages: StockItemCollection, ctx: WorkflowContext[list[ChatMessage], StockItemCollection]) -> None:
         """Review the full conversation transcript and complete with a final string.
 
         This node consumes all messages so far. It uses its agent to produce the final text,
         then signals completion by yielding the output.
         """
-        response = await self.agent.run(messages)
-        await ctx.yield_output(response.text)
+        response = await self.agent.run(messages.model_dump_json())
+        await ctx.send_message(response.messages)
+        await ctx.yield_output(messages)
 
 chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
 responses_client = AzureOpenAIResponsesClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
 
 # Instantiate the two agent backed executors.
 writer = StockExtractor(chat_client)
-# policy = PolicyExecutor(finance_provider)
 summarizer = Summarizer(chat_client)
 
 # Build the workflow using the fluent builder.
