@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import json
-import datetime
+from datetime import datetime, timezone
 from app.config import Config
 from app.sales_analysis_postgres import PostgreSQLSchemaProvider
 from app.agents.stock import workflow
@@ -995,14 +995,14 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         # Receive the initial request from the client
         data = await websocket.receive_text()
         request_data = json.loads(data)
-        
-        logger.info(f"🤖 AI Agent request: {request_data.get('message', 'No message')}")
-        
+
+        logger.info(f"🤖 AI Agent request: {request_data.get('request', 'No message')}")
+
         # Send initial acknowledgment
         await websocket.send_json({
             "type": "started",
             "message": "AI Agent workflow initiated...",
-            "timestamp": datetime.datetime.now(datetime.timezone.utc)
+            "timestamp": datetime.now(timezone.utc).isoformat()
         })
         
         # Run the workflow and stream events
@@ -1012,7 +1012,7 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         workflow_output = None
         try:
             async for event in workflow.run_stream(input):
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = datetime.now(timezone.utc).isoformat()
                 if isinstance(event, WorkflowStartedEvent):
                     event_data = {
                         "type": "workflow_started",
@@ -1021,7 +1021,10 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
                     }
                 elif isinstance(event, WorkflowOutputEvent):
                     # Capture the workflow output (markdown result)
-                    workflow_output = str(event.data)
+                    if isinstance(event.data, BaseModel):
+                        workflow_output = event.data.model_dumps()
+                    else:
+                        workflow_output = str(event.data)
                     event_data = {
                         "type": "workflow_output",
                         "event": workflow_output,
@@ -1063,7 +1066,7 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
                 "type": "completed",
                 "message": "Workflow completed successfully",
                 "output": workflow_output,
-                "timestamp": datetime.datetime.now(datetime.timezone.utc)
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
             logger.info("✅ AI Agent workflow completed")
 
@@ -1072,7 +1075,7 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
             await websocket.send_json({
                 "type": "error",
                 "message": f"Workflow error: {str(workflow_error)}",
-                "timestamp": None
+                "timestamp": datetime.now(timezone.utc).isoformat()
             })
     
     except WebSocketDisconnect:

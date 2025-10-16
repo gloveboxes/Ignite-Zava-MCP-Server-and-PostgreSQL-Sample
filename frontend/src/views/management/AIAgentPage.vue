@@ -100,6 +100,7 @@
               <div class="step-content">
                 <div class="step-title">{{ step.title }}</div>
                 <div class="step-description" v-if="step.description">{{ step.description }}</div>
+                <div class="step-time" v-if="step.timestamp">{{ formatRelativeTime(step.timestamp) }}</div>
               </div>
             </div>
           </div>
@@ -131,7 +132,7 @@
       </div>
 
       <!-- Final Output -->
-      <div class="output-section" v-if="finalOutput">
+      <div class="output-section" v-if="finalOutput && !error">
         <div class="output-header">
           <i class="bi bi-check-circle-fill success-icon"></i>
           <h3>Analysis Complete</h3>
@@ -143,7 +144,7 @@
       </div>
 
       <!-- Error Display -->
-      <div class="error-section" v-if="error">
+      <div class="error-section" v-if="error && !isRunning">
         <div class="error-header">
           <i class="bi bi-exclamation-triangle-fill"></i>
           <h3>Error Occurred</h3>
@@ -158,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 
 // Configure marked options
@@ -176,15 +177,12 @@ const finalOutput = ref(null)
 const error = ref(null)
 const showDetails = ref(false)
 const currentStep = ref(0)
+const currentTime = ref(new Date())
 let ws = null
+let timeUpdateInterval = null
 
-// Progress steps
-const progressSteps = ref([
-  { id: 1, title: 'Starting Analysis', description: '', status: 'pending' },
-  { id: 2, title: 'Analyzing Inventory', description: '', status: 'pending' },
-  { id: 3, title: 'Checking Policies', description: '', status: 'pending' },
-  { id: 4, title: 'Generating Recommendations', description: '', status: 'pending' }
-])
+// Progress steps - now dynamically populated from backend events
+const progressSteps = ref([])
 
 // Progress summary
 const progressSummary = computed(() => {
@@ -232,7 +230,6 @@ const startAnalysis = () => {
 
   ws.onopen = () => {
     addEvent('Connected to AI Agent')
-    updateStep(0, 'active', 'Connecting to AI Agent')
     // Send the user instructions
     ws.send(JSON.stringify({
       request: userInstructions.value
@@ -245,39 +242,78 @@ const startAnalysis = () => {
       
       if (data.type === 'started') {
         addEvent('AI Agent workflow started')
-        updateStep(0, 'complete', 'Connected successfully')
-        updateStep(1, 'active', 'Processing inventory data')
+      } else if (data.type === 'step_started') {
+        // Add new step dynamically when it starts
+        const stepTime = formatUTCTime(data.timestamp)
+        addProgressStep(data.id, 'active', data.event, stepTime)
+        addEvent(`Started: ${data.id} - ${data.event}`)
+      } else if (data.type === 'step_completed') {
+        // Mark step as complete
+        const stepTime = formatUTCTime(data.timestamp)
+        updateProgressStep(data.id, 'complete', data.event, stepTime)
+        addEvent(`Completed: ${data.id}`)
+      } else if (data.type === 'step_failed') {
+        // Mark step as failed and stop the workflow
+        const stepTime = formatUTCTime(data.timestamp)
+        const errorMsg = data.event || 'Step failed'
+        updateProgressStep(data.id, 'error', errorMsg, stepTime)
+        addEvent(`❌ Failed: ${data.id} - ${errorMsg}`)
+        
+        // Set error state to display error section
+        error.value = `Step "${data.id}" failed: ${errorMsg}`
+        isRunning.value = false
+        hasCompleted.value = false
+        
+        // Close WebSocket
+        if (ws) {
+          ws.close()
+          ws = null
+        }
+      } else if (data.type === 'workflow_output') {
+        addEvent('Workflow output generated')
+        finalOutput.value = data.event
       } else if (data.type === 'event') {
         // Display the event
         addEvent(data.event)
-        // Update steps based on event content
-        updateStepsFromEvent(data.event)
       } else if (data.type === 'completed') {
         addEvent('Analysis completed successfully')
-        finalOutput.value = data.output
-        // Complete all steps
+        if (data.output) {
+          finalOutput.value = data.output
+        }
+        // Complete all active steps
         progressSteps.value.forEach(step => {
-          if (step.status !== 'complete') {
+          if (step.status === 'active') {
             step.status = 'complete'
           }
         })
         isRunning.value = false
         hasCompleted.value = true
-        ws.close()
+        if (ws) {
+          ws.close()
+          ws = null
+        }
       } else if (data.type === 'error') {
-        // Handle error - support both 'error' and 'message' fields
+        // Handle general error - support both 'error' and 'message' fields
         const errorMessage = data.error || data.message || 'An unknown error occurred'
-        addEvent(`Error: ${errorMessage}`)
+        addEvent(`❌ Error: ${errorMessage}`)
+        
+        // Set error state
         error.value = errorMessage
         isRunning.value = false
         hasCompleted.value = false
+        
         // Mark current active step as failed
         const activeStep = progressSteps.value.find(s => s.status === 'active')
         if (activeStep) {
           activeStep.status = 'error'
           activeStep.description = 'Failed'
         }
-        ws.close()
+        
+        // Close WebSocket
+        if (ws) {
+          ws.close()
+          ws = null
+        }
       }
     } catch (err) {
       console.error('Failed to parse WebSocket message:', err)
@@ -302,37 +338,66 @@ const startAnalysis = () => {
   }
 }
 
-// Update step status
-const updateStep = (stepIndex, status, description = '') => {
-  if (stepIndex >= 0 && stepIndex < progressSteps.value.length) {
-    progressSteps.value[stepIndex].status = status
+// Add a new progress step dynamically
+const addProgressStep = (stepId, status, description = '', timestamp = '') => {
+  // Check if step already exists
+  const existingStep = progressSteps.value.find(s => s.id === stepId)
+  if (existingStep) {
+    // Update existing step
+    existingStep.status = status
+    existingStep.description = description
+    existingStep.timestamp = timestamp ? new Date(timestamp) : null
+  } else {
+    // Add new step - store the actual Date object for reactive updates
+    progressSteps.value.push({
+      id: stepId,
+      title: stepId, // Use the executor ID as the title
+      description: description,
+      status: status,
+      timestamp: timestamp ? new Date(timestamp) : null
+    })
+  }
+}
+
+// Update an existing progress step
+const updateProgressStep = (stepId, status, description = '', timestamp = '') => {
+  const step = progressSteps.value.find(s => s.id === stepId)
+  if (step) {
+    step.status = status
     if (description) {
-      progressSteps.value[stepIndex].description = description
+      step.description = description
+    }
+    if (timestamp) {
+      step.timestamp = new Date(timestamp)
     }
   }
 }
 
-// Update steps based on event content
-const updateStepsFromEvent = (eventMessage) => {
-  const msg = eventMessage.toLowerCase()
-  
-  // Analyzing inventory
-  if (msg.includes('inventory') || msg.includes('stock') || msg.includes('department')) {
-    if (progressSteps.value[1].status !== 'complete') {
-      updateStep(1, 'active', 'Analyzing stock levels across stores')
+// Format timestamp to relative time (e.g., "20 seconds ago")
+// Uses currentTime.value to trigger reactive updates
+const formatRelativeTime = (date) => {
+  if (!date) return ''
+  try {
+    // Access currentTime.value to make this reactive
+    const now = currentTime.value
+    const diffInSeconds = Math.floor((now - date) / 1000)
+    
+    if (diffInSeconds < 5) {
+      return 'just now'
+    } else if (diffInSeconds < 60) {
+      return `${diffInSeconds} seconds ago`
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60)
+      return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600)
+      return hours === 1 ? '1 hour ago' : `${hours} hours ago`
+    } else {
+      const days = Math.floor(diffInSeconds / 86400)
+      return days === 1 ? '1 day ago' : `${days} days ago`
     }
-  }
-  
-  // Checking policies
-  if (msg.includes('policy') || msg.includes('policies') || msg.includes('budget')) {
-    updateStep(1, 'complete', 'Inventory analysis complete')
-    updateStep(2, 'active', 'Reviewing company policies and budgets')
-  }
-  
-  // Generating recommendations
-  if (msg.includes('recommend') || msg.includes('summary') || msg.includes('priorit')) {
-    updateStep(2, 'complete', 'Policy check complete')
-    updateStep(3, 'active', 'Preparing restocking recommendations')
+  } catch (err) {
+    return ''
   }
 }
 
@@ -362,15 +427,32 @@ const resetAnalysis = () => {
   hasCompleted.value = false
   showDetails.value = false
   currentStep.value = 0
-  progressSteps.value.forEach(step => {
-    step.status = 'pending'
-    step.description = ''
-  })
+  progressSteps.value = []
   if (ws) {
     ws.close()
     ws = null
   }
 }
+
+// Lifecycle hooks
+onMounted(() => {
+  // Update currentTime every second to trigger reactive time updates
+  timeUpdateInterval = setInterval(() => {
+    currentTime.value = new Date()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  // Clean up interval
+  if (timeUpdateInterval) {
+    clearInterval(timeUpdateInterval)
+  }
+  // Clean up WebSocket
+  if (ws) {
+    ws.close()
+    ws = null
+  }
+})
 </script>
 
 <style scoped>
@@ -734,6 +816,13 @@ const resetAnalysis = () => {
 .progress-step.error .step-description {
   color: #dc3545;
   font-weight: 500;
+}
+
+.step-time {
+  font-size: 0.85rem;
+  color: #adb5bd;
+  margin-top: 0.25rem;
+  font-family: 'Courier New', monospace;
 }
 
 /* Events Details */

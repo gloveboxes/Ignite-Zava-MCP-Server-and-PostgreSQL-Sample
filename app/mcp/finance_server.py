@@ -40,6 +40,7 @@ for name in [
 ]:
     logging.getLogger(name).setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # Initialize FastMCP server
 mcp = FastMCP("Zava Finance Agent MCP Server")
