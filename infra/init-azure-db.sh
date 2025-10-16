@@ -103,7 +103,7 @@ PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_DB_HOST" -U "$POSTGRES_USER" 
 }
 
 # Restore the database from backup
-BACKUP_FILE="../data/github_retail_with_supplier_2025_10_15.backup"
+BACKUP_FILE="../data/github_retail_with_supplier_2025_10_16.backup"
 
 if [ -f "$BACKUP_FILE" ]; then
     echo "Found backup file: $BACKUP_FILE"

@@ -5,10 +5,10 @@ This script generates a comprehensive customer sales database with optimized ind
 and vector embeddings support for PostgreSQL with pgvector extension.
 
 DATA FILE STRUCTURE (all in reference_data/ folder):
-- reference_data/stores_reference.json: Consolidated store configurations, product assignments, and seasonal data
-- reference_data/product_data.json: Contains all product information (main_categories with products)
-- reference_data/supplier_data.json: Contains supplier information for clothing/apparel vendors
-- reference_data/seasonal_multipliers.json: Contains seasonal adjustment factors for different climate zones
+- stores_reference.json: Consolidated store configurations, product assignments, and seasonal data
+- product_data.json: Contains all product information (main_categories with products)
+- supplier_data.json: Contains supplier information for clothing/apparel vendors
+- seasonal_multipliers.json: Contains seasonal adjustment factors for different climate zones
 
 POSTGRESQL CONNECTION:
 - Requires PostgreSQL with pgvector extension enabled
@@ -17,8 +17,8 @@ POSTGRESQL CONNECTION:
 
 FEATURES:
 - Complete database generation with customers, products, stores, orders
-- Product image embeddings population from reference_data/product_data.json
-- Product description embeddings population from reference_data/product_data.json
+- Product image embeddings population from product_data.json
+- Product description embeddings population from product_data.json
 - Vector similarity indexing with pgvector
 - Performance-optimized indexes
 - Comprehensive statistics and verification
@@ -38,6 +38,7 @@ import json
 import logging
 import os
 import random
+import subprocess
 import sys
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -66,13 +67,20 @@ else:
 fake = Faker()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Reference data file constants
+REFERENCE_DATA_DIR = 'reference_data'
+STORES_REFERENCE_FILE = 'stores_reference.json'
+PRODUCT_DATA_FILE = 'product_data.json'
+SUPPLIER_DATA_FILE = 'supplier_data.json' 
+SEASONAL_MULTIPLIERS_FILE = 'seasonal_multipliers.json'
+
 # PostgreSQL connection configuration
 POSTGRES_CONFIG = {
-    'host': '192.168.1.16',
-    'port': 5432,
-    'user': 'postgres',
-    'password': 'change-me',
-    'database': 'zava'
+    'host': os.getenv('POSTGRES_DB_HOST', '192.168.1.16'),
+    'port': int(os.getenv('POSTGRES_DB_PORT', '5432')),
+    'user': os.getenv('POSTGRES_USER', 'postgres'),
+    'password': os.getenv('POSTGRES_PASSWORD', 'change-me'),
+    'database': os.getenv('POSTGRES_DB', 'zava')
 }
 
 SCHEMA_NAME = 'retail'
@@ -84,17 +92,17 @@ SUPER_MANAGER_UUID = '00000000-0000-0000-0000-000000000000'
 def load_reference_data():
     """Load reference data from consolidated stores_reference.json file"""
     try:
-        consolidated_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'stores_reference.json')
+        consolidated_path = os.path.join(os.path.dirname(__file__), REFERENCE_DATA_DIR, STORES_REFERENCE_FILE)
         with open(consolidated_path, 'r') as f:
             return json.load(f)
     except Exception as e:
-        logging.error(f"Failed to load reference_data/stores_reference.json: {e}")
+        logging.error(f"Failed to load {REFERENCE_DATA_DIR}/{STORES_REFERENCE_FILE}: {e}")
         raise
 
 def load_seasonal_multipliers():
     """Load seasonal multipliers configuration"""
     try:
-        seasonal_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'seasonal_multipliers.json')
+        seasonal_path = os.path.join(os.path.dirname(__file__), REFERENCE_DATA_DIR, SEASONAL_MULTIPLIERS_FILE)
         with open(seasonal_path, 'r') as f:
             return json.load(f)
     except Exception as e:
@@ -104,7 +112,7 @@ def load_seasonal_multipliers():
 def load_product_data():
     """Load product data from JSON file"""
     try:
-        json_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'product_data.json')
+        json_path = os.path.join(os.path.dirname(__file__), REFERENCE_DATA_DIR, PRODUCT_DATA_FILE)
         with open(json_path, 'r') as f:
             return json.load(f)
     except Exception as e:
@@ -127,7 +135,7 @@ SUPPLIER_CATEGORY_MAP = {}
 def load_store_products():
     """Load store products configuration - now integrated into stores_reference.json"""
     try:
-        # Products are now part of the consolidated stores_reference.json
+        # Products are now part of the consolidated stores_reference.json file
         # No need for separate loading - return None to indicate integrated format
         return None
     except Exception as e:
@@ -240,390 +248,142 @@ async def create_connection():
         raise
 
 async def create_database_schema(conn):
-    """Create database schema, tables and indexes"""
+    """Create database schema from SQL file using psql"""
     try:
-        # Create schema if it doesn't exist
-        await conn.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA_NAME}")
-        logging.info(f"Schema '{SCHEMA_NAME}' created or already exists")
+        logging.info("Loading database schema from SQL file...")
         
-        # Enable pgvector extension if available
-        try:
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
-            logging.info("pgvector extension enabled")
-        except Exception as e:
-            logging.warning(f"pgvector extension not available: {e}")
+        # Get the path to the SQL file
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        sql_file_path = os.path.join(script_dir, "github_retail_schema.sql")
         
-        # Create stores table
+        if not os.path.exists(sql_file_path):
+            raise FileNotFoundError(f"Schema SQL file not found at: {sql_file_path}")
+        
+        # Get database connection parameters
+        host = POSTGRES_CONFIG['host']
+        port = POSTGRES_CONFIG['port']
+        user = POSTGRES_CONFIG['user']
+        password = POSTGRES_CONFIG['password']
+        database = POSTGRES_CONFIG['database']
+        
+        # Construct psql command to execute the schema
+        psql_command = [
+            "psql",
+            f"--host={host}",
+            f"--port={port}",
+            f"--username={user}",
+            f"--dbname={database}",
+            "--quiet",  # Reduce output noise
+            "--file", sql_file_path
+        ]
+        
+        # Set password via environment variable
+        env = os.environ.copy()
+        env['PGPASSWORD'] = password
+        
+        # Execute the SQL file using psql
+        logging.info(f"Executing schema from {sql_file_path}...")
+        result = subprocess.run(
+            psql_command,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False  # Don't raise exception on non-zero exit
+        )
+        
+        if result.returncode != 0:
+            logging.error(f"Error executing schema SQL: {result.stderr}")
+            raise RuntimeError(f"Failed to execute schema SQL file: {result.stderr}")
+        
+        if result.stdout.strip():
+            logging.info(f"Schema execution output: {result.stdout}")
+        
+        logging.info("Database schema created successfully from SQL file!")
+        
+        # Set up Row Level Security policies that aren't in the SQL dump
+        await setup_row_level_security_policies(conn)
+        
+        # Grant permissions to store_manager role
+        await setup_store_manager_permissions(conn)
+        
+    except Exception as e:
+        logging.error(f"Error creating database schema: {e}")
+        raise
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.stores (
-                store_id SERIAL PRIMARY KEY,
-                store_name TEXT UNIQUE NOT NULL,
-                rls_user_id UUID NOT NULL,
-                is_online BOOLEAN NOT NULL DEFAULT false
-            )
+            CREATE POLICY all_users_categories ON {SCHEMA_NAME}.categories
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create customers table
+        # Product types table - all users can see all product types
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_product_types ON {SCHEMA_NAME}.product_types")
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.customers (
-                customer_id SERIAL PRIMARY KEY,
-                first_name TEXT NOT NULL,
-                last_name TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                phone TEXT,
-                primary_store_id INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (primary_store_id) REFERENCES {SCHEMA_NAME}.stores (store_id)
-            )
+            CREATE POLICY all_users_product_types ON {SCHEMA_NAME}.product_types
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create categories table
+        # Products table - all users can see all products
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_products ON {SCHEMA_NAME}.products")
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.categories (
-                category_id SERIAL PRIMARY KEY,
-                category_name TEXT NOT NULL UNIQUE
-            )
+            CREATE POLICY all_users_products ON {SCHEMA_NAME}.products
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create product_types table
+        # Product image embeddings table - all users can see all product image embeddings
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_product_image_embeddings ON {SCHEMA_NAME}.product_image_embeddings")
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.product_types (
-                type_id SERIAL PRIMARY KEY,
-                category_id INTEGER NOT NULL,
-                type_name TEXT NOT NULL,
-                FOREIGN KEY (category_id) REFERENCES {SCHEMA_NAME}.categories (category_id)
-            )
+            CREATE POLICY all_users_product_image_embeddings ON {SCHEMA_NAME}.product_image_embeddings
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create suppliers table for enterprise procurement requirements
+        # Product description embeddings table - all users can see all product description embeddings
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_product_description_embeddings ON {SCHEMA_NAME}.product_description_embeddings")
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.suppliers (
-                supplier_id SERIAL PRIMARY KEY,
-                supplier_name TEXT NOT NULL,
-                supplier_code TEXT UNIQUE NOT NULL,
-                contact_email TEXT,
-                contact_phone TEXT,
-                address_line1 TEXT,
-                address_line2 TEXT,
-                city TEXT,
-                state_province TEXT,
-                postal_code TEXT,
-                country TEXT DEFAULT 'USA',
-                payment_terms TEXT DEFAULT 'Net 30',
-                lead_time_days INTEGER DEFAULT 14,
-                minimum_order_amount DECIMAL(10,2) DEFAULT 0.00,
-                bulk_discount_threshold DECIMAL(10,2) DEFAULT 10000.00,
-                bulk_discount_percent DECIMAL(5,2) DEFAULT 5.00,
-                supplier_rating DECIMAL(3,2) DEFAULT 3.00 CHECK (supplier_rating >= 0 AND supplier_rating <= 5),
-                esg_compliant BOOLEAN DEFAULT true,
-                approved_vendor BOOLEAN DEFAULT true,
-                preferred_vendor BOOLEAN DEFAULT false,
-                active_status BOOLEAN DEFAULT true,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            CREATE POLICY all_users_product_description_embeddings ON {SCHEMA_NAME}.product_description_embeddings
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create products table with cost and selling price for 33% gross margin
+        # Suppliers table - all users can see all suppliers (needed for procurement)
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_suppliers ON {SCHEMA_NAME}.suppliers")
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.products (
-                product_id SERIAL PRIMARY KEY,
-                sku TEXT UNIQUE NOT NULL,
-                product_name TEXT NOT NULL,
-                category_id INTEGER NOT NULL,
-                type_id INTEGER NOT NULL,
-                supplier_id INTEGER NOT NULL,
-                cost DECIMAL(10,2) NOT NULL,
-                base_price DECIMAL(10,2) NOT NULL,
-                gross_margin_percent DECIMAL(5,2) DEFAULT 33.00,
-                product_description TEXT NOT NULL,
-                procurement_lead_time_days INTEGER DEFAULT 14,
-                minimum_order_quantity INTEGER DEFAULT 1,
-                discontinued BOOLEAN DEFAULT false,
-                FOREIGN KEY (category_id) REFERENCES {SCHEMA_NAME}.categories (category_id),
-                FOREIGN KEY (type_id) REFERENCES {SCHEMA_NAME}.product_types (type_id),
-                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
-            )
+            CREATE POLICY all_users_suppliers ON {SCHEMA_NAME}.suppliers
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create supplier_performance table to track supplier metrics
+        # Supplier performance table - all users can see all supplier performance data
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_supplier_performance ON {SCHEMA_NAME}.supplier_performance")
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.supplier_performance (
-                performance_id SERIAL PRIMARY KEY,
-                supplier_id INTEGER NOT NULL,
-                evaluation_date DATE NOT NULL,
-                cost_score DECIMAL(3,2) DEFAULT 3.00 CHECK (cost_score >= 0 AND cost_score <= 5),
-                quality_score DECIMAL(3,2) DEFAULT 3.00 CHECK (quality_score >= 0 AND quality_score <= 5),
-                delivery_score DECIMAL(3,2) DEFAULT 3.00 CHECK (delivery_score >= 0 AND delivery_score <= 5),
-                compliance_score DECIMAL(3,2) DEFAULT 3.00 CHECK (compliance_score >= 0 AND compliance_score <= 5),
-                overall_score DECIMAL(3,2) DEFAULT 3.00 CHECK (overall_score >= 0 AND overall_score <= 5),
-                notes TEXT,
-                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
-            )
+            CREATE POLICY all_users_supplier_performance ON {SCHEMA_NAME}.supplier_performance
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create procurement_requests table for tracking procurement workflow
+        # Procurement requests table - all users can see all procurement requests (for collaboration)
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_procurement_requests ON {SCHEMA_NAME}.procurement_requests")
         await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.procurement_requests (
-                request_id SERIAL PRIMARY KEY,
-                request_number TEXT UNIQUE NOT NULL,
-                requester_name TEXT NOT NULL,
-                requester_email TEXT NOT NULL,
-                department TEXT NOT NULL,
-                product_id INTEGER NOT NULL,
-                supplier_id INTEGER NOT NULL,
-                quantity_requested INTEGER NOT NULL,
-                unit_cost DECIMAL(10,2) NOT NULL,
-                total_cost DECIMAL(10,2) NOT NULL,
-                justification TEXT,
-                urgency_level TEXT DEFAULT 'Normal' CHECK (urgency_level IN ('Low', 'Normal', 'High', 'Critical')),
-                approval_status TEXT DEFAULT 'Pending' CHECK (approval_status IN ('Pending', 'Approved', 'Rejected', 'On Hold')),
-                approved_by TEXT,
-                approved_at TIMESTAMP,
-                request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                required_by_date DATE,
-                vendor_restrictions TEXT,
-                esg_requirements BOOLEAN DEFAULT false,
-                bulk_discount_eligible BOOLEAN DEFAULT false,
-                FOREIGN KEY (product_id) REFERENCES {SCHEMA_NAME}.products (product_id),
-                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
-            )
+            CREATE POLICY all_users_procurement_requests ON {SCHEMA_NAME}.procurement_requests
+            FOR ALL TO PUBLIC
+            USING (true)
         """)
         
-        # Create inventory table
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.inventory (
-                store_id INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
-                stock_level INTEGER NOT NULL,
-                PRIMARY KEY (store_id, product_id),
-                FOREIGN KEY (store_id) REFERENCES {SCHEMA_NAME}.stores (store_id),
-                FOREIGN KEY (product_id) REFERENCES {SCHEMA_NAME}.products (product_id)
-            )
-        """)
+        logging.info("Row Level Security policies created successfully!")
         
-        # Create orders table (header only)
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.orders (
-                order_id SERIAL PRIMARY KEY,
-                customer_id INTEGER NOT NULL,
-                store_id INTEGER NOT NULL,
-                order_date DATE NOT NULL,
-                FOREIGN KEY (customer_id) REFERENCES {SCHEMA_NAME}.customers (customer_id),
-                FOREIGN KEY (store_id) REFERENCES {SCHEMA_NAME}.stores (store_id)
-            )
-        """)
+        # Grant permissions to store_manager role
+        await setup_store_manager_permissions(conn)
         
-        # Create order_items table (line items)
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.order_items (
-                order_item_id SERIAL PRIMARY KEY,
-                order_id INTEGER NOT NULL,
-                store_id INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
-                quantity INTEGER NOT NULL,
-                unit_price DECIMAL(10,2) NOT NULL,
-                discount_percent INTEGER DEFAULT 0,
-                discount_amount DECIMAL(10,2) DEFAULT 0,
-                total_amount DECIMAL(10,2) NOT NULL,
-                FOREIGN KEY (order_id) REFERENCES {SCHEMA_NAME}.orders (order_id),
-                FOREIGN KEY (store_id) REFERENCES {SCHEMA_NAME}.stores (store_id),
-                FOREIGN KEY (product_id) REFERENCES {SCHEMA_NAME}.products (product_id)
-            )
-        """)
-        
-        # Create product_image_embeddings table for image data
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.product_image_embeddings (
-                product_id INTEGER PRIMARY KEY,
-                image_url TEXT NOT NULL,
-                image_embedding vector(512),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (product_id) REFERENCES {SCHEMA_NAME}.products (product_id)
-            )
-        """)
-        
-        # Create product_description_embeddings table for text embeddings
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.product_description_embeddings (
-                product_id INTEGER PRIMARY KEY,
-                description_embedding vector(1536),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (product_id) REFERENCES {SCHEMA_NAME}.products (product_id)
-            )
-        """)
-        
+        logging.info("Database schema created successfully!")
+    except Exception as e:
+        logging.error(f"Error creating database schema: {e}")
+        raise
 
-        # Create simplified company_policies table for essential policies only
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.company_policies (
-                policy_id SERIAL PRIMARY KEY,
-                policy_name TEXT NOT NULL,
-                policy_type TEXT NOT NULL CHECK (policy_type IN (
-                    'procurement', 'order_processing', 'budget_authorization', 'vendor_approval'
-                )),
-                policy_content TEXT NOT NULL,
-                department TEXT,
-                minimum_order_threshold DECIMAL(10,2),
-                approval_required BOOLEAN DEFAULT false,
-                is_active BOOLEAN DEFAULT true
-            )
-        """)
-        
-        # Create simplified supplier_contracts table for essential contract information
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.supplier_contracts (
-                contract_id SERIAL PRIMARY KEY,
-                supplier_id INTEGER NOT NULL,
-                contract_number TEXT UNIQUE NOT NULL,
-                contract_status TEXT DEFAULT 'active' CHECK (contract_status IN ('active', 'expired', 'terminated')),
-                start_date DATE NOT NULL,
-                end_date DATE,
-                contract_value DECIMAL(12,2),
-                payment_terms TEXT NOT NULL,
-                auto_renew BOOLEAN DEFAULT false,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (supplier_id) REFERENCES {SCHEMA_NAME}.suppliers (supplier_id)
-            )
-        """)
-        
-        # Create simplified approvers table for basic approval workflow
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.approvers (
-                approver_id SERIAL PRIMARY KEY,
-                employee_id TEXT UNIQUE NOT NULL,
-                full_name TEXT NOT NULL,
-                email TEXT NOT NULL,
-                department TEXT NOT NULL,
-                approval_limit DECIMAL(10,2) DEFAULT 0.00,
-                is_active BOOLEAN DEFAULT true
-            )
-        """)
-        
-        # Create simple notifications table for communication tracking
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.notifications (
-                notification_id SERIAL PRIMARY KEY,
-                request_id INTEGER,
-                notification_type TEXT NOT NULL CHECK (notification_type IN ('approval_request', 'status_update', 'completion')),
-                recipient_email TEXT NOT NULL,
-                subject TEXT NOT NULL,
-                message TEXT NOT NULL,
-                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                read_at TIMESTAMP,
-                FOREIGN KEY (request_id) REFERENCES {SCHEMA_NAME}.procurement_requests (request_id)
-            )
-        """)
-        
-
-        # Create optimized performance indexes
-        logging.info("Creating performance indexes...")
-        
-        # Category and type indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_categories_name ON {SCHEMA_NAME}.categories(category_name)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_types_category ON {SCHEMA_NAME}.product_types(category_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_types_name ON {SCHEMA_NAME}.product_types(type_name)")
-        
-        # Supplier indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_name ON {SCHEMA_NAME}.suppliers(supplier_name)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_code ON {SCHEMA_NAME}.suppliers(supplier_code)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_active ON {SCHEMA_NAME}.suppliers(active_status)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_preferred ON {SCHEMA_NAME}.suppliers(preferred_vendor)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_approved ON {SCHEMA_NAME}.suppliers(approved_vendor)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_rating ON {SCHEMA_NAME}.suppliers(supplier_rating)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_suppliers_esg ON {SCHEMA_NAME}.suppliers(esg_compliant)")
-        
-        # Product indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_sku ON {SCHEMA_NAME}.products(sku)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_category ON {SCHEMA_NAME}.products(category_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_type ON {SCHEMA_NAME}.products(type_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_supplier ON {SCHEMA_NAME}.products(supplier_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_price ON {SCHEMA_NAME}.products(base_price)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_cost ON {SCHEMA_NAME}.products(cost)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_margin ON {SCHEMA_NAME}.products(gross_margin_percent)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_lead_time ON {SCHEMA_NAME}.products(procurement_lead_time_days)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_discontinued ON {SCHEMA_NAME}.products(discontinued)")
-        
-        # Supplier performance indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_performance_supplier ON {SCHEMA_NAME}.supplier_performance(supplier_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_performance_date ON {SCHEMA_NAME}.supplier_performance(evaluation_date)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_performance_overall ON {SCHEMA_NAME}.supplier_performance(overall_score)")
-        
-        # Procurement request indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_number ON {SCHEMA_NAME}.procurement_requests(request_number)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_status ON {SCHEMA_NAME}.procurement_requests(approval_status)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_product ON {SCHEMA_NAME}.procurement_requests(product_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_supplier ON {SCHEMA_NAME}.procurement_requests(supplier_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_date ON {SCHEMA_NAME}.procurement_requests(request_date)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_urgency ON {SCHEMA_NAME}.procurement_requests(urgency_level)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_requester ON {SCHEMA_NAME}.procurement_requests(requester_email)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_procurement_requests_department ON {SCHEMA_NAME}.procurement_requests(department)")
-        
-        # Simplified Agent Support indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_contracts_supplier ON {SCHEMA_NAME}.supplier_contracts(supplier_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_supplier_contracts_status ON {SCHEMA_NAME}.supplier_contracts(contract_status)")
-        
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_company_policies_type ON {SCHEMA_NAME}.company_policies(policy_type)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_company_policies_threshold ON {SCHEMA_NAME}.company_policies(minimum_order_threshold)")
-        
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_approvers_department ON {SCHEMA_NAME}.approvers(department)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_approvers_limit ON {SCHEMA_NAME}.approvers(approval_limit)")
-        
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_notifications_request ON {SCHEMA_NAME}.notifications(request_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_notifications_type ON {SCHEMA_NAME}.notifications(notification_type)")
-        
-        # Inventory indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_inventory_store_product ON {SCHEMA_NAME}.inventory(store_id, product_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_inventory_product ON {SCHEMA_NAME}.inventory(product_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_inventory_store ON {SCHEMA_NAME}.inventory(store_id)")
-        
-        # Store indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_stores_name ON {SCHEMA_NAME}.stores(store_name)")
-        
-        # Order indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_orders_customer ON {SCHEMA_NAME}.orders(customer_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_orders_store ON {SCHEMA_NAME}.orders(store_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_orders_date ON {SCHEMA_NAME}.orders(order_date)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_orders_customer_date ON {SCHEMA_NAME}.orders(customer_id, order_date)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_orders_store_date ON {SCHEMA_NAME}.orders(store_id, order_date)")
-        
-        # Order items indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_order_items_order ON {SCHEMA_NAME}.order_items(order_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_order_items_store ON {SCHEMA_NAME}.order_items(store_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_order_items_product ON {SCHEMA_NAME}.order_items(product_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_order_items_total ON {SCHEMA_NAME}.order_items(total_amount)")
-        
-        # Product image embeddings indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_image_embeddings_product ON {SCHEMA_NAME}.product_image_embeddings(product_id)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_image_embeddings_url ON {SCHEMA_NAME}.product_image_embeddings(image_url)")
-        
-        # Vector similarity index for product image embeddings (if pgvector is available)
-        try:
-            await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_image_embeddings_vector ON {SCHEMA_NAME}.product_image_embeddings USING ivfflat (image_embedding vector_cosine_ops) WITH (lists = 100)")
-            logging.info("Product image embeddings vector similarity index created")
-        except Exception as e:
-            logging.warning(f"Could not create product image embeddings vector index: {e}")
-        
-        # Vector similarity index for product description embeddings (if pgvector is available)
-        try:
-            await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_product_description_embeddings_vector ON {SCHEMA_NAME}.product_description_embeddings USING ivfflat (description_embedding vector_cosine_ops) WITH (lists = 100)")
-            logging.info("Product description embeddings vector similarity index created")
-        except Exception as e:
-            logging.warning(f"Could not create product description embeddings vector index: {e}")
-        
-        # Covering indexes for aggregation queries
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_order_items_covering ON {SCHEMA_NAME}.order_items(order_id, store_id, product_id, total_amount, quantity)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_covering ON {SCHEMA_NAME}.products(category_id, type_id, product_id, sku, cost, base_price)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_products_sku_covering ON {SCHEMA_NAME}.products(sku, product_id, product_name, cost, base_price)")
-        
-        # Customer indexes
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_customers_email ON {SCHEMA_NAME}.customers(email)")
-        await conn.execute(f"CREATE INDEX IF NOT EXISTS idx_customers_primary_store ON {SCHEMA_NAME}.customers(primary_store_id)")
-        
-        logging.info("Performance indexes created successfully!")
-        
-        # Enable Row Level Security (RLS) and create policies
-        # Note: All RLS policies include access for SUPER_MANAGER_UUID which bypasses all restrictions
+async def setup_row_level_security_policies(conn):
+    """Setup Row Level Security policies for the database"""
+    try:
         logging.info("Setting up Row Level Security policies...")
         logging.info(f"Super Manager UUID (access to all rows): {SUPER_MANAGER_UUID}")
         
@@ -634,7 +394,6 @@ async def create_database_schema(conn):
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.customers ENABLE ROW LEVEL SECURITY")
         
         # Enable RLS on reference tables that store managers should have full access to
-        # Note: These tables will have permissive policies allowing all authenticated users
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.stores ENABLE ROW LEVEL SECURITY")
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.categories ENABLE ROW LEVEL SECURITY") 
         await conn.execute(f"ALTER TABLE {SCHEMA_NAME}.product_types ENABLE ROW LEVEL SECURITY")
@@ -751,6 +510,14 @@ async def create_database_schema(conn):
             USING (true)
         """)
         
+        # Suppliers table - all users can see all suppliers
+        await conn.execute(f"DROP POLICY IF EXISTS all_users_suppliers ON {SCHEMA_NAME}.suppliers")
+        await conn.execute(f"""
+            CREATE POLICY all_users_suppliers ON {SCHEMA_NAME}.suppliers
+            FOR ALL TO PUBLIC
+            USING (true)
+        """)
+        
         # Products table - all users can see all products
         await conn.execute(f"DROP POLICY IF EXISTS all_users_products ON {SCHEMA_NAME}.products")
         await conn.execute(f"""
@@ -759,7 +526,7 @@ async def create_database_schema(conn):
             USING (true)
         """)
         
-        # Product image embeddings table - all users can see all product image embeddings
+        # Product embeddings tables - all users can see all embeddings
         await conn.execute(f"DROP POLICY IF EXISTS all_users_product_image_embeddings ON {SCHEMA_NAME}.product_image_embeddings")
         await conn.execute(f"""
             CREATE POLICY all_users_product_image_embeddings ON {SCHEMA_NAME}.product_image_embeddings
@@ -767,7 +534,6 @@ async def create_database_schema(conn):
             USING (true)
         """)
         
-        # Product description embeddings table - all users can see all product description embeddings
         await conn.execute(f"DROP POLICY IF EXISTS all_users_product_description_embeddings ON {SCHEMA_NAME}.product_description_embeddings")
         await conn.execute(f"""
             CREATE POLICY all_users_product_description_embeddings ON {SCHEMA_NAME}.product_description_embeddings
@@ -775,15 +541,7 @@ async def create_database_schema(conn):
             USING (true)
         """)
         
-        # Suppliers table - all users can see all suppliers (needed for procurement)
-        await conn.execute(f"DROP POLICY IF EXISTS all_users_suppliers ON {SCHEMA_NAME}.suppliers")
-        await conn.execute(f"""
-            CREATE POLICY all_users_suppliers ON {SCHEMA_NAME}.suppliers
-            FOR ALL TO PUBLIC
-            USING (true)
-        """)
-        
-        # Supplier performance table - all users can see all supplier performance data
+        # Supplier performance table - all users can see all performance data
         await conn.execute(f"DROP POLICY IF EXISTS all_users_supplier_performance ON {SCHEMA_NAME}.supplier_performance")
         await conn.execute(f"""
             CREATE POLICY all_users_supplier_performance ON {SCHEMA_NAME}.supplier_performance
@@ -791,7 +549,7 @@ async def create_database_schema(conn):
             USING (true)
         """)
         
-        # Procurement requests table - all users can see all procurement requests (for collaboration)
+        # Procurement requests table - all users can see all requests
         await conn.execute(f"DROP POLICY IF EXISTS all_users_procurement_requests ON {SCHEMA_NAME}.procurement_requests")
         await conn.execute(f"""
             CREATE POLICY all_users_procurement_requests ON {SCHEMA_NAME}.procurement_requests
@@ -801,12 +559,8 @@ async def create_database_schema(conn):
         
         logging.info("Row Level Security policies created successfully!")
         
-        # Grant permissions to store_manager role
-        await setup_store_manager_permissions(conn)
-        
-        logging.info("Database schema created successfully!")
     except Exception as e:
-        logging.error(f"Error creating database schema: {e}")
+        logging.error(f"Error setting up Row Level Security policies: {e}")
         raise
 
 async def setup_store_manager_permissions(conn):
@@ -848,6 +602,168 @@ async def setup_store_manager_permissions(conn):
         
     except Exception as e:
         logging.error(f"Error setting up store_manager permissions: {e}")
+        raise
+
+async def create_supplier_views(conn):
+    """Create database views for supplier queries to optimize performance"""
+    try:
+        logging.info("Creating supplier database views...")
+        
+        # View 1: vw_suppliers_for_request
+        view1_sql = f"""
+        CREATE OR REPLACE VIEW {SCHEMA_NAME}.vw_suppliers_for_request AS
+        SELECT DISTINCT
+            s.supplier_id,
+            s.supplier_name,
+            s.supplier_code,
+            s.contact_email,
+            s.contact_phone,
+            s.supplier_rating,
+            s.esg_compliant,
+            s.preferred_vendor,
+            s.approved_vendor,
+            s.lead_time_days,
+            s.minimum_order_amount,
+            s.bulk_discount_threshold,
+            s.bulk_discount_percent,
+            s.payment_terms,
+            COUNT(p.product_id) as available_products,
+            COALESCE(AVG(sp.overall_score), s.supplier_rating) as avg_performance_score,
+            sc.contract_status,
+            sc.contract_number,
+            c.category_name
+        FROM {SCHEMA_NAME}.suppliers s
+        LEFT JOIN {SCHEMA_NAME}.products p ON s.supplier_id = p.supplier_id
+        LEFT JOIN {SCHEMA_NAME}.categories c ON p.category_id = c.category_id
+        LEFT JOIN {SCHEMA_NAME}.supplier_performance sp ON s.supplier_id = sp.supplier_id
+            AND sp.evaluation_date >= CURRENT_DATE - INTERVAL '6 months'
+        LEFT JOIN {SCHEMA_NAME}.supplier_contracts sc ON s.supplier_id = sc.supplier_id
+            AND sc.contract_status = 'active'
+        WHERE s.active_status = true
+            AND s.approved_vendor = true
+        GROUP BY s.supplier_id, s.supplier_name, s.supplier_code, s.contact_email,
+                 s.contact_phone, s.supplier_rating, s.esg_compliant, s.preferred_vendor,
+                 s.approved_vendor, s.lead_time_days, s.minimum_order_amount,
+                 s.bulk_discount_threshold, s.bulk_discount_percent, s.payment_terms,
+                 sc.contract_status, sc.contract_number, c.category_name;
+        """
+        
+        await conn.execute(view1_sql)
+        logging.info("✅ Created view: vw_suppliers_for_request")
+        
+        # View 2: vw_supplier_history_performance
+        view2_sql = f"""
+        CREATE OR REPLACE VIEW {SCHEMA_NAME}.vw_supplier_history_performance AS
+        SELECT 
+            s.supplier_id,
+            s.supplier_name,
+            s.supplier_code,
+            s.supplier_rating,
+            s.esg_compliant,
+            s.preferred_vendor,
+            s.lead_time_days,
+            s.created_at as supplier_since,
+            -- Performance metrics
+            sp.evaluation_date,
+            sp.cost_score,
+            sp.quality_score,
+            sp.delivery_score,
+            sp.compliance_score,
+            sp.overall_score,
+            sp.notes as performance_notes,
+            -- Recent procurement activity
+            COUNT(pr.request_id) OVER (PARTITION BY s.supplier_id) as total_requests,
+            SUM(pr.total_cost) OVER (PARTITION BY s.supplier_id) as total_value
+        FROM {SCHEMA_NAME}.suppliers s
+        LEFT JOIN {SCHEMA_NAME}.supplier_performance sp ON s.supplier_id = sp.supplier_id
+        LEFT JOIN {SCHEMA_NAME}.procurement_requests pr ON s.supplier_id = pr.supplier_id;
+        """
+        
+        await conn.execute(view2_sql)
+        logging.info("✅ Created view: vw_supplier_history_performance")
+        
+        # View 3: vw_supplier_contract_details
+        view3_sql = f"""
+        CREATE OR REPLACE VIEW {SCHEMA_NAME}.vw_supplier_contract_details AS
+        SELECT 
+            s.supplier_id,
+            s.supplier_name,
+            s.supplier_code,
+            s.contact_email,
+            s.contact_phone,
+            -- Contract details
+            sc.contract_id,
+            sc.contract_number,
+            sc.contract_status,
+            sc.start_date,
+            sc.end_date,
+            sc.contract_value,
+            sc.payment_terms,
+            sc.auto_renew,
+            sc.created_at as contract_created,
+            -- Calculated fields
+            CASE 
+                WHEN sc.end_date IS NOT NULL 
+                THEN sc.end_date - CURRENT_DATE 
+                ELSE NULL 
+            END as days_until_expiry,
+            CASE 
+                WHEN sc.end_date IS NOT NULL AND sc.end_date <= CURRENT_DATE + INTERVAL '90 days'
+                THEN true 
+                ELSE false 
+            END as renewal_due_soon
+        FROM {SCHEMA_NAME}.suppliers s
+        LEFT JOIN {SCHEMA_NAME}.supplier_contracts sc ON s.supplier_id = sc.supplier_id
+        WHERE (sc.contract_status = 'active' OR sc.contract_status IS NULL);
+        """
+        
+        await conn.execute(view3_sql)
+        logging.info("✅ Created view: vw_supplier_contract_details")
+        
+        # View 4: vw_company_supplier_policies
+        view4_sql = f"""
+        CREATE OR REPLACE VIEW {SCHEMA_NAME}.vw_company_supplier_policies AS
+        SELECT 
+            policy_id,
+            policy_name,
+            policy_type,
+            policy_content,
+            department,
+            minimum_order_threshold,
+            approval_required,
+            is_active,
+            -- Additional context
+            CASE 
+                WHEN policy_type = 'procurement' THEN 'Covers supplier selection and procurement processes'
+                WHEN policy_type = 'vendor_approval' THEN 'Defines vendor approval and onboarding requirements'
+                WHEN policy_type = 'budget_authorization' THEN 'Specifies budget limits and authorization levels'
+                WHEN policy_type = 'order_processing' THEN 'Outlines order processing and fulfillment procedures'
+                ELSE 'General company policy'
+            END as policy_description,
+            LENGTH(policy_content) as content_length
+        FROM {SCHEMA_NAME}.company_policies
+        WHERE is_active = true;
+        """
+        
+        await conn.execute(view4_sql)
+        logging.info("✅ Created view: vw_company_supplier_policies")
+        
+        # Verify views were created
+        verify_sql = f"""
+        SELECT schemaname, viewname 
+        FROM pg_views 
+        WHERE schemaname = '{SCHEMA_NAME}' 
+        AND viewname LIKE 'vw_%supplier%'
+        ORDER BY viewname;
+        """
+        
+        rows = await conn.fetch(verify_sql)
+        logging.info("✅ Created supplier views:")
+        for row in rows:
+            logging.info(f"   - {row['schemaname']}.{row['viewname']}")
+            
+    except Exception as e:
+        logging.error(f"Error creating supplier views: {e}")
         raise
 
 async def batch_insert(conn, query: str, data: List[Tuple], batch_size: int = 1000):
@@ -1000,10 +916,10 @@ async def insert_product_types(conn):
 async def insert_suppliers(conn):
     """Insert supplier data into the database from JSON file"""
     try:
-        logging.info("Loading suppliers from supplier_data.json...")
+        logging.info(f"Loading suppliers from {SUPPLIER_DATA_FILE}...")
         
         # Load supplier data from JSON file
-        supplier_json_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'supplier_data.json')
+        supplier_json_path = os.path.join(os.path.dirname(__file__), REFERENCE_DATA_DIR, SUPPLIER_DATA_FILE)
         
         if not os.path.exists(supplier_json_path):
             raise FileNotFoundError(f"Supplier data file not found: {supplier_json_path}")
@@ -1011,10 +927,15 @@ async def insert_suppliers(conn):
         with open(supplier_json_path, 'r') as f:
             supplier_config = json.load(f)
         
-        suppliers_from_json = supplier_config.get('suppliers', [])
+        # Handle both array format and object format
+        if 'suppliers' in supplier_config:
+            suppliers_from_json = supplier_config['suppliers']
+        else:
+            # Suppliers are direct properties with numeric keys
+            suppliers_from_json = [supplier_config[key] for key in supplier_config.keys() if key.isdigit()]
         
         if not suppliers_from_json:
-            raise ValueError("No suppliers found in supplier_data.json")
+            raise ValueError(f"No suppliers found in {SUPPLIER_DATA_FILE}")
         
         logging.info(f"Loaded {len(suppliers_from_json)} suppliers from JSON file")
         
@@ -1026,13 +947,20 @@ async def insert_suppliers(conn):
             
             # Parse address (assuming single address string, split into components)
             address = supplier.get('address', '')
-            address_parts = address.split(',') if address else ['', '', '', '']
+            address_parts = address.split(',') if address else []
             
-            # Extract components
+            # Extract components safely
             address_line1 = address_parts[0].strip() if len(address_parts) > 0 else ''
-            city = address_parts[1].strip() if len(address_parts) > 1 else ''
-            state = address_parts[2].strip().split()[0] if len(address_parts) > 2 else 'WA'
-            postal_code = address_parts[2].strip().split()[1] if len(address_parts) > 2 and len(address_parts[2].strip().split()) > 1 else '98000'
+            city = address_parts[1].strip() if len(address_parts) > 1 else 'Seattle'
+            
+            # Handle state/postal code more robustly
+            if len(address_parts) > 2:
+                state_postal = address_parts[2].strip().split()
+                state = state_postal[0] if len(state_postal) > 0 else 'WA'
+                postal_code = state_postal[1] if len(state_postal) > 1 else '98000'
+            else:
+                state = 'WA'
+                postal_code = '98000'
             
             # Calculate bulk discount threshold and percentage
             min_order = supplier.get('min_order_amount', 500.00)
@@ -1188,7 +1116,7 @@ async def insert_agent_support_data(conn):
         # Generate simplified supplier contracts using data from JSON
         # Load supplier data to get contract values and end dates
         try:
-            supplier_json_path = os.path.join(os.path.dirname(__file__), 'reference_data', 'supplier_data.json')
+            supplier_json_path = os.path.join(os.path.dirname(__file__), REFERENCE_DATA_DIR, SUPPLIER_DATA_FILE)
             with open(supplier_json_path, 'r') as f:
                 supplier_config = json.load(f)
             suppliers_from_json = supplier_config.get('suppliers', [])
@@ -1367,7 +1295,7 @@ async def insert_products(conn):
             raise Exception("No suppliers found! Please insert suppliers first.")
         
         # Use the SUPPLIER_CATEGORY_MAP created during supplier insertion
-        # This mapping was built from the supplier_data.json file's categories and product_types
+        # This mapping was built from the supplier data file's categories and product_types
         category_supplier_mapping = {}
         
         # Create a dict for quick supplier lookup by name
@@ -1579,7 +1507,7 @@ async def clear_existing_embeddings(conn: asyncpg.Connection) -> None:
         raise
 
 async def populate_product_image_embeddings(conn: asyncpg.Connection, clear_existing: bool = False, batch_size: int = 100) -> None:
-    """Populate product image embeddings from product_data.json"""
+    """Populate product image embeddings from product data file"""
     
     logging.info("Loading product data for embeddings...")
     products_with_embeddings = extract_products_with_embeddings(product_data)
@@ -1736,7 +1664,7 @@ async def clear_existing_description_embeddings(conn: asyncpg.Connection) -> Non
         raise
 
 async def populate_product_description_embeddings(conn: asyncpg.Connection, clear_existing: bool = False, batch_size: int = 100) -> None:
-    """Populate product description embeddings from product_data.json"""
+    """Populate product description embeddings from product data file"""
     
     logging.info("Loading product data for description embeddings...")
     products_with_description_embeddings = extract_products_with_description_embeddings(product_data)
@@ -2266,7 +2194,7 @@ async def verify_database_contents(conn):
         logging.info(f"   Items/Order:        {order_items/orders:.1f}")
 
 async def verify_seasonal_patterns(conn):
-    """Verify that orders and inventory follow seasonal patterns from product_data.json"""
+    """Verify that orders and inventory follow seasonal patterns from product data file"""
     
     logging.info("\n" + "=" * 60)
     logging.info("🌱 SEASONAL PATTERNS VERIFICATION")
@@ -2275,7 +2203,7 @@ async def verify_seasonal_patterns(conn):
     try:
         # Test 1: Order seasonality by category and month
         logging.info("\n📊 ORDER SEASONALITY BY CATEGORY:")
-        logging.info("   Testing if orders follow seasonal multipliers from product_data.json")
+        logging.info("   Testing if orders follow seasonal multipliers from product data file")
         
         # Get actual orders by month and category
         rows = await conn.fetch(f"""
@@ -2545,7 +2473,7 @@ async def generate_postgresql_database(num_customers: int = 50000):
             logging.info("=" * 50)
             await insert_agent_support_data(conn)
             
-            # Populate product embeddings from product_data.json
+            # Populate product embeddings from product data file
             logging.info("\n" + "=" * 50)
             logging.info("POPULATING PRODUCT EMBEDDINGS")
             logging.info("=" * 50)
@@ -2570,6 +2498,12 @@ async def generate_postgresql_database(num_customers: int = 50000):
             logging.info("INSERTING ORDER DATA")
             logging.info("=" * 50)
             await insert_orders(conn, num_customers)
+            
+            # Create supplier views for optimized queries
+            logging.info("\n" + "=" * 50)
+            logging.info("CREATING SUPPLIER VIEWS")
+            logging.info("=" * 50)
+            await create_supplier_views(conn)
             
             # Verify the database was created and has data
             logging.info("\n" + "=" * 50)

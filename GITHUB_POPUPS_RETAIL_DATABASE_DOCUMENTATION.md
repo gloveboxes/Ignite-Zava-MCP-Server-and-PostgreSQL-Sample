@@ -19,7 +19,8 @@ This document provides comprehensive documentation for the GitHub Popup retail d
 2. [Popup Store Inventory Status](#popup-store-inventory-status)
 3. [Supplier Information](#supplier-information)
 4. [Company Policies](#company-policies)
-5. [Complete Database Schema](#complete-database-schema)
+5. [MCP Servers](#mcp-servers)
+6. [Complete Database Schema](#complete-database-schema)
 
 ---
 
@@ -239,6 +240,184 @@ All supplier contract information is now managed through static JSON data for co
 #### Vendor Approval Policy (Procurement)
 - **Content:** All new vendors require approval and background check completion.
 - **Approval:** Required for all new vendors
+
+---
+
+## MCP Servers
+
+The Zava Retail system includes three specialized Model Context Protocol (MCP) servers that provide AI agents with access to different aspects of the retail database and operations. Each server runs on a dedicated port and offers specific tools for different business functions.
+
+### 🏦 Finance Agent MCP Server (Port 8002)
+
+**Purpose:** Provides finance-related tools and operations to support finance agents with order policies, contracts, sales analysis, and inventory management.
+
+**Endpoint:** `http://localhost:8002/mcp`
+
+#### Available Tools:
+
+##### 1. `get_company_order_policy`
+**Purpose:** Retrieves company order processing policies and budget authorization rules.
+
+**Input Parameters:**
+- `department` (Optional[str]): Optional department name to filter policies (e.g., "Procurement", "Finance")
+
+**Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing policy names, types, content, thresholds, and approval requirements.
+
+##### 2. `get_supplier_contract`
+**Purpose:** Gets supplier contract information including terms and conditions.
+
+**Input Parameters:**
+- `supplier_id` (int): The unique identifier for the supplier (required)
+
+**Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing contract details, dates, values, and calculated expiry information.
+
+##### 3. `get_historical_sales_data`
+**Purpose:** Retrieves historical sales data with revenue, order counts, and customer metrics.
+
+**Input Parameters:**
+- `days_back` (int): Number of days to look back (default: 90)
+- `store_id` (Optional[int]): Optional store ID to filter results
+- `category_name` (Optional[str]): Optional category name to filter results
+
+**Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing date, store, category, revenue, orders, and customer metrics.
+
+##### 4. `get_current_inventory_status`
+**Purpose:** Gets current inventory status across stores with values and low stock alerts.
+
+**Input Parameters:**
+- `store_id` (Optional[int]): Optional store ID to filter results
+- `category_name` (Optional[str]): Optional category name to filter results
+- `low_stock_threshold` (int): Stock level below which to trigger alert (default: 50)
+
+**Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing store, product, category, stock levels, values, and alerts.
+
+##### 5. `get_current_utc_date`
+**Purpose:** Gets the current date and time in UTC format for date calculations and time-sensitive operations.
+
+**Input Parameters:** None
+
+**Returns:** ISO 8601 formatted UTC datetime string (YYYY-MM-DDTHH:MM:SS.ffffffZ)
+
+---
+
+### 📊 Sales Analysis MCP Server (Port 8000)
+
+**Purpose:** Provides comprehensive customer sales database access with individual table schema tools and semantic search capabilities for Zava Retail business operations.
+
+**Endpoint:** `http://localhost:8000/mcp`
+
+#### Available Tools:
+
+##### 1. `semantic_search_products`
+**Purpose:** Searches for Zava products using natural language descriptions to find matches based on semantic similarity.
+
+**Input Parameters:**
+- `query_description` (str): Describe the Zava product you're looking for using natural language. Include purpose, features, or use case.
+- `max_rows` (int): The maximum number of products to return (default: 20)
+- `similarity_threshold` (float): A value between 20 and 80 that sets the minimum similarity threshold (default: 30.0)
+
+**Returns:** JSON with compact success format `{"c":["col1","col2"],"r":[[v11,v12],[v21,v22]],"n":2}` or error format with "err" field.
+
+##### 2. `get_multiple_table_schemas`
+**Purpose:** Retrieves schemas for multiple database tables to understand data structure.
+
+**Input Parameters:**
+- `table_names` (list[str]): List of table names from the retail schema (customers, stores, categories, products, orders, etc.)
+
+**Returns:** Concatenated schema strings for the requested tables.
+
+##### 3. `execute_sales_query`
+**Purpose:** Executes PostgreSQL queries against the sales database with proper validation and formatting.
+
+**Input Parameters:**
+- `postgresql_query` (str): A well-formed PostgreSQL query
+
+**Returns:** Query results as a formatted string with proper column headers and data.
+
+##### 4. `get_current_utc_date`
+**Purpose:** Gets the current UTC date and time for time-sensitive analysis.
+
+**Input Parameters:** None
+
+**Returns:** Current UTC date and time in ISO format (YYYY-MM-DDTHH:MM:SS.fffffZ)
+
+---
+
+### 🏭 Supplier Agent MCP Server (Port 8001)
+
+**Purpose:** Provides tools to support supplier management operations including supplier discovery, performance analysis, contract management, and policy compliance.
+
+**Endpoint:** `http://localhost:8001/mcp`
+
+#### Available Tools:
+
+##### 1. `find_suppliers_for_request`
+**Purpose:** Finds suppliers that match procurement request requirements based on various criteria.
+
+**Input Parameters:**
+- `product_category` (Optional[str]): Product category to filter suppliers by (e.g., 'Tools', 'Hardware', 'Building Materials')
+- `esg_required` (bool): Whether ESG compliance is required (default: false)
+- `min_rating` (float): Minimum supplier rating required 0.0 to 5.0 (default: 3.0)
+- `max_lead_time` (int): Maximum acceptable lead time in days (default: 30)
+- `budget_min` (Optional[float]): Minimum budget amount to consider suppliers
+- `budget_max` (Optional[float]): Maximum budget amount to filter suppliers
+- `limit` (int): Maximum number of suppliers to return (default: 10)
+
+**Returns:** JSON with supplier details including ratings, contact info, terms, and contract status.
+
+##### 2. `get_supplier_history_and_performance`
+**Purpose:** Gets detailed supplier performance history and metrics for evaluation.
+
+**Input Parameters:**
+- `supplier_id` (int): Unique identifier of the supplier
+- `months_back` (int): Number of months of history to retrieve (default: 12)
+
+**Returns:** JSON with performance scores, evaluation dates, procurement history, and trend data.
+
+##### 3. `get_supplier_contract`
+**Purpose:** Gets supplier contract details and terms for a specific supplier.
+
+**Input Parameters:**
+- `supplier_id` (int): Unique identifier of the supplier
+
+**Returns:** JSON with contract details, terms, values, dates, and renewal status.
+
+##### 4. `get_company_supplier_policy`
+**Purpose:** Gets company policies related to supplier management and procurement processes.
+
+**Input Parameters:**
+- `policy_type` (Optional[str]): Type of policy ('procurement', 'vendor_approval', 'budget_authorization', 'order_processing')
+- `department` (Optional[str]): Department-specific policies to retrieve
+
+**Returns:** JSON with policy documents, procedures, requirements, and approval thresholds.
+
+##### 5. `get_current_utc_date`
+**Purpose:** Gets the current UTC date and time for time-sensitive supplier analysis.
+
+**Input Parameters:** None
+
+**Returns:** Current UTC date and time in ISO format (YYYY-MM-DDTHH:MM:SS.fffffZ)
+
+---
+
+### MCP Server Configuration
+
+**Server Architecture:**
+- All servers use FastMCP framework for HTTP-based communication
+- Each server maintains its own database connection pool
+- Azure Application Insights integration for telemetry (optional)
+- Row Level Security (RLS) support with user context headers
+
+**Security Features:**
+- Request context validation with `x-rls-user-id` header
+- Database connection pooling for performance
+- Comprehensive error handling and logging
+- Structured JSON responses with consistent format
+
+**Usage Pattern:**
+1. **Finance Agent** → Finance MCP Server (8002) for financial data and policies
+2. **Sales Agent** → Sales Analysis MCP Server (8000) for product search and sales queries  
+3. **Supplier Agent** → Supplier MCP Server (8001) for vendor management and procurement
 
 ---
 
