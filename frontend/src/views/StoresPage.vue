@@ -12,11 +12,22 @@
 
       <div class="stores-grid" v-if="!loading">
         <div v-for="store in stores" :key="store.id" class="store-card">
+          <!-- Use picture element for stores with valid images -->
+          <picture v-if="!failedImages.has(store.id)">
+            <source :srcset="getStoreImageWebP(store)" type="image/webp">
+            <img 
+              :src="getStoreImage(store)" 
+              :alt="store.name"
+              class="store-image"
+              @error="handleImageError($event, store)"
+            />
+          </picture>
+          <!-- Fallback for stores with missing images -->
           <img 
-            :src="getStoreImage(store)" 
+            v-else
+            src="/images/store.png"
             :alt="store.name"
             class="store-image"
-            @error="handleImageError"
           />
           <div class="store-header">
             <h3 class="store-name">{{ store.name }}</h3>
@@ -64,6 +75,7 @@ export default {
       stores: [],
       loading: true,
       error: null,
+      failedImages: new Set(), // Track stores with failed images
       // Static fallback data
       staticStores: [
         {
@@ -171,9 +183,17 @@ export default {
       const key = store.locationKey || store.name.toLowerCase().replace(/\s+/g, '_');
       return `/images/store_${key}.png`;
     },
-    handleImageError(event) {
-      // Fallback to generic store image
-      event.target.src = '/images/store.png';
+    getStoreImageWebP(store) {
+      // Use locationKey if available, otherwise generate from name
+      const key = store.locationKey || store.name.toLowerCase().replace(/\s+/g, '_');
+      return `/images/store_${key}.webp`;
+    },
+    handleImageError(event, store) {
+      // Mark this store as having a failed image
+      this.failedImages.add(store.id);
+      // Force re-render by creating a new Set
+      this.failedImages = new Set(this.failedImages);
+      console.log(`⚠️ Image not found for store: ${store.name}, using fallback`);
     },
     handleDirections(store) {
       // Open Google Maps with store location
