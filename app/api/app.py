@@ -996,7 +996,10 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         data = await websocket.receive_text()
         request_data = json.loads(data)
 
-        logger.info(f"🤖 AI Agent request: {request_data.get('request', 'No message')}")
+        input_message = request_data.get('message', 'Analyze inventory and recommend restocking priorities')
+        store_id = request_data.get('store_id')
+        
+        logger.info(f"🤖 AI Agent request: {input_message} (store_id: {store_id})")
 
         # Send initial acknowledgment
         await websocket.send_json({
@@ -1006,8 +1009,13 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
         })
         
         # Run the workflow and stream events
-        input_message: str = request_data.get("message", "Analyze inventory and recommend restocking priorities")
-        input: ChatMessage = ChatMessage(role='user', text=input_message)
+        # Add store_id to the message if provided
+        if store_id:
+            full_message = f"{input_message}\n\nStore ID: {store_id}"
+        else:
+            full_message = input_message
+            
+        input: ChatMessage = ChatMessage(role='user', text=full_message)
 
         workflow_output = None
         try:

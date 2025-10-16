@@ -39,17 +39,42 @@
 
       <!-- Input Section -->
       <div class="input-section" v-if="!isRunning && !hasCompleted">
-        <label for="instructions" class="input-label">
-          <i class="bi bi-chat-left-text"></i> Instructions for AI Agent
-        </label>
-        <textarea
-          id="instructions"
-          v-model="userInstructions"
-          class="instructions-input"
-          rows="4"
-          placeholder="Enter your instructions for the AI agent..."
-        ></textarea>
-        <button @click="startAnalysis" class="launch-button" :disabled="!userInstructions.trim()">
+        <div class="input-group">
+          <label for="store-select" class="input-label">
+            <i class="bi bi-shop"></i> Select Store
+          </label>
+          <select 
+            id="store-select" 
+            v-model="selectedStoreId" 
+            class="store-select"
+            :disabled="loadingStores"
+          >
+            <option v-if="loadingStores" :value="null">Loading stores...</option>
+            <option v-else-if="stores.length === 0" :value="null">No stores available</option>
+            <option v-for="store in stores" :key="store.id" :value="store.id">
+              {{ store.name }} {{ store.isOnline ? '(Online)' : '' }}
+            </option>
+          </select>
+        </div>
+        
+        <div class="input-group">
+          <label for="instructions" class="input-label">
+            <i class="bi bi-chat-left-text"></i> Instructions for AI Agent
+          </label>
+          <textarea
+            id="instructions"
+            v-model="userInstructions"
+            class="instructions-input"
+            rows="4"
+            placeholder="Enter your instructions for the AI agent..."
+          ></textarea>
+        </div>
+        
+        <button 
+          @click="startAnalysis" 
+          class="launch-button" 
+          :disabled="!userInstructions.trim() || !selectedStoreId || loadingStores"
+        >
           <i class="bi bi-rocket-takeoff"></i> Launch AI Analysis
         </button>
       </div>
@@ -161,6 +186,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
+import { apiClient } from '../../config/api'
 
 // Configure marked options
 marked.setOptions({
@@ -170,6 +196,9 @@ marked.setOptions({
 
 // State
 const userInstructions = ref('Analyze inventory and recommend restocking priorities')
+const selectedStoreId = ref(null)
+const stores = ref([])
+const loadingStores = ref(false)
 const isRunning = ref(false)
 const hasCompleted = ref(false)
 const events = ref([])
@@ -207,6 +236,25 @@ const renderedMarkdown = computed(() => {
   }
 })
 
+// Fetch stores from API
+const fetchStores = async () => {
+  loadingStores.value = true
+  try {
+    const response = await apiClient.get('/api/stores')
+    stores.value = response.data.stores || []
+    // Set first store as default if available
+    if (stores.value.length > 0 && !selectedStoreId.value) {
+      selectedStoreId.value = stores.value[0].id
+    }
+  } catch (err) {
+    console.error('Failed to fetch stores:', err)
+    // Provide a fallback or error message
+    stores.value = []
+  } finally {
+    loadingStores.value = false
+  }
+}
+
 // Start analysis
 const startAnalysis = () => {
   // Reset state
@@ -230,9 +278,10 @@ const startAnalysis = () => {
 
   ws.onopen = () => {
     addEvent('Connected to AI Agent')
-    // Send the user instructions
+    // Send the user instructions and store_id
     ws.send(JSON.stringify({
-      request: userInstructions.value
+      message: userInstructions.value,
+      store_id: selectedStoreId.value
     }))
   }
 
@@ -240,23 +289,27 @@ const startAnalysis = () => {
     try {
       const data = JSON.parse(event.data)
       
+      console.log('📥 WebSocket message received:', data)
+      
       if (data.type === 'started') {
         addEvent('AI Agent workflow started')
+      } else if (data.type === 'workflow_started') {
+        addEvent(`Workflow: ${data.event}`)
       } else if (data.type === 'step_started') {
         // Add new step dynamically when it starts
-        const stepTime = formatUTCTime(data.timestamp)
-        addProgressStep(data.id, 'active', data.event, stepTime)
+        console.log('🟢 Step started:', data.id, data.event, data.timestamp)
+        addProgressStep(data.id, 'active', data.event, data.timestamp)
         addEvent(`Started: ${data.id} - ${data.event}`)
       } else if (data.type === 'step_completed') {
         // Mark step as complete
-        const stepTime = formatUTCTime(data.timestamp)
-        updateProgressStep(data.id, 'complete', data.event, stepTime)
+        console.log('✅ Step completed:', data.id, data.event, data.timestamp)
+        updateProgressStep(data.id, 'complete', data.event, data.timestamp)
         addEvent(`Completed: ${data.id}`)
       } else if (data.type === 'step_failed') {
         // Mark step as failed and stop the workflow
-        const stepTime = formatUTCTime(data.timestamp)
+        console.log('❌ Step failed:', data.id, data.event, data.timestamp)
         const errorMsg = data.event || 'Step failed'
-        updateProgressStep(data.id, 'error', errorMsg, stepTime)
+        updateProgressStep(data.id, 'error', errorMsg, data.timestamp)
         addEvent(`❌ Failed: ${data.id} - ${errorMsg}`)
         
         // Set error state to display error section
@@ -264,9 +317,15 @@ const startAnalysis = () => {
         isRunning.value = false
         hasCompleted.value = false
         
-        // Close WebSocket
+        console.log('🛑 Stopping workflow due to step failure')
+        
+        // Close WebSocket immediately
         if (ws) {
-          ws.close()
+          try {
+            ws.close()
+          } catch (e) {
+            console.error('Error closing WebSocket:', e)
+          }
           ws = null
         }
       } else if (data.type === 'workflow_output') {
@@ -302,6 +361,8 @@ const startAnalysis = () => {
         isRunning.value = false
         hasCompleted.value = false
         
+        console.log('🛑 Stopping workflow due to error')
+        
         // Mark current active step as failed
         const activeStep = progressSteps.value.find(s => s.status === 'active')
         if (activeStep) {
@@ -309,9 +370,13 @@ const startAnalysis = () => {
           activeStep.description = 'Failed'
         }
         
-        // Close WebSocket
+        // Close WebSocket immediately
         if (ws) {
-          ws.close()
+          try {
+            ws.close()
+          } catch (e) {
+            console.error('Error closing WebSocket:', e)
+          }
           ws = null
         }
       }
@@ -326,43 +391,56 @@ const startAnalysis = () => {
 
   ws.onerror = (err) => {
     console.error('WebSocket error:', err)
-    error.value = 'Failed to connect to AI Agent. Please ensure the backend is running.'
+    if (!error.value) {
+      error.value = 'Failed to connect to AI Agent. Please ensure the backend is running.'
+    }
     isRunning.value = false
   }
 
-  ws.onclose = () => {
-    if (isRunning.value) {
-      addEvent('Connection closed')
+  ws.onclose = (event) => {
+    console.log('🔌 WebSocket closed:', event.code, event.reason)
+    // Only update state if we're still running and no error has been set
+    if (isRunning.value && !error.value) {
+      addEvent('Connection closed unexpectedly')
       isRunning.value = false
     }
+    ws = null
   }
 }
 
 // Add a new progress step dynamically
 const addProgressStep = (stepId, status, description = '', timestamp = '') => {
+  console.log('➕ Adding progress step:', { stepId, status, description, timestamp })
+  
   // Check if step already exists
   const existingStep = progressSteps.value.find(s => s.id === stepId)
   if (existingStep) {
     // Update existing step
+    console.log('🔄 Updating existing step:', stepId)
     existingStep.status = status
     existingStep.description = description
     existingStep.timestamp = timestamp ? new Date(timestamp) : null
   } else {
     // Add new step - store the actual Date object for reactive updates
-    progressSteps.value.push({
+    const newStep = {
       id: stepId,
       title: stepId, // Use the executor ID as the title
       description: description,
       status: status,
       timestamp: timestamp ? new Date(timestamp) : null
-    })
+    }
+    console.log('✨ Creating new step:', newStep)
+    progressSteps.value.push(newStep)
+    console.log('📊 Total steps now:', progressSteps.value.length)
   }
 }
 
 // Update an existing progress step
 const updateProgressStep = (stepId, status, description = '', timestamp = '') => {
+  console.log('🔄 Updating progress step:', { stepId, status, description, timestamp })
   const step = progressSteps.value.find(s => s.id === stepId)
   if (step) {
+    console.log('✅ Found step to update:', step.id)
     step.status = status
     if (description) {
       step.description = description
@@ -370,6 +448,8 @@ const updateProgressStep = (stepId, status, description = '', timestamp = '') =>
     if (timestamp) {
       step.timestamp = new Date(timestamp)
     }
+  } else {
+    console.warn('⚠️ Step not found for update:', stepId)
   }
 }
 
@@ -436,6 +516,9 @@ const resetAnalysis = () => {
 
 // Lifecycle hooks
 onMounted(() => {
+  // Fetch stores on component mount
+  fetchStores()
+  
   // Update currentTime every second to trigger reactive time updates
   timeUpdateInterval = setInterval(() => {
     currentTime.value = new Date()
@@ -563,6 +646,10 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+.input-group {
+  margin-bottom: 1.5rem;
+}
+
 .input-label {
   display: block;
   font-weight: 600;
@@ -573,6 +660,28 @@ onUnmounted(() => {
 
 .input-label i {
   color: #0d6efd;
+}
+
+.store-select {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.store-select:focus {
+  outline: none;
+  border-color: #0d6efd;
+}
+
+.store-select:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
 }
 
 .instructions-input {
