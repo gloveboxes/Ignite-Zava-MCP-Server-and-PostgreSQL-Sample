@@ -62,6 +62,11 @@ const routes = [
         component: () => import('../views/management/ProductsPage.vue')
       },
       {
+        path: 'products/:sku',
+        name: 'ProductDetail',
+        component: () => import('../views/management/ProductDetailPage.vue')
+      },
+      {
         path: 'policies',
         name: 'Policies',
         component: () => import('../views/management/PoliciesPage.vue')

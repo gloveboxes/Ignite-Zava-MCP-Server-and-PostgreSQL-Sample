@@ -189,6 +189,7 @@
                     class="table-checkbox"
                   />
                 </th>
+                <th class="image-col">Image</th>
                 <th>SKU</th>
                 <th>Product Name</th>
                 <th>Category</th>
@@ -211,8 +212,23 @@
                     class="table-checkbox"
                   />
                 </td>
+                <td class="image-col">
+                  <img 
+                    :src="item.image_url ? `/images/${item.image_url}` : `/images/${item.sku}.png`" 
+                    :alt="item.product_name" 
+                    class="product-image"
+                    @error="handleImageError"
+                  />
+                </td>
                 <td class="sku-col">{{ item.sku }}</td>
-                <td class="product-col">{{ item.product_name }}</td>
+                <td class="product-col">
+                  <a 
+                    :href="`/management/products/${item.sku}`" 
+                    class="product-link"
+                  >
+                    {{ item.product_name }}
+                  </a>
+                </td>
                 <td>{{ item.category_name }}</td>
                 <td class="number-col">
                   <span class="stock-badge" :class="{ 'low-stock': item.stock_level < 10 }">
@@ -236,7 +252,7 @@
             </tbody>
             <tfoot>
               <tr class="totals-row">
-                <td colspan="7" class="total-label">
+                <td colspan="8" class="total-label">
                   <strong>Total Order Cost ({{ selectedCount }} items):</strong>
                 </td>
                 <td class="number-col total-col">
@@ -411,15 +427,15 @@ const runMockWorkflow = () => {
   
   // Schedule all mock messages
   mockMessages.forEach(msg => {
-    const timeout = setTimeout(() => {
-      handleWebSocketMessage({ data: JSON.stringify(msg.data) })
+    const timeout = setTimeout(async () => {
+      await handleWebSocketMessage({ data: JSON.stringify(msg.data) })
     }, msg.delay)
     mockTimeouts.push(timeout)
   })
 }
 
 // Handle WebSocket message (extracted for reuse with mock)
-const handleWebSocketMessage = (event) => {
+const handleWebSocketMessage = async (event) => {
   try {
     const data = JSON.parse(event.data)
     
@@ -474,7 +490,10 @@ const handleWebSocketMessage = (event) => {
       
       // Parse the workflow output - it contains items array
       if (data.event && data.event.items && Array.isArray(data.event.items)) {
-        restockingItems.value = data.event.items.map(item => ({
+        // Enrich items with full product details (including image_url)
+        const enrichedItems = await enrichItemsWithProductDetails(data.event.items)
+        
+        restockingItems.value = enrichedItems.map(item => ({
           ...item,
           selected: true, // Select all by default
           quantity: 10 // Default reorder quantity
@@ -604,8 +623,8 @@ const startAnalysis = () => {
     }))
   }
 
-  ws.onmessage = (event) => {
-    handleWebSocketMessage(event)
+  ws.onmessage = async (event) => {
+    await handleWebSocketMessage(event)
   }
 
   ws.onerror = (err) => {
@@ -800,6 +819,47 @@ const toggleSelectAll = () => {
   restockingItems.value.forEach(item => {
     item.selected = !allSelected
   })
+}
+
+// Enrich restocking items with full product details (including image_url)
+const enrichItemsWithProductDetails = async (items) => {
+  if (!items || items.length === 0) return []
+  
+  console.log('🔍 Enriching', items.length, 'items with product details...')
+  
+  try {
+    // Fetch all products in parallel
+    const productPromises = items.map(item => 
+      apiClient.get(`/api/products/sku/${item.sku}`)
+        .then(response => ({
+          ...item,
+          image_url: response.data.image_url,
+          product_description: response.data.product_description,
+          supplier_name: response.data.supplier_name,
+          discontinued: response.data.discontinued
+        }))
+        .catch(err => {
+          console.error(`Failed to fetch product details for SKU ${item.sku}:`, err)
+          // Return original item if fetch fails
+          return item
+        })
+    )
+    
+    const enrichedItems = await Promise.all(productPromises)
+    console.log('✅ Enriched items with product details')
+    return enrichedItems
+    
+  } catch (err) {
+    console.error('Error enriching items:', err)
+    // Return original items if enrichment fails
+    return items
+  }
+}
+
+// Handle image loading error
+const handleImageError = (event) => {
+  event.target.src = '/images/placeholder.png'
+  event.target.onerror = null // Prevent infinite loop
 }
 
 // Place order for selected items
@@ -1309,9 +1369,8 @@ onUnmounted(() => {
 
 .step-time {
   font-size: 0.85rem;
-  color: #adb5bd;
+  color: #878a8eff;
   margin-top: 0.25rem;
-  font-family: 'Courier New', monospace;
 }
 
 /* Events Details */
@@ -1793,6 +1852,21 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
+.image-col {
+  width: 80px;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.product-image {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+  background: #f8f9fa;
+}
+
 .number-col {
   text-align: right;
 }
@@ -1806,6 +1880,18 @@ onUnmounted(() => {
 .product-col {
   font-weight: 500;
   color: #212529;
+}
+
+.product-link {
+  color: #0d6efd;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.product-link:hover {
+  color: #0a58ca;
+  text-decoration: underline;
 }
 
 .stock-badge {

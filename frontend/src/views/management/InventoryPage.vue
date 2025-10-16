@@ -144,7 +144,12 @@
                        @error="handleImageError" />
                   <div class="product-thumb-placeholder" v-else>📦</div>
                   <div class="product-details">
-                    <div class="product-name">{{ item.productName }}</div>
+                    <router-link 
+                      :to="`/management/products/${item.sku}`" 
+                      class="product-name-link"
+                    >
+                      {{ item.productName }}
+                    </router-link>
                     <div class="product-type">{{ item.type }}</div>
                   </div>
                 </div>
@@ -638,6 +643,20 @@ export default {
   font-weight: 600;
   color: var(--primary-color);
   margin-bottom: 0.25rem;
+}
+
+.product-name-link {
+  font-weight: 600;
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.2s;
+  display: inline-block;
+  margin-bottom: 0.25rem;
+}
+
+.product-name-link:hover {
+  color: #0366d6;
+  text-decoration: underline;
 }
 
 .product-type {

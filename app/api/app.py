@@ -511,6 +511,94 @@ async def get_product_by_id(product_id: int):
         )
 
 
+@app.get("/api/products/sku/{sku}", response_model=Product)
+async def get_product_by_sku(sku: str):
+    """
+    Get a single product by its SKU.
+    Returns complete product information including category, type, and supplier.
+    """
+    if not db_provider or not db_provider.connection_pool:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection not available"
+        )
+
+    try:
+        conn = await db_provider.get_connection()
+
+        try:
+            # Set RLS user if needed
+            if RLS_USER_ID:
+                await conn.execute(
+                    "SELECT set_config('app.current_rls_user_id', $1, false)",
+                    RLS_USER_ID
+                )
+
+            # Query single product by SKU
+            query = """
+                SELECT
+                    p.product_id,
+                    p.sku,
+                    p.product_name,
+                    c.category_name,
+                    pt.type_name,
+                    p.base_price as unit_price,
+                    p.cost,
+                    p.gross_margin_percent,
+                    p.product_description,
+                    s.supplier_name,
+                    s.contact_email as supplier_email,
+                    s.contact_phone as supplier_phone,
+                    p.discontinued,
+                    pie.image_url
+                FROM retail.products p
+                INNER JOIN retail.categories c ON p.category_id = c.category_id
+                INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
+                LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
+                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
+                WHERE p.sku = $1
+            """
+
+            row = await conn.fetchrow(query, sku)
+
+            if not row:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Product with SKU '{sku}' not found"
+                )
+
+            product = Product(
+                product_id=row['product_id'],
+                sku=row['sku'],
+                product_name=row['product_name'],
+                category_name=row['category_name'],
+                type_name=row['type_name'],
+                unit_price=float(row['unit_price']),
+                cost=float(row['cost']),
+                gross_margin_percent=float(row['gross_margin_percent']),
+                product_description=row['product_description'],
+                supplier_name=row['supplier_name'],
+                discontinued=row['discontinued'],
+                image_url=row['image_url']
+            )
+
+            logger.info(f"✅ Retrieved product by SKU {sku}: {product.product_name}")
+
+            return product
+
+        finally:
+            await db_provider.release_connection(conn)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error fetching product by SKU {sku}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch product: {str(e)}"
+        )
+
+
 @app.get("/api/management/dashboard/top-categories")
 async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Number of top categories to return")):
     """
@@ -676,6 +764,7 @@ async def get_suppliers():
 @app.get("/api/management/inventory")
 async def get_inventory(
     store_id: int = None,
+    product_id: int = None,
     category: str = None,
     low_stock_only: bool = False,
     limit: int = 100
@@ -685,6 +774,7 @@ async def get_inventory(
     
     Args:
         store_id: Optional filter by specific store
+        product_id: Optional filter by specific product
         category: Optional filter by product category
         low_stock_only: Show only items with stock below reorder threshold
         limit: Maximum number of records to return
@@ -692,7 +782,7 @@ async def get_inventory(
     conn = await db_provider.get_connection()
     
     try:
-        logger.info(f"📦 Fetching inventory (store={store_id}, category={category}, low_stock={low_stock_only})...")
+        logger.info(f"📦 Fetching inventory (store={store_id}, product={product_id}, category={category}, low_stock={low_stock_only})...")
 
         # Build dynamic WHERE clause
         where_conditions = []
@@ -702,6 +792,11 @@ async def get_inventory(
         if store_id is not None:
             where_conditions.append(f"st.store_id = ${param_idx}")
             params.append(store_id)
+            param_idx += 1
+
+        if product_id is not None:
+            where_conditions.append(f"p.product_id = ${param_idx}")
+            params.append(product_id)
             param_idx += 1
 
         if category:
