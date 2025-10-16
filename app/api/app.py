@@ -178,13 +178,13 @@ async def get_stores():
                     location_key = "online"
                     location = "Online Warehouse, Seattle, WA"
                 else:
-                    # Extract location from "Zava Pop-Up Location" format
-                    parts = store_name.split('Pop-Up ')
+                    # Extract location from "GitHub Popup Location" format
+                    parts = store_name.split('Popup ')
                     if len(parts) > 1:
                         location_name = parts[1]
                         location_key = location_name.lower().replace(' ', '_')
                         # Format address from location name
-                        location = f"{location_name}, WA"
+                        location = location_name
                     else:
                         location_key = store_name.lower().replace(' ', '_')
                         location = "Washington State"
