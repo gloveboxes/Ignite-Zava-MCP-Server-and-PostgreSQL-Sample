@@ -125,7 +125,7 @@
               <div class="step-content">
                 <div class="step-title">{{ step.title }}</div>
                 <div class="step-description" v-if="step.description">{{ step.description }}</div>
-                <div class="step-time" v-if="step.timestamp">{{ formatRelativeTime(step.timestamp) }}</div>
+                <div class="step-time" v-if="step.timestamp">{{ formatStepDuration(step) }}</div>
               </div>
             </div>
           </div>
@@ -156,16 +156,97 @@
         </div>
       </div>
 
-      <!-- Final Output -->
-      <div class="output-section" v-if="finalOutput && !error">
+      <!-- Final Output - Restocking Recommendations -->
+      <div class="output-section" v-if="restockingItems.length > 0 && !error">
         <div class="output-header">
           <i class="bi bi-check-circle-fill success-icon"></i>
-          <h3>Analysis Complete</h3>
+          <h3>Restocking Recommendations</h3>
+          <p class="output-subtitle">{{ restockingItems.length }} items need restocking. Select items to order.</p>
         </div>
-        <div class="output-content markdown-content" v-html="renderedMarkdown"></div>
-        <button @click="resetAnalysis" class="reset-button">
-          <i class="bi bi-arrow-counterclockwise"></i> Run Another Analysis
-        </button>
+        
+        <div class="restocking-table-container">
+          <table class="restocking-table">
+            <thead>
+              <tr>
+                <th class="checkbox-col">
+                  <input 
+                    type="checkbox" 
+                    :checked="selectedItems.length === restockingItems.length"
+                    @change="toggleSelectAll"
+                    class="table-checkbox"
+                  />
+                </th>
+                <th>SKU</th>
+                <th>Product Name</th>
+                <th>Category</th>
+                <th class="number-col">Current Stock</th>
+                <th class="number-col">Unit Cost</th>
+                <th class="number-col">Order Qty</th>
+                <th class="number-col">Total Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="(item, index) in restockingItems" 
+                :key="item.sku"
+                :class="{ 'selected-row': item.selected }"
+              >
+                <td class="checkbox-col">
+                  <input 
+                    type="checkbox" 
+                    v-model="item.selected"
+                    class="table-checkbox"
+                  />
+                </td>
+                <td class="sku-col">{{ item.sku }}</td>
+                <td class="product-col">{{ item.product_name }}</td>
+                <td>{{ item.category_name }}</td>
+                <td class="number-col">
+                  <span class="stock-badge" :class="{ 'low-stock': item.stock_level < 10 }">
+                    {{ item.stock_level }}
+                  </span>
+                </td>
+                <td class="number-col">${{ item.cost.toFixed(2) }}</td>
+                <td class="number-col">
+                  <input 
+                    type="number" 
+                    v-model.number="item.quantity" 
+                    min="1" 
+                    max="1000"
+                    class="quantity-input"
+                  />
+                </td>
+                <td class="number-col total-col">
+                  ${{ (item.cost * item.quantity).toFixed(2) }}
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <td colspan="7" class="total-label">
+                  <strong>Total Order Cost ({{ selectedCount }} items):</strong>
+                </td>
+                <td class="number-col total-col">
+                  <strong>${{ totalOrderCost.toFixed(2) }}</strong>
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        
+        <div class="output-actions">
+          <button 
+            @click="placeOrder" 
+            class="order-button"
+            :disabled="selectedCount === 0 || isOrdering"
+          >
+            <i class="bi bi-cart-check"></i>
+            {{ isOrdering ? 'Placing Order...' : `Place Order (${selectedCount} items)` }}
+          </button>
+          <button @click="resetAnalysis" class="reset-button secondary">
+            <i class="bi bi-arrow-counterclockwise"></i> Run Another Analysis
+          </button>
+        </div>
       </div>
 
       <!-- Error Display -->
@@ -203,10 +284,13 @@ const isRunning = ref(false)
 const hasCompleted = ref(false)
 const events = ref([])
 const finalOutput = ref(null)
+const restockingItems = ref([])
+const selectedItems = ref([])
 const error = ref(null)
 const showDetails = ref(false)
 const currentStep = ref(0)
 const currentTime = ref(new Date())
+const isOrdering = ref(false)
 let ws = null
 let timeUpdateInterval = null
 
@@ -223,6 +307,17 @@ const progressSummary = computed(() => {
   }
   const activeStep = progressSteps.value.find(s => s.status === 'active')
   return activeStep ? activeStep.title : 'Connecting to AI Agent...'
+})
+
+// Computed properties for restocking items
+const selectedCount = computed(() => {
+  return restockingItems.value.filter(item => item.selected).length
+})
+
+const totalOrderCost = computed(() => {
+  return restockingItems.value
+    .filter(item => item.selected)
+    .reduce((total, item) => total + (item.cost * item.quantity), 0)
 })
 
 // Render markdown output
@@ -330,6 +425,19 @@ const startAnalysis = () => {
         }
       } else if (data.type === 'workflow_output') {
         addEvent('Workflow output generated')
+        console.log('📦 Workflow output:', data.event)
+        
+        // Parse the workflow output - it contains items array
+        if (data.event && data.event.items && Array.isArray(data.event.items)) {
+          restockingItems.value = data.event.items.map(item => ({
+            ...item,
+            selected: true, // Select all by default
+            quantity: 10 // Default reorder quantity
+          }))
+          selectedItems.value = restockingItems.value.map((_, index) => index)
+          console.log('✅ Loaded restocking items:', restockingItems.value.length)
+        }
+        
         finalOutput.value = data.event
       } else if (data.type === 'event') {
         // Display the event
@@ -419,15 +527,19 @@ const addProgressStep = (stepId, status, description = '', timestamp = '') => {
     console.log('🔄 Updating existing step:', stepId)
     existingStep.status = status
     existingStep.description = description
-    existingStep.timestamp = timestamp ? new Date(timestamp) : null
+    existingStep.startTime = timestamp ? new Date(timestamp) : null
+    existingStep.timestamp = existingStep.startTime
   } else {
     // Add new step - store the actual Date object for reactive updates
+    const startTime = timestamp ? new Date(timestamp) : null
     const newStep = {
       id: stepId,
       title: stepId, // Use the executor ID as the title
       description: description,
       status: status,
-      timestamp: timestamp ? new Date(timestamp) : null
+      startTime: startTime,
+      endTime: null,
+      timestamp: startTime
     }
     console.log('✨ Creating new step:', newStep)
     progressSteps.value.push(newStep)
@@ -445,11 +557,65 @@ const updateProgressStep = (stepId, status, description = '', timestamp = '') =>
     if (description) {
       step.description = description
     }
+    // When completing or failing a step, set endTime
+    if ((status === 'complete' || status === 'error') && timestamp) {
+      step.endTime = new Date(timestamp)
+    }
     if (timestamp) {
       step.timestamp = new Date(timestamp)
     }
   } else {
     console.warn('⚠️ Step not found for update:', stepId)
+  }
+}
+
+// Format step duration based on status
+// Shows "Running for XX" when active, "Took XX" when complete/failed
+const formatStepDuration = (step) => {
+  if (!step.startTime) return ''
+  
+  try {
+    // Access currentTime.value to make this reactive
+    const now = currentTime.value
+    
+    // If step is complete or failed, use endTime - startTime
+    if ((step.status === 'complete' || step.status === 'error') && step.endTime) {
+      const diffInSeconds = Math.floor((step.endTime - step.startTime) / 1000)
+      return `Took ${formatDuration(diffInSeconds)}`
+    }
+    
+    // If step is active, use currentTime - startTime
+    if (step.status === 'active') {
+      const diffInSeconds = Math.floor((now - step.startTime) / 1000)
+      return `Running for ${formatDuration(diffInSeconds)}`
+    }
+    
+    return ''
+  } catch (err) {
+    return ''
+  }
+}
+
+// Helper to format duration into human readable string
+const formatDuration = (seconds) => {
+  if (seconds < 1) {
+    return 'less than a second'
+  } else if (seconds < 60) {
+    return seconds === 1 ? '1 second' : `${seconds} seconds`
+  } else if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    if (remainingSeconds === 0) {
+      return minutes === 1 ? '1 minute' : `${minutes} minutes`
+    }
+    return `${minutes}m ${remainingSeconds}s`
+  } else {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    if (minutes === 0) {
+      return hours === 1 ? '1 hour' : `${hours} hours`
+    }
+    return `${hours}h ${minutes}m`
   }
 }
 
@@ -498,16 +664,72 @@ const formatTime = (date) => {
   })
 }
 
+// Toggle select all items
+const toggleSelectAll = () => {
+  const allSelected = selectedCount.value === restockingItems.value.length
+  restockingItems.value.forEach(item => {
+    item.selected = !allSelected
+  })
+}
+
+// Place order for selected items
+const placeOrder = async () => {
+  const selectedProducts = restockingItems.value.filter(item => item.selected)
+  
+  if (selectedProducts.length === 0) {
+    alert('Please select at least one item to order.')
+    return
+  }
+  
+  isOrdering.value = true
+  
+  try {
+    // Prepare order data
+    const orderData = {
+      store_id: selectedStoreId.value,
+      items: selectedProducts.map(item => ({
+        sku: item.sku,
+        product_name: item.product_name,
+        quantity: item.quantity,
+        unit_cost: item.cost,
+        total_cost: item.cost * item.quantity
+      })),
+      total_cost: totalOrderCost.value
+    }
+    
+    console.log('📦 Placing order:', orderData)
+    
+    // TODO: Replace with actual API endpoint when available
+    // const response = await apiClient.post('/api/orders', orderData)
+    
+    // Simulate API call for now
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    alert(`Order placed successfully!\n\n${selectedProducts.length} items ordered\nTotal: $${totalOrderCost.value.toFixed(2)}`)
+    
+    // Reset the form
+    resetAnalysis()
+  } catch (err) {
+    console.error('Failed to place order:', err)
+    alert('Failed to place order. Please try again.')
+  } finally {
+    isOrdering.value = false
+  }
+}
+
 // Reset analysis
 const resetAnalysis = () => {
   events.value = []
   finalOutput.value = null
+  restockingItems.value = []
+  selectedItems.value = []
   error.value = null
   isRunning.value = false
   hasCompleted.value = false
   showDetails.value = false
   currentStep.value = 0
   progressSteps.value = []
+  isOrdering.value = false
   if (ws) {
     ws.close()
     ws = null
@@ -1320,6 +1542,172 @@ onUnmounted(() => {
 
 .retry-button:hover {
   background: #c82333;
+}
+
+/* Restocking Table */
+.output-subtitle {
+  color: #6c757d;
+  margin-top: 0.5rem;
+  font-size: 1rem;
+  font-weight: normal;
+}
+
+.restocking-table-container {
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.restocking-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.restocking-table thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.restocking-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.restocking-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 0.95rem;
+}
+
+.restocking-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.restocking-table tbody tr.selected-row {
+  background: #e7f3ff;
+}
+
+.checkbox-col {
+  width: 40px;
+  text-align: center;
+}
+
+.table-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.number-col {
+  text-align: right;
+}
+
+.sku-col {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #495057;
+}
+
+.product-col {
+  font-weight: 500;
+  color: #212529;
+}
+
+.stock-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  background: #d1ecf1;
+  color: #0c5460;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.stock-badge.low-stock {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.quantity-input {
+  width: 80px;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  text-align: right;
+  font-size: 0.9rem;
+}
+
+.quantity-input:focus {
+  outline: none;
+  border-color: #0d6efd;
+}
+
+.total-col {
+  font-weight: 600;
+  color: #28a745;
+}
+
+.restocking-table tfoot {
+  background: #f8f9fa;
+  border-top: 2px solid #dee2e6;
+}
+
+.totals-row td {
+  padding: 1.25rem 1rem;
+  font-size: 1.05rem;
+}
+
+.total-label {
+  text-align: right;
+}
+
+.output-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.order-button {
+  flex: 1;
+  padding: 1rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #28a745 0%, #20883c 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.order-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.order-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reset-button.secondary {
+  flex: 0 0 auto;
+  background: #6c757d;
+}
+
+.reset-button.secondary:hover {
+  background: #5a6268;
 }
 
 /* Responsive */
