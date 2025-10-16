@@ -39,6 +39,11 @@
 
       <!-- Input Section -->
       <div class="input-section" v-if="!isRunning && !hasCompleted">
+        <div class="mock-mode-badge" v-if="useMockData">
+          <i class="bi bi-info-circle"></i>
+          Running in demo mode (backend unavailable)
+        </div>
+        
         <div class="input-group">
           <label for="store-select" class="input-label">
             <i class="bi bi-shop"></i> Select Store
@@ -50,7 +55,6 @@
             :disabled="loadingStores"
           >
             <option v-if="loadingStores" :value="null">Loading stores...</option>
-            <option v-else-if="stores.length === 0" :value="null">No stores available</option>
             <option v-for="store in stores" :key="store.id" :value="store.id">
               {{ store.name }} {{ store.isOnline ? '(Online)' : '' }}
             </option>
@@ -267,7 +271,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
-import { apiClient } from '../../config/api'
+import { apiClient, config } from '../../config/api'
 
 // Configure marked options
 marked.setOptions({
@@ -291,8 +295,10 @@ const showDetails = ref(false)
 const currentStep = ref(0)
 const currentTime = ref(new Date())
 const isOrdering = ref(false)
+const useMockData = ref(false)
 let ws = null
 let timeUpdateInterval = null
+let mockTimeouts = []
 
 // Progress steps - now dynamically populated from backend events
 const progressSteps = ref([])
@@ -343,10 +349,169 @@ const fetchStores = async () => {
     }
   } catch (err) {
     console.error('Failed to fetch stores:', err)
-    // Provide a fallback or error message
-    stores.value = []
+    console.log('🎭 Using mock store for demo mode')
+    // Provide a fallback mock store so the workflow can still be tested
+    stores.value = [
+      {
+        id: 1,
+        name: 'GitHub Popup Downtown Redmond',
+        isOnline: false
+      }
+    ]
+    selectedStoreId.value = 1
   } finally {
     loadingStores.value = false
+  }
+}
+
+// Mock WebSocket data - replays recorded messages with realistic timing
+const runMockWorkflow = () => {
+  console.log('🎭 Running mock workflow (backend unavailable)')
+  
+  addEvent('Connected to AI Agent (Mock Mode)')
+  
+  // Clear any existing timeouts
+  mockTimeouts.forEach(timeout => clearTimeout(timeout))
+  mockTimeouts = []
+  
+  const now = new Date()
+  
+  // Mock messages with realistic delays
+  const mockMessages = [
+    { delay: 100, data: {"type":"started","message":"AI Agent workflow initiated...","timestamp":now.toISOString()} },
+    { delay: 200, data: {"type":"workflow_started","event":"None","timestamp":now.toISOString()} },
+    { delay: 2000, data: {"type":"step_started","event":null,"id":"Stock Analyzer","timestamp":new Date(now.getTime() + 2000).toISOString()} },
+    { delay: 5000, data: {"type":"step_completed","event":null,"id":"Stock Analyzer","timestamp":new Date(now.getTime() + 5000).toISOString()} },
+    { delay: 5100, data: {"type":"step_started","event":null,"id":"Summarizer","timestamp":new Date(now.getTime() + 5100).toISOString()} },
+    { delay: 8000, data: {"type":"workflow_output","event":{"items":[{"sku":"ACC-SK-005","product_name":"Thermal Winter Socks","category_name":"Accessories","stock_level":2,"cost":14.99},{"sku":"ACC-SK-008","product_name":"Cozy Slipper Socks","category_name":"Accessories","stock_level":4,"cost":15.99},{"sku":"FW-SN-006","product_name":"Mesh Athletic Sneakers","category_name":"Footwear","stock_level":2,"cost":54.99},{"sku":"APP-TS-002","product_name":"V-Neck Casual Tee","category_name":"Apparel - Tops","stock_level":3,"cost":17.99},{"sku":"APP-SH-003","product_name":"Cargo Shorts","category_name":"Apparel - Bottoms","stock_level":3,"cost":34.99},{"sku":"APP-JN-001","product_name":"Classic Straight Leg Jeans","category_name":"Apparel - Bottoms","stock_level":4,"cost":49.99},{"sku":"OUT-CT-004","product_name":"Rain Coat Long","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-005","product_name":"Puffer Jacket","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-010","product_name":"Quilted Vest","category_name":"Outerwear","stock_level":9,"cost":49.99}]},"timestamp":new Date(now.getTime() + 8000).toISOString()} },
+    { delay: 8100, data: {"type":"step_completed","event":null,"id":"Summarizer","timestamp":new Date(now.getTime() + 8100).toISOString()} },
+    { delay: 8200, data: {"type":"completed","message":"Workflow completed successfully","output":{"items":[{"sku":"ACC-SK-005","product_name":"Thermal Winter Socks","category_name":"Accessories","stock_level":2,"cost":14.99},{"sku":"ACC-SK-008","product_name":"Cozy Slipper Socks","category_name":"Accessories","stock_level":4,"cost":15.99},{"sku":"FW-SN-006","product_name":"Mesh Athletic Sneakers","category_name":"Footwear","stock_level":2,"cost":54.99},{"sku":"APP-TS-002","product_name":"V-Neck Casual Tee","category_name":"Apparel - Tops","stock_level":3,"cost":17.99},{"sku":"APP-SH-003","product_name":"Cargo Shorts","category_name":"Apparel - Bottoms","stock_level":3,"cost":34.99},{"sku":"APP-JN-001","product_name":"Classic Straight Leg Jeans","category_name":"Apparel - Bottoms","stock_level":4,"cost":49.99},{"sku":"OUT-CT-004","product_name":"Rain Coat Long","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-005","product_name":"Puffer Jacket","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-010","product_name":"Quilted Vest","category_name":"Outerwear","stock_level":9,"cost":49.99}]},"timestamp":new Date(now.getTime() + 8200).toISOString()} }
+  ]
+  
+  // Schedule all mock messages
+  mockMessages.forEach(msg => {
+    const timeout = setTimeout(() => {
+      handleWebSocketMessage({ data: JSON.stringify(msg.data) })
+    }, msg.delay)
+    mockTimeouts.push(timeout)
+  })
+}
+
+// Handle WebSocket message (extracted for reuse with mock)
+const handleWebSocketMessage = (event) => {
+  try {
+    const data = JSON.parse(event.data)
+    
+    console.log('📥 WebSocket message received:', data)
+    
+    if (data.type === 'started') {
+      addEvent('AI Agent workflow started')
+    } else if (data.type === 'workflow_started') {
+      addEvent(`Workflow: ${data.event}`)
+    } else if (data.type === 'step_started') {
+      // Add new step dynamically when it starts
+      console.log('🟢 Step started:', data.id, data.event, data.timestamp)
+      addProgressStep(data.id, 'active', data.event, data.timestamp)
+      addEvent(`Started: ${data.id} - ${data.event}`)
+    } else if (data.type === 'step_completed') {
+      // Mark step as complete
+      console.log('✅ Step completed:', data.id, data.event, data.timestamp)
+      updateProgressStep(data.id, 'complete', data.event, data.timestamp)
+      addEvent(`Completed: ${data.id}`)
+    } else if (data.type === 'step_failed') {
+      // Mark step as failed and stop the workflow
+      console.log('❌ Step failed:', data.id, data.event, data.timestamp)
+      const errorMsg = data.event || 'Step failed'
+      updateProgressStep(data.id, 'error', errorMsg, data.timestamp)
+      addEvent(`❌ Failed: ${data.id} - ${errorMsg}`)
+      
+      // Set error state to display error section
+      error.value = `Step "${data.id}" failed: ${errorMsg}`
+      isRunning.value = false
+      hasCompleted.value = false
+      
+      console.log('🛑 Stopping workflow due to step failure')
+      
+      // Close WebSocket immediately
+      if (ws && !useMockData.value) {
+        try {
+          ws.close()
+        } catch (e) {
+          console.error('Error closing WebSocket:', e)
+        }
+        ws = null
+      }
+    } else if (data.type === 'workflow_output') {
+      addEvent('Workflow output generated')
+      console.log('📦 Workflow output:', data.event)
+      
+      // Parse the workflow output - it contains items array
+      if (data.event && data.event.items && Array.isArray(data.event.items)) {
+        restockingItems.value = data.event.items.map(item => ({
+          ...item,
+          selected: true, // Select all by default
+          quantity: 10 // Default reorder quantity
+        }))
+        selectedItems.value = restockingItems.value.map((_, index) => index)
+        console.log('✅ Loaded restocking items:', restockingItems.value.length)
+      }
+      
+      finalOutput.value = data.event
+    } else if (data.type === 'event') {
+      // Display the event
+      addEvent(data.event)
+    } else if (data.type === 'completed') {
+      addEvent('Analysis completed successfully')
+      if (data.output) {
+        finalOutput.value = data.output
+      }
+      // Complete all active steps
+      progressSteps.value.forEach(step => {
+        if (step.status === 'active') {
+          step.status = 'complete'
+        }
+      })
+      isRunning.value = false
+      hasCompleted.value = true
+      if (ws && !useMockData.value) {
+        ws.close()
+        ws = null
+      }
+    } else if (data.type === 'error') {
+      // Handle general error - support both 'error' and 'message' fields
+      const errorMessage = data.error || data.message || 'An unknown error occurred'
+      addEvent(`❌ Error: ${errorMessage}`)
+      
+      // Set error state
+      error.value = errorMessage
+      isRunning.value = false
+      hasCompleted.value = false
+      
+      console.log('🛑 Stopping workflow due to error')
+      
+      // Mark current active step as failed
+      const activeStep = progressSteps.value.find(s => s.status === 'active')
+      if (activeStep) {
+        activeStep.status = 'error'
+        activeStep.description = 'Failed'
+      }
+      
+      // Close WebSocket immediately
+      if (ws && !useMockData.value) {
+        try {
+          ws.close()
+        } catch (e) {
+          console.error('Error closing WebSocket:', e)
+        }
+        ws = null
+      }
+    }
+  } catch (err) {
+    console.error('Failed to parse WebSocket message:', err)
+    const errorMsg = 'Failed to process server response'
+    addEvent(errorMsg)
+    error.value = errorMsg
+    isRunning.value = false
   }
 }
 
@@ -360,18 +525,50 @@ const startAnalysis = () => {
   hasCompleted.value = false
   showDetails.value = false
   currentStep.value = 0
+  restockingItems.value = []
+  selectedItems.value = []
+  
+  // Clear any mock timeouts
+  mockTimeouts.forEach(timeout => clearTimeout(timeout))
+  mockTimeouts = []
   
   // Reset progress steps
-  progressSteps.value.forEach(step => {
-    step.status = 'pending'
-    step.description = ''
-  })
+  progressSteps.value = []
 
-  // Connect to WebSocket
-  const wsUrl = 'ws://localhost:8091/ws/ai-agent/inventory'
+  // Try to connect to WebSocket with timeout
+  const wsUrl = config.wsBaseUrl + '/ws/ai-agent/inventory'
   ws = new WebSocket(wsUrl)
+  
+  let connectionEstablished = false
+
+  // Set a timeout to detect connection failure (3 seconds)
+  const connectionTimeout = setTimeout(() => {
+    if (!connectionEstablished && !useMockData.value) {
+      console.warn('⏱️ WebSocket connection timeout - switching to mock mode')
+      useMockData.value = true
+      
+      // Close the hanging connection attempt
+      if (ws) {
+        try {
+          ws.close()
+        } catch (e) {
+          // Ignore errors on close
+        }
+        ws = null
+      }
+      
+      // Run mock workflow
+      runMockWorkflow()
+    }
+  }, config.timeout)
+  
+  mockTimeouts.push(connectionTimeout)
 
   ws.onopen = () => {
+    connectionEstablished = true
+    useMockData.value = false
+    clearTimeout(connectionTimeout)
+    
     addEvent('Connected to AI Agent')
     // Send the user instructions and store_id
     ws.send(JSON.stringify({
@@ -381,138 +578,44 @@ const startAnalysis = () => {
   }
 
   ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
-      
-      console.log('📥 WebSocket message received:', data)
-      
-      if (data.type === 'started') {
-        addEvent('AI Agent workflow started')
-      } else if (data.type === 'workflow_started') {
-        addEvent(`Workflow: ${data.event}`)
-      } else if (data.type === 'step_started') {
-        // Add new step dynamically when it starts
-        console.log('🟢 Step started:', data.id, data.event, data.timestamp)
-        addProgressStep(data.id, 'active', data.event, data.timestamp)
-        addEvent(`Started: ${data.id} - ${data.event}`)
-      } else if (data.type === 'step_completed') {
-        // Mark step as complete
-        console.log('✅ Step completed:', data.id, data.event, data.timestamp)
-        updateProgressStep(data.id, 'complete', data.event, data.timestamp)
-        addEvent(`Completed: ${data.id}`)
-      } else if (data.type === 'step_failed') {
-        // Mark step as failed and stop the workflow
-        console.log('❌ Step failed:', data.id, data.event, data.timestamp)
-        const errorMsg = data.event || 'Step failed'
-        updateProgressStep(data.id, 'error', errorMsg, data.timestamp)
-        addEvent(`❌ Failed: ${data.id} - ${errorMsg}`)
-        
-        // Set error state to display error section
-        error.value = `Step "${data.id}" failed: ${errorMsg}`
-        isRunning.value = false
-        hasCompleted.value = false
-        
-        console.log('🛑 Stopping workflow due to step failure')
-        
-        // Close WebSocket immediately
-        if (ws) {
-          try {
-            ws.close()
-          } catch (e) {
-            console.error('Error closing WebSocket:', e)
-          }
-          ws = null
-        }
-      } else if (data.type === 'workflow_output') {
-        addEvent('Workflow output generated')
-        console.log('📦 Workflow output:', data.event)
-        
-        // Parse the workflow output - it contains items array
-        if (data.event && data.event.items && Array.isArray(data.event.items)) {
-          restockingItems.value = data.event.items.map(item => ({
-            ...item,
-            selected: true, // Select all by default
-            quantity: 10 // Default reorder quantity
-          }))
-          selectedItems.value = restockingItems.value.map((_, index) => index)
-          console.log('✅ Loaded restocking items:', restockingItems.value.length)
-        }
-        
-        finalOutput.value = data.event
-      } else if (data.type === 'event') {
-        // Display the event
-        addEvent(data.event)
-      } else if (data.type === 'completed') {
-        addEvent('Analysis completed successfully')
-        if (data.output) {
-          finalOutput.value = data.output
-        }
-        // Complete all active steps
-        progressSteps.value.forEach(step => {
-          if (step.status === 'active') {
-            step.status = 'complete'
-          }
-        })
-        isRunning.value = false
-        hasCompleted.value = true
-        if (ws) {
-          ws.close()
-          ws = null
-        }
-      } else if (data.type === 'error') {
-        // Handle general error - support both 'error' and 'message' fields
-        const errorMessage = data.error || data.message || 'An unknown error occurred'
-        addEvent(`❌ Error: ${errorMessage}`)
-        
-        // Set error state
-        error.value = errorMessage
-        isRunning.value = false
-        hasCompleted.value = false
-        
-        console.log('🛑 Stopping workflow due to error')
-        
-        // Mark current active step as failed
-        const activeStep = progressSteps.value.find(s => s.status === 'active')
-        if (activeStep) {
-          activeStep.status = 'error'
-          activeStep.description = 'Failed'
-        }
-        
-        // Close WebSocket immediately
-        if (ws) {
-          try {
-            ws.close()
-          } catch (e) {
-            console.error('Error closing WebSocket:', e)
-          }
-          ws = null
-        }
-      }
-    } catch (err) {
-      console.error('Failed to parse WebSocket message:', err)
-      const errorMsg = 'Failed to process server response'
-      addEvent(errorMsg)
-      error.value = errorMsg
-      isRunning.value = false
-    }
+    handleWebSocketMessage(event)
   }
 
   ws.onerror = (err) => {
     console.error('WebSocket error:', err)
-    if (!error.value) {
-      error.value = 'Failed to connect to AI Agent. Please ensure the backend is running.'
+    
+    // Only switch to mock if not already established
+    if (!connectionEstablished && !useMockData.value) {
+      console.log('🎭 WebSocket error - switching to mock mode...')
+      clearTimeout(connectionTimeout)
+      useMockData.value = true
+      ws = null
+      
+      // Run mock workflow
+      runMockWorkflow()
     }
-    isRunning.value = false
   }
 
   ws.onclose = (event) => {
     console.log('🔌 WebSocket closed:', event.code, event.reason)
+    
+    // If connection was never established and we're not in mock mode, switch to mock
+    if (!connectionEstablished && !useMockData.value) {
+      console.log('🎭 WebSocket closed before connection - switching to mock mode...')
+      clearTimeout(connectionTimeout)
+      useMockData.value = true
+      ws = null
+      runMockWorkflow()
+    } 
     // Only update state if we're still running and no error has been set
-    if (isRunning.value && !error.value) {
+    else if (isRunning.value && !error.value && !useMockData.value) {
       addEvent('Connection closed unexpectedly')
       isRunning.value = false
     }
-    ws = null
+    
+    if (!useMockData.value) {
+      ws = null
+    }
   }
 }
 
@@ -730,6 +833,12 @@ const resetAnalysis = () => {
   currentStep.value = 0
   progressSteps.value = []
   isOrdering.value = false
+  useMockData.value = false
+  
+  // Clear mock timeouts
+  mockTimeouts.forEach(timeout => clearTimeout(timeout))
+  mockTimeouts = []
+  
   if (ws) {
     ws.close()
     ws = null
@@ -752,6 +861,9 @@ onUnmounted(() => {
   if (timeUpdateInterval) {
     clearInterval(timeUpdateInterval)
   }
+  // Clean up mock timeouts
+  mockTimeouts.forEach(timeout => clearTimeout(timeout))
+  mockTimeouts = []
   // Clean up WebSocket
   if (ws) {
     ws.close()
@@ -866,6 +978,24 @@ onUnmounted(() => {
 .input-section {
   max-width: 800px;
   margin: 0 auto;
+}
+
+.mock-mode-badge {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #856404;
+  font-weight: 500;
+}
+
+.mock-mode-badge i {
+  font-size: 1.2rem;
+  color: #ffc107;
 }
 
 .input-group {

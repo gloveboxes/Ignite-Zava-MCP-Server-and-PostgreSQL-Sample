@@ -4,9 +4,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8091
 
 export const config = {
   apiBaseUrl: API_BASE_URL,
+  wsBaseUrl: API_BASE_URL.replace(/^http[s]/, 'ws'),
   
   // Timeout for all API requests (in milliseconds)
-  timeout: 5000, // 5 seconds
+  timeout: 3000, // 3 seconds
   
   endpoints: {
     categories: `${API_BASE_URL}/api/categories`,

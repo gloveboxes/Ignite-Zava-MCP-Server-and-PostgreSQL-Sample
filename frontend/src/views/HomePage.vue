@@ -68,7 +68,7 @@
       <div class="container">
         <div class="banner-content">
           <h2>Find a GitHub Popup Shop Near You</h2>
-          <p>7 locations across Washington State</p>
+          <p>10+ locations across the country</p>
           <router-link to="/stores" class="btn btn-outline">
             View Locations
           </router-link>

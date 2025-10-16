@@ -21,7 +21,8 @@
                 "charliermarsh.ruff",
                 "ms-azuretools.vscode-bicep",
                 "ms-python.debugpy",
-                "GitHub.copilot-chat"
+                "GitHub.copilot-chat",
+                "Vue.volar"
             ]
         }
     },

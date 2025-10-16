@@ -2,7 +2,7 @@
   <div class="stores-page">
     <div class="container">
       <h1 class="page-title">Our Popup Shop Locations</h1>
-      <p class="page-subtitle">Visit us at any of our {{ stores.length }} locations across Washington State</p>
+      <p class="page-subtitle">Visit us at any of our {{ stores.length }} locations</p>
 
       <!-- Loading State -->
       <div v-if="loading" class="loading-state">
