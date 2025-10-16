@@ -168,6 +168,15 @@
           <p class="output-subtitle">{{ restockingItems.length }} items need restocking. Select items to order.</p>
         </div>
         
+        <!-- AI Summary -->
+        <div class="summary-container" v-if="workflowSummary">
+          <div class="summary-header">
+            <i class="bi bi-chat-left-text"></i>
+            <span>AI Analysis Summary</span>
+          </div>
+          <div class="summary-content markdown-content" v-html="renderedSummary"></div>
+        </div>
+        
         <div class="restocking-table-container">
           <table class="restocking-table">
             <thead>
@@ -290,6 +299,7 @@ const events = ref([])
 const finalOutput = ref(null)
 const restockingItems = ref([])
 const selectedItems = ref([])
+const workflowSummary = ref('')
 const error = ref(null)
 const showDetails = ref(false)
 const currentStep = ref(0)
@@ -334,6 +344,17 @@ const renderedMarkdown = computed(() => {
   } catch (err) {
     console.error('Error rendering markdown:', err)
     return `<pre>${finalOutput.value}</pre>`
+  }
+})
+
+// Render workflow summary markdown
+const renderedSummary = computed(() => {
+  if (!workflowSummary.value) return ''
+  try {
+    return marked.parse(workflowSummary.value)
+  } catch (err) {
+    console.error('Error rendering summary markdown:', err)
+    return `<pre>${workflowSummary.value}</pre>`
   }
 })
 
@@ -383,9 +404,9 @@ const runMockWorkflow = () => {
     { delay: 2000, data: {"type":"step_started","event":null,"id":"Stock Analyzer","timestamp":new Date(now.getTime() + 2000).toISOString()} },
     { delay: 5000, data: {"type":"step_completed","event":null,"id":"Stock Analyzer","timestamp":new Date(now.getTime() + 5000).toISOString()} },
     { delay: 5100, data: {"type":"step_started","event":null,"id":"Summarizer","timestamp":new Date(now.getTime() + 5100).toISOString()} },
-    { delay: 8000, data: {"type":"workflow_output","event":{"items":[{"sku":"ACC-SK-005","product_name":"Thermal Winter Socks","category_name":"Accessories","stock_level":2,"cost":14.99},{"sku":"ACC-SK-008","product_name":"Cozy Slipper Socks","category_name":"Accessories","stock_level":4,"cost":15.99},{"sku":"FW-SN-006","product_name":"Mesh Athletic Sneakers","category_name":"Footwear","stock_level":2,"cost":54.99},{"sku":"APP-TS-002","product_name":"V-Neck Casual Tee","category_name":"Apparel - Tops","stock_level":3,"cost":17.99},{"sku":"APP-SH-003","product_name":"Cargo Shorts","category_name":"Apparel - Bottoms","stock_level":3,"cost":34.99},{"sku":"APP-JN-001","product_name":"Classic Straight Leg Jeans","category_name":"Apparel - Bottoms","stock_level":4,"cost":49.99},{"sku":"OUT-CT-004","product_name":"Rain Coat Long","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-005","product_name":"Puffer Jacket","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-010","product_name":"Quilted Vest","category_name":"Outerwear","stock_level":9,"cost":49.99}]},"timestamp":new Date(now.getTime() + 8000).toISOString()} },
+    { delay: 8000, data: {"type":"workflow_output","event":{"summary":"## Inventory Analysis Complete\n\nBased on my analysis of the **GitHub Popup Downtown Redmond** store inventory, I've identified **9 products** that require immediate restocking attention:\n\n### Critical Low Stock Items\n- **Thermal Winter Socks** and **Mesh Athletic Sneakers** both have only **2 units** remaining\n- **Cozy Slipper Socks** has **4 units** in stock\n\n### Priority Recommendations\n1. **Accessories**: 2 items need restocking (winter socks and slipper socks)\n2. **Footwear**: 1 critical item (athletic sneakers)\n3. **Apparel**: 3 items requiring attention (tees, shorts, jeans)\n4. **Outerwear**: 3 items at moderate stock levels (9 units each)\n\n**Total estimated restock cost**: Consider budgeting approximately **$500-600** for the recommended quantities.","items":[{"sku":"ACC-SK-005","product_name":"Thermal Winter Socks","category_name":"Accessories","stock_level":2,"cost":14.99},{"sku":"ACC-SK-008","product_name":"Cozy Slipper Socks","category_name":"Accessories","stock_level":4,"cost":15.99},{"sku":"FW-SN-006","product_name":"Mesh Athletic Sneakers","category_name":"Footwear","stock_level":2,"cost":54.99},{"sku":"APP-TS-002","product_name":"V-Neck Casual Tee","category_name":"Apparel - Tops","stock_level":3,"cost":17.99},{"sku":"APP-SH-003","product_name":"Cargo Shorts","category_name":"Apparel - Bottoms","stock_level":3,"cost":34.99},{"sku":"APP-JN-001","product_name":"Classic Straight Leg Jeans","category_name":"Apparel - Bottoms","stock_level":4,"cost":49.99},{"sku":"OUT-CT-004","product_name":"Rain Coat Long","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-005","product_name":"Puffer Jacket","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-010","product_name":"Quilted Vest","category_name":"Outerwear","stock_level":9,"cost":49.99}]},"timestamp":new Date(now.getTime() + 8000).toISOString()} },
     { delay: 8100, data: {"type":"step_completed","event":null,"id":"Summarizer","timestamp":new Date(now.getTime() + 8100).toISOString()} },
-    { delay: 8200, data: {"type":"completed","message":"Workflow completed successfully","output":{"items":[{"sku":"ACC-SK-005","product_name":"Thermal Winter Socks","category_name":"Accessories","stock_level":2,"cost":14.99},{"sku":"ACC-SK-008","product_name":"Cozy Slipper Socks","category_name":"Accessories","stock_level":4,"cost":15.99},{"sku":"FW-SN-006","product_name":"Mesh Athletic Sneakers","category_name":"Footwear","stock_level":2,"cost":54.99},{"sku":"APP-TS-002","product_name":"V-Neck Casual Tee","category_name":"Apparel - Tops","stock_level":3,"cost":17.99},{"sku":"APP-SH-003","product_name":"Cargo Shorts","category_name":"Apparel - Bottoms","stock_level":3,"cost":34.99},{"sku":"APP-JN-001","product_name":"Classic Straight Leg Jeans","category_name":"Apparel - Bottoms","stock_level":4,"cost":49.99},{"sku":"OUT-CT-004","product_name":"Rain Coat Long","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-005","product_name":"Puffer Jacket","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-010","product_name":"Quilted Vest","category_name":"Outerwear","stock_level":9,"cost":49.99}]},"timestamp":new Date(now.getTime() + 8200).toISOString()} }
+    { delay: 8200, data: {"type":"completed","message":"Workflow completed successfully","output":{"summary":"## Inventory Analysis Complete\n\nBased on my analysis of the **GitHub Popup Downtown Redmond** store inventory, I've identified **9 products** that require immediate restocking attention:\n\n### Critical Low Stock Items\n- **Thermal Winter Socks** and **Mesh Athletic Sneakers** both have only **2 units** remaining\n- **Cozy Slipper Socks** has **4 units** in stock\n\n### Priority Recommendations\n1. **Accessories**: 2 items need restocking (winter socks and slipper socks)\n2. **Footwear**: 1 critical item (athletic sneakers)\n3. **Apparel**: 3 items requiring attention (tees, shorts, jeans)\n4. **Outerwear**: 3 items at moderate stock levels (9 units each)\n\n**Total estimated restock cost**: Consider budgeting approximately **$500-600** for the recommended quantities.","items":[{"sku":"ACC-SK-005","product_name":"Thermal Winter Socks","category_name":"Accessories","stock_level":2,"cost":14.99},{"sku":"ACC-SK-008","product_name":"Cozy Slipper Socks","category_name":"Accessories","stock_level":4,"cost":15.99},{"sku":"FW-SN-006","product_name":"Mesh Athletic Sneakers","category_name":"Footwear","stock_level":2,"cost":54.99},{"sku":"APP-TS-002","product_name":"V-Neck Casual Tee","category_name":"Apparel - Tops","stock_level":3,"cost":17.99},{"sku":"APP-SH-003","product_name":"Cargo Shorts","category_name":"Apparel - Bottoms","stock_level":3,"cost":34.99},{"sku":"APP-JN-001","product_name":"Classic Straight Leg Jeans","category_name":"Apparel - Bottoms","stock_level":4,"cost":49.99},{"sku":"OUT-CT-004","product_name":"Rain Coat Long","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-005","product_name":"Puffer Jacket","category_name":"Outerwear","stock_level":9,"cost":89.99},{"sku":"OUT-JK-010","product_name":"Quilted Vest","category_name":"Outerwear","stock_level":9,"cost":49.99}]},"timestamp":new Date(now.getTime() + 8200).toISOString()} }
   ]
   
   // Schedule all mock messages
@@ -444,6 +465,12 @@ const handleWebSocketMessage = (event) => {
     } else if (data.type === 'workflow_output') {
       addEvent('Workflow output generated')
       console.log('📦 Workflow output:', data.event)
+      
+      // Extract summary if present
+      if (data.event && data.event.summary) {
+        workflowSummary.value = data.event.summary
+        console.log('📝 Workflow summary loaded')
+      }
       
       // Parse the workflow output - it contains items array
       if (data.event && data.event.items && Array.isArray(data.event.items)) {
@@ -826,6 +853,7 @@ const resetAnalysis = () => {
   finalOutput.value = null
   restockingItems.value = []
   selectedItems.value = []
+  workflowSummary.value = ''
   error.value = null
   isRunning.value = false
   hasCompleted.value = false
@@ -1402,6 +1430,36 @@ onUnmounted(() => {
   font-size: 1.5rem;
   font-weight: 600;
   color: #28a745;
+}
+
+/* AI Summary */
+.summary-container {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #dee2e6;
+}
+
+.summary-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.summary-header i {
+  color: #0d6efd;
+  font-size: 1.2rem;
+}
+
+.summary-content {
+  background: white;
+  border-radius: 6px;
+  padding: 1.25rem;
 }
 
 .output-content {
