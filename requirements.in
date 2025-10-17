@@ -35,3 +35,5 @@ git+https://github.com/microsoft/agent-framework.git@main#subdirectory=python/pa
 # FastAPI and related libraries
 fastapi # already in devui requirements but specifying here for clarity
 fastapi-cache2
+
+pytest

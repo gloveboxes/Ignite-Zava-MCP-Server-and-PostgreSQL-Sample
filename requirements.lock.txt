@@ -107,6 +107,8 @@ idna==3.11
     #   requests
 importlib-metadata==8.7.0
     # via opentelemetry-api
+iniconfig==2.1.0
+    # via pytest
 isodate==0.7.2
     # via msrest
 jiter==0.11.0
@@ -246,8 +248,11 @@ packaging==25.0
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-flask
     #   opentelemetry-instrumentation-sqlalchemy
+    #   pytest
 pendulum==3.1.0
     # via fastapi-cache2
+pluggy==1.6.0
+    # via pytest
 protobuf==6.33.0
     # via
     #   googleapis-common-protos
@@ -270,10 +275,14 @@ pydantic-settings==2.11.0
     # via
     #   agent-framework-core
     #   mcp
+pygments==2.19.2
+    # via pytest
 pyjwt[crypto]==2.10.1
     # via
     #   msal
     #   pyjwt
+pytest==8.4.2
+    # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via pendulum
 python-dotenv==1.1.1

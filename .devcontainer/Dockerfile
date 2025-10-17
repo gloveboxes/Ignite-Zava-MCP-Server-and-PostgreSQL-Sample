@@ -28,4 +28,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install the packages required to run the workshop as a student
 COPY requirements.lock.txt .
+RUN pip install -U pip && pip install pip-tools pytest
 RUN pip install -r requirements.lock.txt
