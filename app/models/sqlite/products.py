@@ -35,8 +35,6 @@ class Product(Base):
     order_items = relationship("OrderItem", back_populates="product")
     inventory = relationship("Inventory", back_populates="product")
     procurement_requests = relationship("ProcurementRequest", back_populates="product")
-    description_embedding = relationship("ProductDescriptionEmbedding", back_populates="product", uselist=False)
-    image_embeddings = relationship("ProductImageEmbedding", back_populates="product")
     
     def __repr__(self):
         return f"<Product(id={self.product_id}, sku='{self.sku}', name='{self.product_name}')>"

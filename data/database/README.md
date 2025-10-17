@@ -355,7 +355,7 @@ Defines the complete product catalog with embeddings and seasonal patterns:
 
 - **`image_embedding`: Serialized embedding array for image similarity search
 - **`description_embedding`**: Serialized embedding array for text similarity search
-- `price`: Treated as wholesale cost; retail price calculated with 33% gross margin
+- `price`: The actual retail store selling price; cost is calculated backwards using 33% gross margin (Cost = Price × 0.67)
 - Each category can contain multiple product types, each with an array of products
 - Seasonal multipliers are now defined separately in `seasonal_multipliers.json`
 
