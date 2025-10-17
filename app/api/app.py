@@ -71,11 +71,11 @@ class Store(BaseModel):
     id: int = Field(..., description="Unique store identifier")
     name: str = Field(..., description="Store name")
     location: str = Field(..., description="Store location/address")
-    isOnline: bool = Field(..., description="Whether this is an online store")
-    locationKey: str = Field(..., description="Location key for image mapping")
+    is_online: bool = Field(..., description="Whether this is an online store")
+    location_key: str = Field(..., description="Location key for image mapping")
     products: int = Field(..., description="Number of products in stock")
-    totalStock: int = Field(..., description="Total stock level across products")
-    inventoryValue: float = Field(..., description="Total inventory retail value")
+    total_stock: int = Field(..., description="Total stock level across products")
+    inventory_value: float = Field(..., description="Total inventory retail value")
     status: str = Field(..., description="Store status (Open/Online)")
     hours: str = Field(..., description="Store operating hours")
 
@@ -84,6 +84,88 @@ class StoreList(BaseModel):
     """List of stores response"""
     stores: List[Store]
     total: int
+
+
+class TopCategory(BaseModel):
+    """Top category model for dashboard analytics"""
+    name: str = Field(..., description="Category name")
+    revenue: float = Field(..., description="Total retail value of inventory")
+    percentage: float = Field(..., description="Percentage relative to top category")
+    product_count: int = Field(..., description="Number of distinct products")
+    total_stock: int = Field(..., description="Total stock level across products")
+    cost_value: float = Field(..., description="Total cost value of inventory")
+    potential_profit: float = Field(..., description="Potential profit if all sold")
+
+
+class TopCategoryList(BaseModel):
+    """List of top categories response"""
+    categories: List[TopCategory]
+    total: int = Field(..., description="Number of categories returned")
+    max_value: float = Field(..., description="Maximum revenue value for percentage calculation")
+
+
+class Supplier(BaseModel):
+    """Supplier model for management interface"""
+    id: int = Field(..., description="Unique supplier identifier")
+    name: str = Field(..., description="Supplier name")
+    code: str = Field(..., description="Supplier code")
+    location: str = Field(..., description="Supplier location (city, state)")
+    contact: str = Field(..., description="Contact email address")
+    phone: str = Field(..., description="Contact phone number")
+    rating: float = Field(..., description="Supplier rating (0.0 to 5.0)")
+    esg_compliant: bool = Field(..., description="ESG compliance status")
+    approved: bool = Field(..., description="Approved vendor status")
+    preferred: bool = Field(..., description="Preferred vendor status")
+    categories: List[str] = Field(..., description="Product categories supplied")
+    lead_time: int = Field(..., description="Lead time in days")
+    payment_terms: str = Field(..., description="Payment terms")
+    min_order: float = Field(..., description="Minimum order amount")
+    bulk_discount: float = Field(..., description="Bulk discount percentage")
+
+
+class SupplierList(BaseModel):
+    """List of suppliers response"""
+    suppliers: List[Supplier]
+    total: int = Field(..., description="Total number of suppliers")
+
+
+class InventoryItem(BaseModel):
+    """Inventory item model for management interface"""
+    store_id: int = Field(..., description="Store identifier")
+    store_name: str = Field(..., description="Store name")
+    store_location: str = Field(..., description="Store location description")
+    is_online: bool = Field(..., description="Whether this is an online store")
+    product_id: int = Field(..., description="Product identifier")
+    product_name: str = Field(..., description="Product name")
+    sku: str = Field(..., description="Product SKU")
+    category: str = Field(..., description="Product category")
+    type: str = Field(..., description="Product type")
+    stock_level: int = Field(..., description="Current stock level")
+    reorder_point: int = Field(..., description="Reorder threshold")
+    is_low_stock: bool = Field(..., description="Whether stock is below reorder point")
+    unit_cost: float = Field(..., description="Unit cost")
+    unit_price: float = Field(..., description="Unit retail price")
+    stock_value: float = Field(..., description="Total cost value of stock")
+    retail_value: float = Field(..., description="Total retail value of stock")
+    supplier_name: Optional[str] = Field(None, description="Supplier name")
+    supplier_code: Optional[str] = Field(None, description="Supplier code")
+    lead_time: Optional[int] = Field(None, description="Lead time in days")
+    image_url: Optional[str] = Field(None, description="Product image URL")
+
+
+class InventorySummary(BaseModel):
+    """Inventory summary statistics"""
+    total_items: int = Field(..., description="Total number of inventory items")
+    low_stock_count: int = Field(..., description="Number of low stock items")
+    total_stock_value: float = Field(..., description="Total cost value of all stock")
+    total_retail_value: float = Field(..., description="Total retail value of all stock")
+    avg_stock_level: float = Field(..., description="Average stock level per item")
+
+
+class InventoryResponse(BaseModel):
+    """Inventory response with items and summary"""
+    inventory: List[InventoryItem]
+    summary: InventorySummary
 
 
 # Lifespan context manager for startup/shutdown
@@ -214,11 +296,11 @@ async def get_stores() -> StoreList:
                     id=row['store_id'],
                     name=store_name,
                     location=location,
-                    isOnline=row['is_online'],
-                    locationKey=location_key,
+                    is_online=row['is_online'],
+                    location_key=location_key,
                     products=int(row['product_count'] or 0),
-                    totalStock=int(row['total_stock'] or 0),
-                    inventoryValue=round(
+                    total_stock=int(row['total_stock'] or 0),
+                    inventory_value=round(
                         float(row['inventory_retail_value'] or 0), 2
                     ),
                     status="Online" if row['is_online'] else "Open",
@@ -591,9 +673,9 @@ async def get_product_by_sku(sku: str) -> Product:
         )
 
 
-@app.get("/api/management/dashboard/top-categories")
+@app.get("/api/management/dashboard/top-categories", response_model=TopCategoryList)
 @cache(expire=600)
-async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Number of top categories to return")):
+async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Number of top categories to return")) -> TopCategoryList:
     """
     Get top categories by total inventory value (cost * stock).
     Returns categories ranked by revenue potential.
@@ -626,37 +708,37 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
             rows = await conn.fetch(query, limit)
             
             if not rows:
-                return {
-                    "categories": [],
-                    "total": 0,
-                    "max_value": 0
-                }
+                return TopCategoryList(
+                    categories=[],
+                    total=0,
+                    max_value=0.0
+                )
 
             # Calculate max value for percentage calculation
             max_value = float(rows[0]['total_retail_value']) if rows else 0
             
-            categories = []
+            categories: list[TopCategory] = []
             for row in rows:
                 retail_value = float(row['total_retail_value'])
                 percentage = round((retail_value / max_value * 100), 1) if max_value > 0 else 0
                 
-                categories.append({
-                    "name": row['category_name'],
-                    "revenue": round(retail_value, 2),
-                    "percentage": percentage,
-                    "product_count": row['product_count'],
-                    "total_stock": row['total_stock'],
-                    "cost_value": round(float(row['total_cost_value']), 2),
-                    "potential_profit": round(float(row['potential_profit']), 2)
-                })
+                categories.append(TopCategory(
+                    name=row['category_name'],
+                    revenue=round(retail_value, 2),
+                    percentage=percentage,
+                    product_count=int(row['product_count']),
+                    total_stock=int(row['total_stock']),
+                    cost_value=round(float(row['total_cost_value']), 2),
+                    potential_profit=round(float(row['potential_profit']), 2)
+                ))
 
             logger.info(f"✅ Retrieved {len(categories)} categories")
 
-            return {
-                "categories": categories,
-                "total": len(categories),
-                "max_value": round(max_value, 2)
-            }
+            return TopCategoryList(
+                categories=categories,
+                total=len(categories),
+                max_value=round(max_value, 2)
+            )
 
         finally:
             await db_provider.release_connection(conn)
@@ -669,8 +751,8 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
         )
 
 
-@app.get("/api/management/suppliers")
-async def get_suppliers():
+@app.get("/api/management/suppliers", response_model=SupplierList)
+async def get_suppliers() -> SupplierList:
     """
     Get all suppliers with their details and associated product categories.
     Returns comprehensive supplier information for management interface.
@@ -713,35 +795,38 @@ async def get_suppliers():
 
             rows = await conn.fetch(query)
 
-            suppliers = []
+            suppliers: list[Supplier] = []
             for row in rows:
                 # Format location
-                location = f"{row['city']}, {row['state_province']}" if row['city'] else "N/A"
+                location = (
+                    f"{row['city']}, {row['state_province']}"
+                    if row['city'] else "N/A"
+                )
                 
-                suppliers.append({
-                    "id": row['supplier_id'],
-                    "name": row['supplier_name'],
-                    "code": row['supplier_code'],
-                    "location": location,
-                    "contact": row['contact_email'],
-                    "phone": row['contact_phone'] or "N/A",
-                    "rating": float(row['supplier_rating']) if row['supplier_rating'] else 0.0,
-                    "esgCompliant": row['esg_compliant'],
-                    "approved": row['approved_vendor'],
-                    "preferred": row['preferred_vendor'],
-                    "categories": row['categories'] or [],
-                    "leadTime": row['lead_time_days'],
-                    "paymentTerms": row['payment_terms'],
-                    "minOrder": float(row['minimum_order_amount']) if row['minimum_order_amount'] else 0,
-                    "bulkDiscount": float(row['bulk_discount_percent']) if row['bulk_discount_percent'] else 0
-                })
+                suppliers.append(Supplier(
+                    id=row['supplier_id'],
+                    name=row['supplier_name'],
+                    code=row['supplier_code'],
+                    location=location,
+                    contact=row['contact_email'],
+                    phone=row['contact_phone'] or "N/A",
+                    rating=float(row['supplier_rating']) if row['supplier_rating'] else 0.0,
+                    esg_compliant=row['esg_compliant'],
+                    approved=row['approved_vendor'],
+                    preferred=row['preferred_vendor'],
+                    categories=row['categories'] or [],
+                    lead_time=row['lead_time_days'],
+                    payment_terms=row['payment_terms'],
+                    min_order=float(row['minimum_order_amount']) if row['minimum_order_amount'] else 0.0,
+                    bulk_discount=float(row['bulk_discount_percent']) if row['bulk_discount_percent'] else 0.0
+                ))
 
             logger.info(f"✅ Retrieved {len(suppliers)} suppliers")
 
-            return {
-                "suppliers": suppliers,
-                "total": len(suppliers)
-            }
+            return SupplierList(
+                suppliers=suppliers,
+                total=len(suppliers)
+            )
 
         finally:
             await db_provider.release_connection(conn)
@@ -754,14 +839,14 @@ async def get_suppliers():
         )
 
 
-@app.get("/api/management/inventory")
+@app.get("/api/management/inventory", response_model=InventoryResponse)
 async def get_inventory(
-    store_id: int = None,
-    product_id: int = None,
-    category: str = None,
+    store_id: Optional[int] = None,
+    product_id: Optional[int] = None,
+    category: Optional[str] = None,
     low_stock_only: bool = False,
     limit: int = 100
-):
+) -> InventoryResponse:
     """
     Get inventory levels across stores with product and category details.
     
@@ -833,7 +918,7 @@ async def get_inventory(
         params.append(limit)
         rows = await conn.fetch(query, *params)
 
-        inventory_items = []
+        inventory_items: list[InventoryItem] = []
         for row in rows:
             stock_level = row['stock_level']
             # Calculate reorder point as 20% of typical stock (simple heuristic)
@@ -863,47 +948,51 @@ async def get_inventory(
                 else:
                     store_location = row['store_name']
             
-            inventory_items.append({
-                "storeId": row['store_id'],
-                "storeName": row['store_name'],
-                "storeLocation": store_location,
-                "isOnline": row['is_online'],
-                "productId": row['product_id'],
-                "productName": row['product_name'],
-                "sku": row['sku'],
-                "category": row['category_name'],
-                "type": row['type_name'],
-                "stockLevel": stock_level,
-                "reorderPoint": reorder_point,
-                "isLowStock": is_low_stock,
-                "unitCost": float(row['cost']) if row['cost'] else 0,
-                "unitPrice": float(row['base_price']) if row['base_price'] else 0,
-                "stockValue": round(stock_value, 2),
-                "retailValue": round(retail_value, 2),
-                "supplierName": row['supplier_name'],
-                "supplierCode": row['supplier_code'],
-                "leadTime": row['lead_time_days'],
-                "imageUrl": row['image_url']
-            })
+            inventory_items.append(InventoryItem(
+                store_id=row['store_id'],
+                store_name=row['store_name'],
+                store_location=store_location,
+                is_online=row['is_online'],
+                product_id=row['product_id'],
+                product_name=row['product_name'],
+                sku=row['sku'],
+                category=row['category_name'],
+                type=row['type_name'],
+                stock_level=stock_level,
+                reorder_point=reorder_point,
+                is_low_stock=is_low_stock,
+                unit_cost=float(row['cost']) if row['cost'] else 0,
+                unit_price=float(row['base_price']) if row['base_price'] else 0,
+                stock_value=round(stock_value, 2),
+                retail_value=round(retail_value, 2),
+                supplier_name=row['supplier_name'],
+                supplier_code=row['supplier_code'],
+                lead_time=row['lead_time_days'],
+                image_url=row['image_url']
+            ))
 
         # Calculate summary statistics
         total_items = len(inventory_items)
-        low_stock_count = sum(1 for item in inventory_items if item['isLowStock'])
-        total_stock_value = sum(item['stockValue'] for item in inventory_items)
-        total_retail_value = sum(item['retailValue'] for item in inventory_items)
+        low_stock_count = sum(1 for item in inventory_items if item.is_low_stock)
+        total_stock_value = sum(item.stock_value for item in inventory_items)
+        total_retail_value = sum(item.retail_value for item in inventory_items)
+        avg_stock = (
+            round(sum(item.stock_level for item in inventory_items) / total_items, 1)
+            if total_items > 0 else 0
+        )
 
         logger.info(f"✅ Retrieved {total_items} inventory items ({low_stock_count} low stock)")
 
-        return {
-            "inventory": inventory_items,
-            "summary": {
-                "totalItems": total_items,
-                "lowStockCount": low_stock_count,
-                "totalStockValue": round(total_stock_value, 2),
-                "totalRetailValue": round(total_retail_value, 2),
-                "avgStockLevel": round(sum(item['stockLevel'] for item in inventory_items) / total_items, 1) if total_items > 0 else 0
-            }
-        }
+        return InventoryResponse(
+            inventory=inventory_items,
+            summary=InventorySummary(
+                total_items=total_items,
+                low_stock_count=low_stock_count,
+                total_stock_value=round(total_stock_value, 2),
+                total_retail_value=round(total_retail_value, 2),
+                avg_stock_level=avg_stock
+            )
+        )
 
     except Exception as e:
         logger.error(f"❌ Error fetching inventory: {e}")

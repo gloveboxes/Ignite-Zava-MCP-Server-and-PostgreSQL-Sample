@@ -56,7 +56,7 @@
           >
             <option v-if="loadingStores" :value="null">Loading stores...</option>
             <option v-for="store in stores" :key="store.id" :value="store.id">
-              {{ store.name }} {{ store.isOnline ? '(Online)' : '' }}
+              {{ store.name }} {{ store.is_online ? '(Online)' : '' }}
             </option>
           </select>
         </div>
@@ -392,7 +392,7 @@ const fetchStores = async () => {
       {
         id: 1,
         name: 'GitHub Popup Downtown Redmond',
-        isOnline: false
+        is_online: false
       }
     ]
     selectedStoreId.value = 1

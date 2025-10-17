@@ -112,14 +112,14 @@ export const managementService = {
         contact: 'michael.chen@urbanthreads.com',
         phone: '(206) 555-0101',
         rating: 4.8,
-        esgCompliant: true,
+        esg_compliant: true,
         approved: true,
         preferred: true,
         categories: ['Apparel - Tops', 'Accessories'],
-        leadTime: 12,
-        paymentTerms: 'Net 30',
-        minOrder: 2500,
-        bulkDiscount: 7.17
+        lead_time: 12,
+        payment_terms: 'Net 30',
+        min_order: 2500,
+        bulk_discount: 7.17
       },
       {
         id: 2,
@@ -129,14 +129,14 @@ export const managementService = {
         contact: 'sarah.j@elitefashion.com',
         phone: '(425) 555-0102',
         rating: 4.9,
-        esgCompliant: true,
+        esg_compliant: true,
         approved: true,
         preferred: true,
         categories: ['Apparel - Tops', 'Apparel - Bottoms'],
-        leadTime: 10,
-        paymentTerms: 'Net 30',
-        minOrder: 5000,
-        bulkDiscount: 8.5
+        lead_time: 10,
+        payment_terms: 'Net 30',
+        min_order: 5000,
+        bulk_discount: 8.5
       },
       {
         id: 3,
@@ -146,14 +146,14 @@ export const managementService = {
         contact: 'james@pacificapparel.com',
         phone: '(253) 555-0103',
         rating: 4.7,
-        esgCompliant: true,
+        esg_compliant: true,
         approved: true,
         preferred: true,
         categories: ['Apparel - Tops'],
-        leadTime: 14,
-        paymentTerms: 'Net 45',
-        minOrder: 3000,
-        bulkDiscount: 6.8
+        lead_time: 14,
+        payment_terms: 'Net 45',
+        min_order: 3000,
+        bulk_discount: 6.8
       }
     ];
   },

@@ -26,11 +26,11 @@
       </div>
 
       <!-- AI Agent Alert Banner -->
-      <div v-if="summary && summary.lowStockCount > 0" class="ai-banner">
+      <div v-if="summary && summary.low_stock_count > 0" class="ai-banner">
         <div class="banner-icon">🤖</div>
         <div class="banner-content">
           <div class="banner-title">
-            <strong>{{ summary.lowStockCount }}</strong> items are low on stock!
+            <strong>{{ summary.low_stock_count }}</strong> items are low on stock!
           </div>
           <div class="banner-text">
             Our AI Agent can help you prioritize restocking and optimize inventory levels across all stores.
@@ -63,7 +63,28 @@
           <div class="card-icon">⚠️</div>
           <div class="card-content">
             <div class="card-label">Low Stock</div>
-            <div class="card-value">{{ summary.lowStockCount }}</div>
+                        <div class="card-value">{{ summary.total_items }}</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="card-icon">⚠️</div>
+          <div class="card-content">
+            <div class="card-label">Low Stock</div>
+            <div class="card-value">{{ summary.low_stock_count }}</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="card-icon">💰</div>
+          <div class="card-content">
+            <div class="card-label">Stock Value</div>
+            <div class="card-value">${{ formatNumber(summary.total_stock_value) }}</div>
+          </div>
+        </div>
+        <div class="summary-card">
+          <div class="card-icon">🏪</div>
+          <div class="card-content">
+            <div class="card-label">Retail Value</div>
+            <div class="card-value">${{ formatNumber(summary.total_retail_value) }}</div>
           </div>
         </div>
         <div class="summary-card">
@@ -86,7 +107,7 @@
       <div class="filters-bar">
         <div class="filter-group">
           <label>Store</label>
-          <select v-model="filters.storeId" @change="loadInventory" :disabled="loadingStores">
+          <select v-model="filters.store_id" @change="loadInventory" :disabled="loadingStores">
             <option :value="null">{{ loadingStores ? 'Loading stores...' : 'All Stores' }}</option>
             <option v-for="store in stores" :key="store.id" :value="store.id">
               {{ store.name }}
@@ -135,12 +156,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in inventory" :key="`${item.storeId}-${item.productId}`" 
-                :class="{ 'low-stock-row': item.isLowStock }">
+            <tr v-for="item in inventory" :key="`${item.store_id}-${item.product_id}`" 
+                :class="{ 'low-stock-row': item.is_low_stock }">
               <td class="product-cell">
                 <div class="product-info">
-                  <img v-if="item.imageUrl" :src="`/images/${item.imageUrl}`" 
-                       :alt="item.productName" class="product-thumb" 
+                  <img v-if="item.image_url" :src="`/images/${item.image_url}`" 
+                       :alt="item.product_name" class="product-thumb" 
                        @error="handleImageError" />
                   <div class="product-thumb-placeholder" v-else>📦</div>
                   <div class="product-details">
@@ -148,7 +169,7 @@
                       :to="`/management/products/${item.sku}`" 
                       class="product-name-link"
                     >
-                      {{ item.productName }}
+                      {{ item.product_name }}
                     </router-link>
                     <div class="product-type">{{ item.type }}</div>
                   </div>
@@ -157,32 +178,32 @@
               <td class="sku-cell">{{ item.sku }}</td>
               <td>
                 <div class="store-info">
-                  <div class="store-name">{{ item.storeName }}</div>
-                  <div class="store-location">{{ item.storeLocation }}</div>
+                  <div class="store-name">{{ item.store_name }}</div>
+                  <div class="store-location">{{ item.store_location }}</div>
                 </div>
               </td>
               <td>
                 <span class="category-badge">{{ item.category }}</span>
               </td>
               <td class="stock-level">
-                <strong>{{ item.stockLevel }}</strong> units
+                <strong>{{ item.stock_level }}</strong> units
               </td>
-              <td class="reorder-point">{{ item.reorderPoint }}</td>
+              <td class="reorder-point">{{ item.reorder_point }}</td>
               <td>
-                <span v-if="item.isLowStock" class="status-badge status-low">
+                <span v-if="item.is_low_stock" class="status-badge status-low">
                   ⚠️ Low Stock
                 </span>
                 <span v-else class="status-badge status-good">
                   ✓ Good
                 </span>
               </td>
-              <td class="value-cell">${{ formatNumber(item.stockValue) }}</td>
-              <td class="value-cell">${{ formatNumber(item.retailValue) }}</td>
+              <td class="value-cell">${{ formatNumber(item.stock_value) }}</td>
+              <td class="value-cell">${{ formatNumber(item.retail_value) }}</td>
               <td>
-                <div v-if="item.supplierName" class="supplier-info">
-                  <div class="supplier-name">{{ item.supplierName }}</div>
-                  <div class="supplier-code">{{ item.supplierCode }}</div>
-                  <div class="lead-time">Lead: {{ item.leadTime }}d</div>
+                <div v-if="item.supplier_name" class="supplier-info">
+                  <div class="supplier-name">{{ item.supplier_name }}</div>
+                  <div class="supplier-code">{{ item.supplier_code }}</div>
+                  <div class="lead-time">Lead: {{ item.lead_time }}d</div>
                 </div>
                 <span v-else class="no-supplier">No supplier</span>
               </td>
@@ -234,9 +255,9 @@ export default {
       inventory: [],
       summary: null,
       filters: {
-        storeId: null,
+        store_id: null,
         category: null,
-        lowStockOnly: false
+        low_stock_only: false
       },
       stores: [],
       categories: [

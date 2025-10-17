@@ -82,81 +82,81 @@ export default {
           id: 1,
           name: 'Zava Pop-Up Pike Place',
           location: 'Pike Place Market, Seattle, WA',
-          locationKey: 'pike_place',
+          location_key: 'pike_place',
           hours: 'Mon-Sun: 9am-8pm',
           products: 52,
           status: 'Open',
-          isOnline: false
+          is_online: false
         },
         {
           id: 2,
           name: 'Zava Pop-Up Bellevue Square',
           location: 'Bellevue Square Mall, Bellevue, WA',
-          locationKey: 'bellevue_square',
+          location_key: 'bellevue_square',
           hours: 'Mon-Sat: 10am-9pm, Sun: 11am-7pm',
           products: 47,
           status: 'Open',
-          isOnline: false
+          is_online: false
         },
         {
           id: 3,
           name: 'Zava Pop-Up Kirkland Waterfront',
           location: 'Kirkland Waterfront, Kirkland, WA',
-          locationKey: 'kirkland_waterfront',
+          location_key: 'kirkland_waterfront',
           hours: 'Mon-Sun: 10am-7pm',
           products: 54,
           status: 'Open',
-          isOnline: false
+          is_online: false
         },
         {
           id: 4,
           name: 'Zava Pop-Up Tacoma Mall',
           location: 'Tacoma Mall, Tacoma, WA',
-          locationKey: 'tacoma_mall',
+          location_key: 'tacoma_mall',
           hours: 'Mon-Sat: 10am-9pm, Sun: 11am-6pm',
           products: 50,
           status: 'Open',
-          isOnline: false
+          is_online: false
         },
         {
           id: 5,
           name: 'Zava Pop-Up Spokane Pavilion',
           location: 'Spokane Pavilion, Spokane, WA',
-          locationKey: 'spokane_pavilion',
+          location_key: 'spokane_pavilion',
           hours: 'Mon-Sun: 10am-8pm',
           products: 52,
           status: 'Open',
-          isOnline: false
+          is_online: false
         },
         {
           id: 6,
           name: 'Zava Pop-Up Everett Station',
           location: 'Everett Station Square, Everett, WA',
-          locationKey: 'everett_station',
+          location_key: 'everett_station',
           hours: 'Mon-Sat: 10am-8pm, Sun: 11am-6pm',
           products: 47,
           status: 'Open',
-          isOnline: false
+          is_online: false
         },
         {
           id: 7,
           name: 'Zava Pop-Up Redmond Town Center',
           location: 'Redmond Town Center, Redmond, WA',
-          locationKey: 'redmond_town_center',
+          location_key: 'redmond_town_center',
           hours: 'Mon-Sun: 10am-7pm',
           products: 45,
           status: 'Open',
-          isOnline: false
+          is_online: false
         },
         {
           id: 8,
           name: 'Zava Online Store',
           location: 'Online Warehouse, Seattle, WA',
-          locationKey: 'online',
+          location_key: 'online',
           hours: '24/7 Online',
           products: 120,
           status: 'Online',
-          isOnline: true
+          is_online: true
         }
       ]
     };
@@ -179,13 +179,13 @@ export default {
       }
     },
     getStoreImage(store) {
-      // Use locationKey if available, otherwise generate from name
-      const key = store.locationKey || store.name.toLowerCase().replace(/\s+/g, '_');
+      // Use location_key if available, otherwise generate from name
+      const key = store.location_key || store.name.toLowerCase().replace(/\s+/g, '_');
       return `/images/store_${key}.png`;
     },
     getStoreImageWebP(store) {
-      // Use locationKey if available, otherwise generate from name
-      const key = store.locationKey || store.name.toLowerCase().replace(/\s+/g, '_');
+      // Use location_key if available, otherwise generate from name
+      const key = store.location_key || store.name.toLowerCase().replace(/\s+/g, '_');
       return `/images/store_${key}.webp`;
     },
     handleImageError(event, store) {
