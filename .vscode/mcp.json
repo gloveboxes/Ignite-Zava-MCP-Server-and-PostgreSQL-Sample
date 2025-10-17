@@ -1,16 +1,16 @@
 {
 	"servers": {
-		"zava-sales-analysis-headoffice": {
-			"url": "http://127.0.0.1:8000/mcp",
-			"type": "http",
-			"headers": {"x-rls-user-id": "00000000-0000-0000-0000-000000000000"}
-		},
-		"zava-supplier-agent": {
+		// "github-sales-analysis-headoffice": {
+		// 	"url": "http://127.0.0.1:8000/mcp",
+		// 	"type": "http",
+		// 	"headers": {"x-rls-user-id": "00000000-0000-0000-0000-000000000000"}
+		// },
+		"github-supplier-agent": {
 			"url": "http://127.0.0.1:8001/mcp",
 			"type": "http",
 			"headers": {"x-rls-user-id": "00000000-0000-0000-0000-000000000000"}
 		},
-		"zava-finance-agent": {
+		"github-finance-agent": {
 			"url": "http://127.0.0.1:8002/mcp",
 			"type": "http",
 			"headers": {"x-rls-user-id": "00000000-0000-0000-0000-000000000000"}

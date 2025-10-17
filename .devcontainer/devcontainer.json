@@ -17,7 +17,7 @@
             "extensions": [
                 "ms-azuretools.vscode-docker",
                 "mathematic.vscode-pdf",
-                "ms-ossdata.vscode-pgsql",
+                "qwtel.sqlite-viewer",
                 "charliermarsh.ruff",
                 "ms-azuretools.vscode-bicep",
                 "ms-python.debugpy",

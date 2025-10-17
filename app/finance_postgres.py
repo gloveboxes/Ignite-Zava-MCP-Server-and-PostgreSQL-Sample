@@ -10,21 +10,34 @@ for RLS (Row Level Security) for simplicity.
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Optional
 
-import asyncpg
-from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+from sqlalchemy import text, select, func, case, and_
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
 from .config import Config
+from .models.postgres import (
+    CompanyPolicy,
+    Supplier,
+    SupplierContract,
+    Order,
+    OrderItem,
+    Store,
+    Product,
+    Category,
+    ProductType,
+    Inventory,
+)
 
 logger = logging.getLogger(__name__)
 config = Config()
 
-# Initialize AsyncPGInstrumentor with our tracer
-AsyncPGInstrumentor().instrument()
+# Initialize SQLAlchemyInstrumentor with our tracer
+SQLAlchemyInstrumentor().instrument()
 
 # PostgreSQL connection configuration
-POSTGRES_CONNECTION_PARAMS = config.get_postgres_connection_params()
+POSTGRES_URL = config.postgres_url
 
 SCHEMA_NAME = "retail"
 # Use empty GUID for RLS as specified
@@ -34,9 +47,10 @@ RLS_USER_ID = "00000000-0000-0000-0000-000000000000"
 class FinancePostgreSQLProvider:
     """Provides PostgreSQL database access for finance-related operations."""
 
-    def __init__(self, postgres_config: Optional[Dict[str, Any]] = None) -> None:
-        self.postgres_config = postgres_config or POSTGRES_CONNECTION_PARAMS
-        self.connection_pool: Optional[asyncpg.Pool] = None
+    def __init__(self, postgres_url: Optional[str] = None) -> None:
+        self.postgres_url = postgres_url or POSTGRES_URL
+        self.engine: Optional[AsyncEngine] = None
+        self.async_session_factory: Optional[async_sessionmaker] = None
 
     async def __aenter__(self) -> "FinancePostgreSQLProvider":
         """Async context manager entry."""
@@ -49,62 +63,64 @@ class FinancePostgreSQLProvider:
         exc_tb: Optional[object],
     ) -> None:
         """Async context manager exit."""
-        await self.close_pool()
+        await self.close_engine()
 
     async def create_pool(self) -> None:
-        """Create connection pool for better resource management."""
-        if self.connection_pool is None:
+        """Create async engine for database connections."""
+        if self.engine is None:
             try:
-                config_copy = dict(self.postgres_config)
-                existing_server_settings = config_copy.pop("server_settings", {})
+                # Convert postgresql:// to postgresql+asyncpg://
+                # Remove application_name from URL as it needs to be in server_settings
+                async_url = self.postgres_url.replace("postgresql://", "postgresql+asyncpg://")
+                if "?application_name=" in async_url:
+                    async_url = async_url.split("?application_name=")[0]
                 
-                merged_server_settings = {
-                    **existing_server_settings,
-                    "jit": "off",
-                    "work_mem": "4MB",
-                    "statement_timeout": "30s",
-                }
-                
-                self.connection_pool = await asyncpg.create_pool(
-                    **config_copy,
-                    min_size=1,
-                    max_size=3,
-                    command_timeout=30,
-                    server_settings=merged_server_settings,
+                self.engine = create_async_engine(
+                    async_url,
+                    pool_size=3,
+                    max_overflow=0,
+                    pool_pre_ping=True,
+                    pool_recycle=3600,
+                    connect_args={
+                        "server_settings": {
+                            "application_name": config.postgres_application_name,
+                            "jit": "off",
+                            "work_mem": "4MB",
+                            "statement_timeout": "30s",
+                        },
+                        "command_timeout": 30,
+                    },
                 )
+                
+                # Create async session factory
+                self.async_session_factory = async_sessionmaker(
+                    self.engine,
+                    class_=AsyncSession,
+                    expire_on_commit=False
+                )
+                
                 logger.info(
-                    "✅ Finance PostgreSQL connection pool created for host: %s:%s", 
-                    self.postgres_config.get("host", "unknown"),
-                    self.postgres_config.get("port", "unknown")
+                    "✅ Finance PostgreSQL async engine created"
                 )
             except Exception as e:
-                logger.error("❌ Failed to create PostgreSQL pool: %s", e)
+                logger.error("❌ Failed to create SQLAlchemy engine: %s", e)
                 raise
 
-    async def close_pool(self) -> None:
-        """Close connection pool and cleanup."""
-        if self.connection_pool:
-            await self.connection_pool.close()
-            self.connection_pool = None
-            logger.info("✅ Finance PostgreSQL connection pool closed")
+    async def close_engine(self) -> None:
+        """Close async engine and cleanup."""
+        if self.engine:
+            await self.engine.dispose()
+            self.engine = None
+            self.async_session_factory = None
+            logger.info("✅ Finance PostgreSQL async engine closed")
 
-    async def get_connection(self) -> asyncpg.Connection:
-        """Get a connection from pool."""
-        if not self.connection_pool:
+    def get_session(self) -> AsyncSession:
+        """Get a new async session."""
+        if not self.async_session_factory:
             raise RuntimeError(
-                "No database connection pool available. Call create_pool() first."
+                "No session factory available. Call create_pool() first."
             )
-
-        try:
-            return await self.connection_pool.acquire()
-        except Exception as e:
-            logger.error("Failed to acquire connection from pool: %s", e)
-            raise RuntimeError(f"Connection pool exhausted or unavailable: {e}") from e
-
-    async def release_connection(self, conn: asyncpg.Connection) -> None:
-        """Release connection back to pool."""
-        if self.connection_pool:
-            await self.connection_pool.release(conn)
+        return self.async_session_factory()
 
     async def get_company_order_policy(
         self,
@@ -116,77 +132,83 @@ class FinancePostgreSQLProvider:
         Returns company policies related to order processing,
         budget authorization, and related procedures.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            query = f"""
-                SELECT 
-                    policy_id,
-                    policy_name,
-                    policy_type,
-                    policy_content,
-                    department,
-                    minimum_order_threshold,
-                    approval_required,
-                    is_active,
-                    CASE 
-                        WHEN policy_type = 'order_processing' THEN 'Outlines order processing and fulfillment procedures'
-                        WHEN policy_type = 'budget_authorization' THEN 'Specifies budget limits and authorization levels'
-                        WHEN policy_type = 'procurement' THEN 'Covers supplier selection and procurement processes'
-                        ELSE 'General company policy'
-                    END as policy_description,
-                    LENGTH(policy_content) as content_length
-                FROM {SCHEMA_NAME}.company_policies
-                WHERE is_active = true
-                    AND policy_type IN ('order_processing', 'budget_authorization')
-            """
-            
-            params = []
-            param_index = 1
+                # Build query using ORM
+                policy_description = case(
+                    (CompanyPolicy.policy_type == 'order_processing', 
+                     'Outlines order processing and fulfillment procedures'),
+                    (CompanyPolicy.policy_type == 'budget_authorization', 
+                     'Specifies budget limits and authorization levels'),
+                    (CompanyPolicy.policy_type == 'procurement', 
+                     'Covers supplier selection and procurement processes'),
+                    else_='General company policy'
+                ).label('policy_description')
                 
-            if department:
-                query += f" AND (department = ${param_index} OR department IS NULL)"
-                params.append(department)
-                param_index += 1
-            
-            query += " ORDER BY policy_type, policy_name"
+                content_length = func.length(CompanyPolicy.policy_content).label('content_length')
+                
+                stmt = select(
+                    CompanyPolicy.policy_id,
+                    CompanyPolicy.policy_name,
+                    CompanyPolicy.policy_type,
+                    CompanyPolicy.policy_content,
+                    CompanyPolicy.department,
+                    CompanyPolicy.minimum_order_threshold,
+                    CompanyPolicy.approval_required,
+                    CompanyPolicy.is_active,
+                    policy_description,
+                    content_length
+                ).where(
+                    and_(
+                        CompanyPolicy.is_active.is_(True),
+                        CompanyPolicy.policy_type.in_(['order_processing', 'budget_authorization'])
+                    )
+                )
+                
+                if department:
+                    stmt = stmt.where(
+                        (CompanyPolicy.department == department) | 
+                        (CompanyPolicy.department.is_(None))
+                    )
+                
+                stmt = stmt.order_by(CompanyPolicy.policy_type, CompanyPolicy.policy_name)
 
-            rows = await conn.fetch(query, *params)
-            
-            if not rows:
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": "No order policies found"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": "No order policies found"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Company order policy query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Company order policy query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
     async def get_supplier_contract(
         self,
@@ -198,83 +220,93 @@ class FinancePostgreSQLProvider:
         Returns active contract details including terms, conditions,
         and key contract metadata for the specified supplier.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            query = f"""
-                SELECT 
-                    s.supplier_name,
-                    s.supplier_code,
-                    s.contact_email,
-                    s.contact_phone,
-                    -- Contract details
-                    sc.contract_id,
-                    sc.contract_number,
-                    sc.contract_status,
-                    sc.start_date,
-                    sc.end_date,
-                    sc.contract_value,
-                    sc.payment_terms,
-                    sc.auto_renew,
-                    sc.created_at as contract_created,
-                    -- Calculated fields
-                    CASE 
-                        WHEN sc.end_date IS NOT NULL 
-                        THEN sc.end_date - CURRENT_DATE 
-                        ELSE NULL 
-                    END as days_until_expiry,
-                    CASE 
-                        WHEN sc.end_date IS NOT NULL AND sc.end_date <= CURRENT_DATE + INTERVAL '90 days'
-                        THEN true 
-                        ELSE false 
-                    END as renewal_due_soon
-                FROM {SCHEMA_NAME}.suppliers s
-                LEFT JOIN {SCHEMA_NAME}.supplier_contracts sc ON s.supplier_id = sc.supplier_id
-                WHERE s.supplier_id = $1
-                    AND (sc.contract_status = 'active' OR sc.contract_status IS NULL)
-                ORDER BY sc.start_date DESC
-            """
+                # Calculate days until expiry
+                current_date = func.current_date()
+                days_until_expiry = case(
+                    (SupplierContract.end_date.is_not(None),
+                     SupplierContract.end_date - current_date),
+                    else_=None
+                ).label('days_until_expiry')
+                
+                # Calculate renewal due soon
+                renewal_due_soon = case(
+                    (and_(
+                        SupplierContract.end_date.is_not(None),
+                        SupplierContract.end_date <= current_date + text("INTERVAL '90 days'")
+                    ), True),
+                    else_=False
+                ).label('renewal_due_soon')
 
-            rows = await conn.fetch(query, supplier_id)
-            
-            if not rows:
+                # Build query using ORM
+                stmt = select(
+                    Supplier.supplier_name,
+                    Supplier.supplier_code,
+                    Supplier.contact_email,
+                    Supplier.contact_phone,
+                    SupplierContract.contract_id,
+                    SupplierContract.contract_number,
+                    SupplierContract.contract_status,
+                    SupplierContract.start_date,
+                    SupplierContract.end_date,
+                    SupplierContract.contract_value,
+                    SupplierContract.payment_terms,
+                    SupplierContract.auto_renew,
+                    SupplierContract.created_at.label('contract_created'),
+                    days_until_expiry,
+                    renewal_due_soon
+                ).select_from(Supplier).outerjoin(
+                    SupplierContract,
+                    Supplier.supplier_id == SupplierContract.supplier_id
+                ).where(
+                    and_(
+                        Supplier.supplier_id == supplier_id,
+                        (SupplierContract.contract_status == 'active') | 
+                        (SupplierContract.contract_status.is_(None))
+                    )
+                ).order_by(SupplierContract.start_date.desc())
+
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": f"No contract found for supplier ID {supplier_id}"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": f"No contract found for supplier ID {supplier_id}"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Supplier contract query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Supplier contract query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
     async def get_historical_sales_data(
         self,
-        days_back: int = 90,
+        days_back: int = 30,
         store_id: Optional[int] = None,
         category_name: Optional[str] = None
     ) -> str:
@@ -285,83 +317,86 @@ class FinancePostgreSQLProvider:
         average values, and breakdowns by time period, store, and category.
         Default lookback period is 90 days.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            # Build the main query
-            query = f"""
-                SELECT 
-                    o.order_date,
-                    s.store_name,
-                    s.is_online,
-                    c.category_name,
-                    COUNT(DISTINCT o.order_id) as order_count,
-                    SUM(oi.total_amount) as total_revenue,
-                    AVG(oi.total_amount) as avg_order_value,
-                    SUM(oi.quantity) as total_units_sold,
-                    COUNT(DISTINCT o.customer_id) as unique_customers
-                FROM {SCHEMA_NAME}.orders o
-                JOIN {SCHEMA_NAME}.order_items oi ON o.order_id = oi.order_id
-                JOIN {SCHEMA_NAME}.stores s ON o.store_id = s.store_id
-                JOIN {SCHEMA_NAME}.products p ON oi.product_id = p.product_id
-                JOIN {SCHEMA_NAME}.categories c ON p.category_id = c.category_id
-                WHERE o.order_date >= CURRENT_DATE - INTERVAL '{days_back} days'
-            """
-            
-            params = []
-            param_index = 1
-            
-            if store_id is not None:
-                query += f" AND o.store_id = ${param_index}"
-                params.append(store_id)
-                param_index += 1
+                # Calculate cutoff date
+                cutoff_date = func.current_date() - text(f"INTERVAL '{days_back} days'")
+
+                # Build query using ORM
+                stmt = select(
+                    Order.order_date,
+                    Store.store_name,
+                    Store.is_online,
+                    Category.category_name,
+                    func.count(func.distinct(Order.order_id)).label('order_count'),
+                    func.sum(OrderItem.total_amount).label('total_revenue'),
+                    func.avg(OrderItem.total_amount).label('avg_order_value'),
+                    func.sum(OrderItem.quantity).label('total_units_sold'),
+                    func.count(func.distinct(Order.customer_id)).label('unique_customers')
+                ).select_from(Order).join(
+                    OrderItem, Order.order_id == OrderItem.order_id
+                ).join(
+                    Store, Order.store_id == Store.store_id
+                ).join(
+                    Product, OrderItem.product_id == Product.product_id
+                ).join(
+                    Category, Product.category_id == Category.category_id
+                ).where(
+                    Order.order_date >= cutoff_date
+                )
                 
-            if category_name:
-                query += f" AND UPPER(c.category_name) = UPPER(${param_index})"
-                params.append(category_name)
-                param_index += 1
-            
-            query += """
-                GROUP BY o.order_date, s.store_name, s.is_online, c.category_name
-                ORDER BY o.order_date DESC, total_revenue DESC
-            """
+                if store_id is not None:
+                    stmt = stmt.where(Order.store_id == store_id)
+                    
+                if category_name:
+                    stmt = stmt.where(func.upper(Category.category_name) == category_name.upper())
+                
+                stmt = stmt.group_by(
+                    Order.order_date, 
+                    Store.store_name, 
+                    Store.is_online, 
+                    Category.category_name
+                ).order_by(
+                    Order.order_date.desc(),
+                    text('total_revenue DESC')
+                )
 
-            rows = await conn.fetch(query, *params)
-            
-            if not rows:
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": f"No sales data found for last {days_back} days"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": f"No sales data found for last {days_back} days"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Historical sales query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Historical sales query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
     async def get_current_inventory_status(
         self,
@@ -375,96 +410,114 @@ class FinancePostgreSQLProvider:
         Returns inventory levels, values, and low stock alerts
         for products across all stores or filtered by specific criteria.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            query = f"""
-                SELECT 
-                    s.store_name,
-                    s.is_online,
-                    p.product_name,
-                    p.sku,
-                    c.category_name,
-                    pt.type_name as product_type,
-                    i.stock_level,
-                    p.cost,
-                    p.base_price,
-                    (i.stock_level * p.cost) as inventory_value,
-                    (i.stock_level * p.base_price) as retail_value,
-                    CASE 
-                        WHEN i.stock_level <= $1 THEN true 
-                        ELSE false 
-                    END as low_stock_alert
-                FROM {SCHEMA_NAME}.inventory i
-                JOIN {SCHEMA_NAME}.stores s ON i.store_id = s.store_id
-                JOIN {SCHEMA_NAME}.products p ON i.product_id = p.product_id
-                JOIN {SCHEMA_NAME}.categories c ON p.category_id = c.category_id
-                JOIN {SCHEMA_NAME}.product_types pt ON p.type_id = pt.type_id
-                WHERE p.discontinued = false
-            """
-            
-            params: list = [low_stock_threshold]
-            param_index = 2
-            
-            if store_id is not None:
-                query += f" AND i.store_id = ${param_index}"
-                params.append(store_id)
-                param_index += 1
+                # Calculate inventory and retail values
+                inventory_value = (Inventory.stock_level * Product.cost).label('inventory_value')
+                retail_value = (Inventory.stock_level * Product.base_price).label('retail_value')
                 
-            if category_name:
-                query += f" AND UPPER(c.category_name) = UPPER(${param_index})"
-                params.append(category_name)
-                param_index += 1
-            
-            query += """
-                ORDER BY s.store_name, c.category_name, i.stock_level ASC
-            """
+                # Calculate low stock alert
+                low_stock_alert = case(
+                    (Inventory.stock_level <= low_stock_threshold, True),
+                    else_=False
+                ).label('low_stock_alert')
 
-            rows = await conn.fetch(query, *params)
-            
-            if not rows:
+                # Build query using ORM
+                stmt = select(
+                    Store.store_name,
+                    Store.is_online,
+                    Product.product_name,
+                    Product.sku,
+                    Category.category_name,
+                    ProductType.type_name.label('product_type'),
+                    Inventory.stock_level,
+                    Product.cost,
+                    Product.base_price,
+                    inventory_value,
+                    retail_value,
+                    low_stock_alert
+                ).select_from(Inventory).join(
+                    Store, Inventory.store_id == Store.store_id
+                ).join(
+                    Product, Inventory.product_id == Product.product_id
+                ).join(
+                    Category, Product.category_id == Category.category_id
+                ).join(
+                    ProductType, Product.type_id == ProductType.type_id
+                ).where(
+                    Product.discontinued.is_(False)
+                )
+                
+                if store_id is not None:
+                    stmt = stmt.where(Inventory.store_id == store_id)
+                    
+                if category_name:
+                    stmt = stmt.where(func.upper(Category.category_name) == category_name.upper())
+                
+                stmt = stmt.order_by(
+                    Store.store_name,
+                    Category.category_name,
+                    Inventory.stock_level.asc()
+                )
+
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": "No inventory data found"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": "No inventory data found"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Inventory status query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Inventory status query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
 
 async def test_connection() -> bool:
     """Test PostgreSQL connection and return success status."""
     try:
-        pool = await asyncpg.create_pool(**POSTGRES_CONNECTION_PARAMS, min_size=1, max_size=1)
-        conn = await pool.acquire()
-        await pool.release(conn)
-        await pool.close()
+        async_url = POSTGRES_URL.replace("postgresql://", "postgresql+asyncpg://")
+        if "?application_name=" in async_url:
+            async_url = async_url.split("?application_name=")[0]
+        
+        engine = create_async_engine(
+            async_url,
+            pool_size=1,
+            max_overflow=0,
+            connect_args={
+                "server_settings": {
+                    "application_name": config.postgres_application_name
+                }
+            }
+        )
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        await engine.dispose()
         return True
     except Exception as e:
         logger.error("Connection test failed: %s", e)

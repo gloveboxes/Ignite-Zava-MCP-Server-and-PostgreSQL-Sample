@@ -10,21 +10,31 @@ for RLS (Row Level Security) for simplicity.
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Optional
 
-import asyncpg
-from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+from sqlalchemy import text, select, func, case, and_, or_
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
 from .config import Config
+from .models.postgres import (
+    Supplier,
+    SupplierContract,
+    SupplierPerformance,
+    ProcurementRequest,
+    CompanyPolicy,
+    Product,
+    Category,
+)
 
 logger = logging.getLogger(__name__)
 config = Config()
 
-# Initialize AsyncPGInstrumentor with our tracer
-AsyncPGInstrumentor().instrument()
+# Initialize SQLAlchemyInstrumentor with our tracer
+SQLAlchemyInstrumentor().instrument()
 
 # PostgreSQL connection configuration
-POSTGRES_CONNECTION_PARAMS = config.get_postgres_connection_params()
+POSTGRES_URL = config.postgres_url
 
 SCHEMA_NAME = "retail"
 # Use empty GUID for RLS as specified
@@ -32,59 +42,12 @@ RLS_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 
 class SupplierPostgreSQLProvider:
-    async def list_suppliers(
-        self,
-        name_query: Optional[str] = None,
-        limit: int = 20
-    ) -> str:
-        """
-        List all suppliers or search by partial name (case-insensitive).
-        Returns supplier_id, supplier_name, supplier_code, contact_email, supplier_rating, esg_compliant, preferred_vendor, approved_vendor, lead_time_days.
-        """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
-
-            query = f"""
-                SELECT
-                    supplier_id,
-                    supplier_name,
-                    supplier_code,
-                    contact_email,
-                    supplier_rating,
-                    esg_compliant,
-                    preferred_vendor,
-                    approved_vendor,
-                    lead_time_days
-                FROM {SCHEMA_NAME}.suppliers
-                WHERE active_status = true
-            """
-            params = []
-            if name_query:
-                query += " AND supplier_name ILIKE $1"
-                params.append(f"%{name_query}%")
-            query += " ORDER BY preferred_vendor DESC, supplier_rating DESC, supplier_name ASC LIMIT $2"
-            params.append(limit)
-
-            rows = await conn.fetch(query, *params)
-            if not rows:
-                return json.dumps({"c": [], "r": [], "n": 0, "msg": "No suppliers found"}, separators=(",", ":"), default=str)
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            return json.dumps({"c": columns, "r": data_rows, "n": len(data_rows)}, separators=(",", ":"), default=str)
-        except Exception as e:
-            return json.dumps({"err": f"List suppliers query failed: {e!s}", "c": [], "r": [], "n": 0}, separators=(",", ":"), default=str)
-        finally:
-            if conn:
-                await self.release_connection(conn)
     """Provides PostgreSQL database access for supplier-related operations."""
 
-    def __init__(self, postgres_config: Optional[Dict[str, Any]] = None) -> None:
-        self.postgres_config = postgres_config or POSTGRES_CONNECTION_PARAMS
-        self.connection_pool: Optional[asyncpg.Pool] = None
+    def __init__(self, postgres_url: Optional[str] = None) -> None:
+        self.postgres_url = postgres_url or POSTGRES_URL
+        self.engine: Optional[AsyncEngine] = None
+        self.async_session_factory: Optional[async_sessionmaker] = None
 
     async def __aenter__(self) -> "SupplierPostgreSQLProvider":
         """Async context manager entry."""
@@ -97,62 +60,64 @@ class SupplierPostgreSQLProvider:
         exc_tb: Optional[object],
     ) -> None:
         """Async context manager exit."""
-        await self.close_pool()
+        await self.close_engine()
 
     async def create_pool(self) -> None:
-        """Create connection pool for better resource management."""
-        if self.connection_pool is None:
+        """Create async engine for database connections."""
+        if self.engine is None:
             try:
-                config_copy = dict(self.postgres_config)
-                existing_server_settings = config_copy.pop("server_settings", {})
+                # Convert postgresql:// to postgresql+asyncpg://
+                # Remove application_name from URL as it needs to be in server_settings
+                async_url = self.postgres_url.replace("postgresql://", "postgresql+asyncpg://")
+                if "?application_name=" in async_url:
+                    async_url = async_url.split("?application_name=")[0]
                 
-                merged_server_settings = {
-                    **existing_server_settings,
-                    "jit": "off",
-                    "work_mem": "4MB",
-                    "statement_timeout": "30s",
-                }
-                
-                self.connection_pool = await asyncpg.create_pool(
-                    **config_copy,
-                    min_size=1,
-                    max_size=3,
-                    command_timeout=30,
-                    server_settings=merged_server_settings,
+                self.engine = create_async_engine(
+                    async_url,
+                    pool_size=3,
+                    max_overflow=0,
+                    pool_pre_ping=True,
+                    pool_recycle=3600,
+                    connect_args={
+                        "server_settings": {
+                            "application_name": config.postgres_application_name,
+                            "jit": "off",
+                            "work_mem": "4MB",
+                            "statement_timeout": "30s",
+                        },
+                        "command_timeout": 30,
+                    },
                 )
+                
+                # Create async session factory
+                self.async_session_factory = async_sessionmaker(
+                    self.engine,
+                    class_=AsyncSession,
+                    expire_on_commit=False
+                )
+                
                 logger.info(
-                    "✅ Supplier PostgreSQL connection pool created for host: %s:%s", 
-                    self.postgres_config.get("host", "unknown"),
-                    self.postgres_config.get("port", "unknown")
+                    "✅ Supplier PostgreSQL async engine created"
                 )
             except Exception as e:
-                logger.error("❌ Failed to create PostgreSQL pool: %s", e)
+                logger.error("❌ Failed to create SQLAlchemy engine: %s", e)
                 raise
 
-    async def close_pool(self) -> None:
-        """Close connection pool and cleanup."""
-        if self.connection_pool:
-            await self.connection_pool.close()
-            self.connection_pool = None
-            logger.info("✅ Supplier PostgreSQL connection pool closed")
+    async def close_engine(self) -> None:
+        """Close async engine and cleanup."""
+        if self.engine:
+            await self.engine.dispose()
+            self.engine = None
+            self.async_session_factory = None
+            logger.info("✅ Supplier PostgreSQL async engine closed")
 
-    async def get_connection(self) -> asyncpg.Connection:
-        """Get a connection from pool."""
-        if not self.connection_pool:
+    def get_session(self) -> AsyncSession:
+        """Get a new async session."""
+        if not self.async_session_factory:
             raise RuntimeError(
-                "No database connection pool available. Call create_pool() first."
+                "No session factory available. Call create_pool() first."
             )
-
-        try:
-            return await self.connection_pool.acquire()
-        except Exception as e:
-            logger.error("Failed to acquire connection from pool: %s", e)
-            raise RuntimeError(f"Connection pool exhausted or unavailable: {e}") from e
-
-    async def release_connection(self, conn: asyncpg.Connection) -> None:
-        """Release connection back to pool."""
-        if self.connection_pool:
-            await self.connection_pool.release(conn)
+        return self.async_session_factory()
 
     async def find_suppliers_for_request(
         self,
@@ -170,104 +135,139 @@ class SupplierPostgreSQLProvider:
         Returns suppliers that match the specified requirements including
         product category, ESG compliance, rating, lead time, and budget constraints.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            # Base query using view
-            query = f"""
-                SELECT 
-                    supplier_id,
-                    supplier_name,
-                    supplier_code,
-                    contact_email,
-                    contact_phone,
-                    supplier_rating,
-                    esg_compliant,
-                    preferred_vendor,
-                    approved_vendor,
-                    lead_time_days,
-                    minimum_order_amount,
-                    bulk_discount_threshold,
-                    bulk_discount_percent,
-                    payment_terms,
-                    available_products,
-                    avg_performance_score,
-                    contract_status,
-                    contract_number,
-                    category_name
-                FROM {SCHEMA_NAME}.vw_suppliers_for_request
-                WHERE supplier_rating >= $1
-                    AND lead_time_days <= $2
-            """
-            
-            params = [min_rating, max_lead_time]
-            param_index = 3
-            
-            # Add ESG filter if required
-            if esg_required:
-                query += f" AND esg_compliant = ${param_index}"
-                params.append(True)
-                param_index += 1
-            
-            # Add product category filter if specified
-            if product_category:
-                query += f" AND UPPER(category_name) = UPPER(${param_index})"
-                params.append(product_category)
-                param_index += 1
-            
-            # Add budget filters if specified
-            if budget_min is not None:
-                query += f" AND minimum_order_amount <= ${param_index}"
-                params.append(budget_min)
-                param_index += 1
+                # Calculate average performance score
+                avg_performance = func.coalesce(
+                    func.avg(SupplierPerformance.overall_score),
+                    Supplier.supplier_rating
+                ).label('avg_performance_score')
                 
-            if budget_max is not None:
-                query += f" AND bulk_discount_threshold <= ${param_index}"
-                params.append(budget_max)
-                param_index += 1
-            
-            query += f"""
-                ORDER BY preferred_vendor DESC, avg_performance_score DESC, supplier_rating DESC
-                LIMIT ${param_index}
-            """
-            params.append(limit)
+                # Count available products
+                product_count = func.count(Product.product_id).label('available_products')
 
-            rows = await conn.fetch(query, *params)
-            
-            if not rows:
+                # Build base query with joins
+                stmt = select(
+                    Supplier.supplier_id,
+                    Supplier.supplier_name,
+                    Supplier.supplier_code,
+                    Supplier.contact_email,
+                    Supplier.contact_phone,
+                    Supplier.supplier_rating,
+                    Supplier.esg_compliant,
+                    Supplier.preferred_vendor,
+                    Supplier.approved_vendor,
+                    Supplier.lead_time_days,
+                    Supplier.minimum_order_amount,
+                    Supplier.bulk_discount_threshold,
+                    Supplier.bulk_discount_percent,
+                    Supplier.payment_terms,
+                    product_count,
+                    avg_performance,
+                    SupplierContract.contract_status,
+                    SupplierContract.contract_number,
+                    Category.category_name
+                ).select_from(Supplier).outerjoin(
+                    Product, Supplier.supplier_id == Product.supplier_id
+                ).outerjoin(
+                    Category, Product.category_id == Category.category_id
+                ).outerjoin(
+                    SupplierPerformance,
+                    and_(
+                        Supplier.supplier_id == SupplierPerformance.supplier_id,
+                        SupplierPerformance.evaluation_date >= func.current_date() - text("INTERVAL '6 months'")
+                    )
+                ).outerjoin(
+                    SupplierContract,
+                    and_(
+                        Supplier.supplier_id == SupplierContract.supplier_id,
+                        SupplierContract.contract_status == 'active'
+                    )
+                ).where(
+                    and_(
+                        Supplier.active_status.is_(True),
+                        Supplier.approved_vendor.is_(True),
+                        Supplier.supplier_rating >= min_rating,
+                        Supplier.lead_time_days <= max_lead_time
+                    )
+                )
+                
+                # Add ESG filter if required
+                if esg_required:
+                    stmt = stmt.where(Supplier.esg_compliant.is_(True))
+                
+                # Add product category filter if specified
+                if product_category:
+                    stmt = stmt.where(func.upper(Category.category_name) == product_category.upper())
+                
+                # Add budget filters if specified
+                if budget_min is not None:
+                    stmt = stmt.where(Supplier.minimum_order_amount <= budget_min)
+                    
+                if budget_max is not None:
+                    stmt = stmt.where(Supplier.bulk_discount_threshold <= budget_max)
+                
+                # Group by all non-aggregated columns
+                stmt = stmt.group_by(
+                    Supplier.supplier_id,
+                    Supplier.supplier_name,
+                    Supplier.supplier_code,
+                    Supplier.contact_email,
+                    Supplier.contact_phone,
+                    Supplier.supplier_rating,
+                    Supplier.esg_compliant,
+                    Supplier.preferred_vendor,
+                    Supplier.approved_vendor,
+                    Supplier.lead_time_days,
+                    Supplier.minimum_order_amount,
+                    Supplier.bulk_discount_threshold,
+                    Supplier.bulk_discount_percent,
+                    Supplier.payment_terms,
+                    SupplierContract.contract_status,
+                    SupplierContract.contract_number,
+                    Category.category_name
+                ).order_by(
+                    Supplier.preferred_vendor.desc(),
+                    text('avg_performance_score DESC'),
+                    Supplier.supplier_rating.desc()
+                ).limit(limit)
+
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": "No suppliers found matching criteria"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": "No suppliers found matching criteria"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Find suppliers query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Find suppliers query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
     async def get_supplier_history_and_performance(
         self,
@@ -280,72 +280,91 @@ class SupplierPostgreSQLProvider:
         Returns performance evaluations, recent procurement requests,
         and overall performance trends for the specified supplier.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            # Get supplier basic info and performance history using view
-            query = f"""
-                SELECT 
-                    supplier_name,
-                    supplier_code,
-                    supplier_rating,
-                    esg_compliant,
-                    preferred_vendor,
-                    lead_time_days,
-                    supplier_since,
-                    -- Performance metrics
-                    evaluation_date,
-                    cost_score,
-                    quality_score,
-                    delivery_score,
-                    compliance_score,
-                    overall_score,
-                    performance_notes,
-                    -- Recent procurement activity
+                # Calculate cutoff date
+                cutoff_date = func.current_date() - text(f"INTERVAL '{months_back} months'")
+                
+                # Count total requests per supplier
+                total_requests = func.count(ProcurementRequest.request_id).over(
+                    partition_by=Supplier.supplier_id
+                ).label('total_requests')
+                
+                # Sum total value per supplier
+                total_value = func.sum(ProcurementRequest.total_cost).over(
+                    partition_by=Supplier.supplier_id
+                ).label('total_value')
+
+                # Build query with joins
+                stmt = select(
+                    Supplier.supplier_name,
+                    Supplier.supplier_code,
+                    Supplier.supplier_rating,
+                    Supplier.esg_compliant,
+                    Supplier.preferred_vendor,
+                    Supplier.lead_time_days,
+                    Supplier.created_at.label('supplier_since'),
+                    SupplierPerformance.evaluation_date,
+                    SupplierPerformance.cost_score,
+                    SupplierPerformance.quality_score,
+                    SupplierPerformance.delivery_score,
+                    SupplierPerformance.compliance_score,
+                    SupplierPerformance.overall_score,
+                    SupplierPerformance.notes.label('performance_notes'),
                     total_requests,
                     total_value
-                FROM {SCHEMA_NAME}.vw_supplier_history_performance
-                WHERE supplier_id = $1
-                    AND (evaluation_date >= CURRENT_DATE - INTERVAL '{months_back} months' OR evaluation_date IS NULL)
-                ORDER BY evaluation_date DESC
-            """
+                ).select_from(Supplier).outerjoin(
+                    SupplierPerformance,
+                    Supplier.supplier_id == SupplierPerformance.supplier_id
+                ).outerjoin(
+                    ProcurementRequest,
+                    Supplier.supplier_id == ProcurementRequest.supplier_id
+                ).where(
+                    and_(
+                        Supplier.supplier_id == supplier_id,
+                        or_(
+                            SupplierPerformance.evaluation_date >= cutoff_date,
+                            SupplierPerformance.evaluation_date.is_(None)
+                        )
+                    )
+                ).order_by(SupplierPerformance.evaluation_date.desc())
 
-            rows = await conn.fetch(query, supplier_id)
-            
-            if not rows:
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": f"No data found for supplier ID {supplier_id}"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": f"No data found for supplier ID {supplier_id}"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Supplier history query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Supplier history query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
     async def get_supplier_contract(
         self,
@@ -357,69 +376,91 @@ class SupplierPostgreSQLProvider:
         Returns active contract details including terms, conditions,
         and key contract metadata for the specified supplier.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            query = f"""
-                SELECT 
-                    supplier_name,
-                    supplier_code,
-                    contact_email,
-                    contact_phone,
-                    -- Contract details
-                    contract_id,
-                    contract_number,
-                    contract_status,
-                    start_date,
-                    end_date,
-                    contract_value,
-                    payment_terms,
-                    auto_renew,
-                    contract_created,
-                    -- Calculated fields
+                # Calculate days until expiry
+                current_date = func.current_date()
+                days_until_expiry = case(
+                    (SupplierContract.end_date.is_not(None),
+                     SupplierContract.end_date - current_date),
+                    else_=None
+                ).label('days_until_expiry')
+                
+                # Calculate renewal due soon
+                renewal_due_soon = case(
+                    (and_(
+                        SupplierContract.end_date.is_not(None),
+                        SupplierContract.end_date <= current_date + text("INTERVAL '90 days'")
+                    ), True),
+                    else_=False
+                ).label('renewal_due_soon')
+
+                # Build query
+                stmt = select(
+                    Supplier.supplier_name,
+                    Supplier.supplier_code,
+                    Supplier.contact_email,
+                    Supplier.contact_phone,
+                    SupplierContract.contract_id,
+                    SupplierContract.contract_number,
+                    SupplierContract.contract_status,
+                    SupplierContract.start_date,
+                    SupplierContract.end_date,
+                    SupplierContract.contract_value,
+                    SupplierContract.payment_terms,
+                    SupplierContract.auto_renew,
+                    SupplierContract.created_at.label('contract_created'),
                     days_until_expiry,
                     renewal_due_soon
-                FROM {SCHEMA_NAME}.vw_supplier_contract_details
-                WHERE supplier_id = $1
-                ORDER BY start_date DESC
-            """
+                ).select_from(Supplier).outerjoin(
+                    SupplierContract,
+                    Supplier.supplier_id == SupplierContract.supplier_id
+                ).where(
+                    and_(
+                        Supplier.supplier_id == supplier_id,
+                        or_(
+                            SupplierContract.contract_status == 'active',
+                            SupplierContract.contract_status.is_(None)
+                        )
+                    )
+                ).order_by(SupplierContract.start_date.desc())
 
-            rows = await conn.fetch(query, supplier_id)
-            
-            if not rows:
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": f"No contract found for supplier ID {supplier_id}"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": f"No contract found for supplier ID {supplier_id}"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Supplier contract query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Supplier contract query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
     async def get_company_supplier_policy(
         self,
@@ -432,94 +473,109 @@ class SupplierPostgreSQLProvider:
         Returns company policies related to supplier management,
         procurement procedures, and vendor requirements.
         """
-        conn = None
-        try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", RLS_USER_ID
-            )
+        async with self.get_session() as session:
+            try:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :rls_user_id, false)"),
+                    {"rls_user_id": RLS_USER_ID}
+                )
 
-            query = f"""
-                SELECT 
-                    policy_id,
-                    policy_name,
-                    policy_type,
-                    policy_content,
-                    department,
-                    minimum_order_threshold,
-                    approval_required,
-                    is_active,
+                # Build policy description
+                policy_description = case(
+                    (CompanyPolicy.policy_type == 'procurement',
+                     'Covers supplier selection and procurement processes'),
+                    (CompanyPolicy.policy_type == 'vendor_approval',
+                     'Defines vendor approval and onboarding requirements'),
+                    (CompanyPolicy.policy_type == 'budget_authorization',
+                     'Specifies budget limits and authorization levels'),
+                    (CompanyPolicy.policy_type == 'order_processing',
+                     'Outlines order processing and fulfillment procedures'),
+                    else_='General company policy'
+                ).label('policy_description')
+                
+                content_length = func.length(CompanyPolicy.policy_content).label('content_length')
+
+                # Build base query
+                stmt = select(
+                    CompanyPolicy.policy_id,
+                    CompanyPolicy.policy_name,
+                    CompanyPolicy.policy_type,
+                    CompanyPolicy.policy_content,
+                    CompanyPolicy.department,
+                    CompanyPolicy.minimum_order_threshold,
+                    CompanyPolicy.approval_required,
+                    CompanyPolicy.is_active,
                     policy_description,
                     content_length
-                FROM {SCHEMA_NAME}.vw_company_supplier_policies
-            """
-            
-            params = []
-            param_index = 1
-            
-            # Add WHERE clause if we have filters
-            where_added = False
-            if policy_type:
-                if not where_added:
-                    query += " WHERE"
-                    where_added = True
-                query += f" policy_type = ${param_index}"
-                params.append(policy_type)
-                param_index += 1
+                ).where(CompanyPolicy.is_active.is_(True))
                 
-            if department:
-                if not where_added:
-                    query += " WHERE"
-                    where_added = True
-                else:
-                    query += " AND"
-                query += f" (department = ${param_index} OR department IS NULL)"
-                params.append(department)
-                param_index += 1
-            
-            query += " ORDER BY policy_type, policy_name"
+                # Add filters
+                if policy_type:
+                    stmt = stmt.where(CompanyPolicy.policy_type == policy_type)
+                    
+                if department:
+                    stmt = stmt.where(
+                        or_(
+                            CompanyPolicy.department == department,
+                            CompanyPolicy.department.is_(None)
+                        )
+                    )
+                
+                stmt = stmt.order_by(CompanyPolicy.policy_type, CompanyPolicy.policy_name)
 
-            rows = await conn.fetch(query, *params)
-            
-            if not rows:
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": "No company policies found"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": "No company policies found"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
 
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
-
-        except Exception as e:
-            return json.dumps(
-                {
-                    "err": f"Company policy query failed: {e!s}",
-                    "c": [],
-                    "r": [],
-                    "n": 0,
-                },
-                separators=(",", ":"),
-                default=str,
-            )
-        finally:
-            if conn:
-                await self.release_connection(conn)
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Company policy query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
 
 
 async def test_connection() -> bool:
     """Test PostgreSQL connection and return success status."""
     try:
-        pool = await asyncpg.create_pool(**POSTGRES_CONNECTION_PARAMS, min_size=1, max_size=1)
-        conn = await pool.acquire()
-        await pool.release(conn)
-        await pool.close()
+        async_url = POSTGRES_URL.replace("postgresql://", "postgresql+asyncpg://")
+        if "?application_name=" in async_url:
+            async_url = async_url.split("?application_name=")[0]
+        
+        engine = create_async_engine(
+            async_url,
+            pool_size=1,
+            max_overflow=0,
+            connect_args={
+                "server_settings": {
+                    "application_name": config.postgres_application_name
+                }
+            }
+        )
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        await engine.dispose()
         return True
     except Exception as e:
         logger.error("Connection test failed: %s", e)

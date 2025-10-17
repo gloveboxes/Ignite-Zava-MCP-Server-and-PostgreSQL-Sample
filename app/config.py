@@ -56,11 +56,7 @@ class Config:
 
     def _log_config_info(self) -> None:
         """Log configuration information."""
-        logger.info("POSTGRES_DB_HOST: '%s'", self._postgres_host)
-        logger.info("POSTGRES_DB_PORT: %d", self._postgres_port)
-        logger.info("POSTGRES_DB: '%s'", self._postgres_database)
-        logger.info("POSTGRES_USER: '%s'", self._postgres_user)
-        logger.info("POSTGRES_APPLICATION_NAME: '%s'", self._postgres_application_name)
+
         logger.info(
             "APPLICATIONINSIGHTS_CONNECTION_STRING: '%s'",
             self._appinsights_connection_string,

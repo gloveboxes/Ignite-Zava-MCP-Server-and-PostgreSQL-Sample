@@ -21,7 +21,9 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import asyncpg
-from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
 from .config import Config
 
@@ -29,9 +31,6 @@ from .config import Config
 
 logger = logging.getLogger(__name__)
 config = Config()
-
-# Initialize AsyncPGInstrumentor with our tracer
-AsyncPGInstrumentor().instrument()
 
 # PostgreSQL connection configuration
 POSTGRES_CONNECTION_PARAMS = config.get_postgres_connection_params()
@@ -68,6 +67,8 @@ class PostgreSQLSchemaProvider:
     def __init__(self, postgres_config: Optional[Dict[str, Any]] = None) -> None:
         self.postgres_config = postgres_config or POSTGRES_CONNECTION_PARAMS
         self.connection_pool: Optional[asyncpg.Pool] = None
+        self.engine: Optional[AsyncEngine] = None
+        self.async_session_factory: Optional[async_sessionmaker] = None
         self.all_schemas: Optional[Dict[str, Dict[str, Any]]] = None
         # In-memory cache for per-table schema look-ups
         self._schema_cache: Dict[str, Any] = {}
@@ -108,12 +109,42 @@ class PostgreSQLSchemaProvider:
                     command_timeout=30,  # 30 second query timeout
                     server_settings=merged_server_settings,
                 )
+                
+                # Create SQLAlchemy async engine for ORM support
+                db_url = (
+                    f"postgresql+asyncpg://{config_copy['user']}:{config_copy['password']}"
+                    f"@{config_copy['host']}:{config_copy['port']}/{config_copy['database']}"
+                )
+                
+                self.engine = create_async_engine(
+                    db_url,
+                    pool_size=3,
+                    max_overflow=0,
+                    pool_pre_ping=True,
+                    echo=False,
+                    connect_args={
+                        "server_settings": merged_server_settings,
+                        "command_timeout": 30,
+                    }
+                )
+                
+                # Instrument SQLAlchemy engine
+                SQLAlchemyInstrumentor().instrument(engine=self.engine.sync_engine)
+                
+                # Create async session factory
+                self.async_session_factory = async_sessionmaker(
+                    self.engine,
+                    class_=AsyncSession,
+                    expire_on_commit=False
+                )
+                
                 # Don't preload schemas here to avoid connection exhaustion
                 logger.info(
                     "✅ PostgreSQL connection pool created for host: %s:%s", 
                     self.postgres_config.get("host", "unknown"),
                     self.postgres_config.get("port", "unknown")
                 )
+                logger.info("✅ SQLAlchemy async engine created")
             except Exception as e:
                 logger.error("❌ Failed to create PostgreSQL pool: %s", e)
                 raise
@@ -130,9 +161,22 @@ class PostgreSQLSchemaProvider:
         if self.connection_pool:
             await self.connection_pool.close()
             self.connection_pool = None
-            self.all_schemas = None
-            self._schema_cache = {}
-            logger.info("✅ PostgreSQL connection pool closed")
+        if self.engine:
+            await self.engine.dispose()
+            self.engine = None
+        self.async_session_factory = None
+        self.all_schemas = None
+        self._schema_cache = {}
+        logger.info("✅ PostgreSQL connection pool closed")
+        logger.info("✅ SQLAlchemy async engine closed")
+
+    def get_session(self) -> AsyncSession:
+        """Get a new SQLAlchemy async session."""
+        if not self.async_session_factory:
+            raise RuntimeError(
+                "No async session factory available. Call create_pool() first."
+            )
+        return self.async_session_factory()
 
     async def get_connection(self) -> asyncpg.Connection:
         """Get a connection from pool."""
@@ -796,28 +840,34 @@ class PostgreSQLSchemaProvider:
         Error shape:
           {"err":"...","q":"SELECT ...","c":[],"r":[],"n":0}
         """
-        conn: Optional[asyncpg.Connection] = None
         try:
-            conn = await self.get_connection()
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", rls_user_id
-            )
+            async with self.get_session() as session:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :user_id, false)"),
+                    {"user_id": rls_user_id}
+                )
+                
+                # Execute the query
+                result = await session.execute(text(sql_query))
+                rows = result.fetchall()
+                
+                if not rows:
+                    return json.dumps(
+                        {"c": [], "r": [], "n": 0, "msg": "No rows"},
+                        separators=(",", ":"),
+                        default=str,
+                    )
 
-            rows = await conn.fetch(sql_query)
-            if not rows:
+                # Get column names from result
+                columns = list(result.keys())
+                data_rows = [[row[i] for i in range(len(columns))] for row in rows]
+                
                 return json.dumps(
-                    {"c": [], "r": [], "n": 0, "msg": "No rows"},
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
-
-            columns = list(rows[0].keys())
-            data_rows = [[row[col] for col in columns] for row in rows]
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
         except Exception as e:
             return json.dumps(
                 {
@@ -830,9 +880,6 @@ class PostgreSQLSchemaProvider:
                 separators=(",", ":"),
                 default=str,
             )
-        finally:
-            if conn:
-                await self.release_connection(conn)
 
     async def search_products_by_similarity(
         self,
@@ -849,7 +896,6 @@ class PostgreSQLSchemaProvider:
             rls_user_id: Row-level security user ID
             similarity_threshold: Minimum similarity percentage (0-100) to include in results. Default is 50%.
         """
-        conn = None
         try:
             max_rows = min(max_rows, 100)  # Limit to 100 for performance
 
@@ -858,57 +904,67 @@ class PostgreSQLSchemaProvider:
             # So distance = 1 - (similarity_percentage / 100)
             distance_threshold = 1.0 - (similarity_threshold / 100.0)
 
-            conn = await self.get_connection()
-
-            await conn.execute(
-                "SELECT set_config('app.current_rls_user_id', $1, false)", rls_user_id
-            )
-
             # Convert embedding to string format for PostgreSQL
             embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
 
             query = f"""
                 SELECT 
                     p.*,
-                    (pde.description_embedding <=> $1::vector) as similarity_distance
+                    (pde.description_embedding <=> :embedding::vector) as similarity_distance
                 FROM {SCHEMA_NAME}.product_description_embeddings pde
                 JOIN {SCHEMA_NAME}.products p ON pde.product_id = p.product_id
-                WHERE (pde.description_embedding <=> $1::vector) <= $3
+                WHERE (pde.description_embedding <=> :embedding::vector) <= :threshold
                 ORDER BY similarity_distance
-                LIMIT $2
+                LIMIT :limit
             """
 
-            rows = await conn.fetch(query, embedding_str, max_rows, distance_threshold)
-
-            if not rows:
-                return json.dumps(
+            async with self.get_session() as session:
+                # Set RLS user ID
+                await session.execute(
+                    text("SELECT set_config('app.current_rls_user_id', :user_id, false)"),
+                    {"user_id": rls_user_id}
+                )
+                
+                # Execute the similarity search
+                result = await session.execute(
+                    text(query),
                     {
-                        "c": [],
-                        "r": [],
-                        "n": 0,
-                        "msg": f"No products >= {similarity_threshold}%",
-                    },
+                        "embedding": embedding_str,
+                        "threshold": distance_threshold,
+                        "limit": max_rows
+                    }
+                )
+                rows = result.fetchall()
+
+                if not rows:
+                    return json.dumps(
+                        {
+                            "c": [],
+                            "r": [],
+                            "n": 0,
+                            "msg": f"No products >= {similarity_threshold}%",
+                        },
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                # Prepare compact columnar data including similarity percent
+                base_columns = list(result.keys())  # includes similarity_distance
+                # We'll append 'sp' (similarity percent) short key instead of longer name
+                columns = [*base_columns, "sp"]
+                data_rows = []
+                for row in rows:
+                    similarity_distance = row.similarity_distance if hasattr(row, 'similarity_distance') else row[-1]
+                    similarity_percent = max(0, (1 - float(similarity_distance)) * 100)
+                    row_values = [row[i] for i in range(len(base_columns))]
+                    row_values.append(round(similarity_percent, 1))
+                    data_rows.append(row_values)
+
+                return json.dumps(
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
                     separators=(",", ":"),
                     default=str,
                 )
-
-            # Prepare compact columnar data including similarity percent
-            base_columns = list(rows[0].keys())  # includes similarity_distance
-            # We'll append 'sp' (similarity percent) short key instead of longer name
-            columns = [*base_columns, "sp"]
-            data_rows = []
-            for row in rows:
-                similarity_distance = row.get("similarity_distance", 1.0)
-                similarity_percent = max(0, (1 - similarity_distance) * 100)
-                row_values = [row[col] for col in base_columns]
-                row_values.append(round(similarity_percent, 1))
-                data_rows.append(row_values)
-
-            return json.dumps(
-                {"c": columns, "r": data_rows, "n": len(data_rows)},
-                separators=(",", ":"),
-                default=str,
-            )
 
         except Exception as e:
             return json.dumps(
@@ -921,9 +977,6 @@ class PostgreSQLSchemaProvider:
                 separators=(",", ":"),
                 default=str,
             )
-        finally:
-            if conn:
-                await self.release_connection(conn)
 
 
 async def test_connection() -> bool:

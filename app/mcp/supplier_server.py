@@ -8,7 +8,7 @@ This MCP server provides tools to support a Supplier Agent with the following ca
 3. Get Supplier Contract - document
 4. Get Company's Supplier policy - document
 
-Uses pre-written SQL queries from supplier_postgres.py for all database operations.
+Uses pre-written SQL queries from supplier_sqlite.py for all database operations.
 """
 
 import asyncio
@@ -21,7 +21,7 @@ from opentelemetry.instrumentation.starlette import StarletteInstrumentor
 from pydantic import Field
 
 from ..config import Config
-from ..supplier_postgres import SupplierPostgreSQLProvider
+from ..supplier_sqlite import SupplierSQLiteProvider
 
 config = Config()
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ for name in [
     logging.getLogger(name).setLevel(logging.WARNING)
 
 # Create database provider
-supplier_provider = SupplierPostgreSQLProvider()
+supplier_provider = SupplierSQLiteProvider()
 
 # Create MCP server with lifespan support
 mcp = FastMCP("mcp-zava-supplier", stateless_http=True)
@@ -52,15 +52,6 @@ def get_header(ctx: Context, header_name: str) -> Optional[str]:
         if headers:
             return headers.get(header_name)
     return None
-
-
-def get_rls_user_id(ctx: Context) -> str:
-    """Get the Row Level Security User ID from the request context."""
-    rls_user_id = get_header(ctx, "x-rls-user-id")
-    if rls_user_id is None:
-        # Default to empty GUID for simplicity as specified
-        rls_user_id = "00000000-0000-0000-0000-000000000000"
-    return rls_user_id
 
 
 @mcp.tool()
@@ -119,12 +110,9 @@ async def find_suppliers_for_request(
     Returns:
         JSON with supplier details including ratings, contact info, terms, and contract status.
     """
-    
-    rls_user_id = get_rls_user_id(ctx)
-    
+
     logger.info("Finding suppliers - Category: %s, ESG: %s, Min Rating: %.1f", 
                 product_category, esg_required, min_rating)
-    logger.info("RLS User ID: %s", rls_user_id)
 
     try:
         result = await supplier_provider.find_suppliers_for_request(
@@ -169,11 +157,8 @@ async def get_supplier_history_and_performance(
     Returns:
         JSON with performance scores, evaluation dates, procurement history, and trend data.
     """
-    
-    rls_user_id = get_rls_user_id(ctx)
-    
+
     logger.info("Getting supplier history - ID: %d, Months: %d", supplier_id, months_back)
-    logger.info("RLS User ID: %s", rls_user_id)
 
     try:
         result = await supplier_provider.get_supplier_history_and_performance(
@@ -207,11 +192,8 @@ async def get_supplier_contract(
     Returns:
         JSON with contract details, terms, values, dates, and renewal status.
     """
-    
-    rls_user_id = get_rls_user_id(ctx)
-    
+
     logger.info("Getting supplier contract - ID: %d", supplier_id)
-    logger.info("RLS User ID: %s", rls_user_id)
 
     try:
         result = await supplier_provider.get_supplier_contract(supplier_id=supplier_id)
@@ -248,11 +230,8 @@ async def get_company_supplier_policy(
     Returns:
         JSON with policy documents, procedures, requirements, and approval thresholds.
     """
-    
-    rls_user_id = get_rls_user_id(ctx)
-    
+
     logger.info("Getting company policies - Type: %s, Department: %s", policy_type, department)
-    logger.info("RLS User ID: %s", rls_user_id)
 
     try:
         result = await supplier_provider.get_company_supplier_policy(
@@ -320,11 +299,11 @@ async def run_http_server() -> None:
         await mcp.run_streamable_http_async()
         
     finally:
-        # Close the pool on shutdown
+        # Close the engine on shutdown
         try:
-            await supplier_provider.close_pool()
+            await supplier_provider.close_engine()
         except Exception as e:
-            logger.error("⚠️  Error closing supplier database pool: %s", e)
+            logger.error("⚠️  Error closing supplier database engine: %s", e)
 
 
 def main() -> None:

@@ -5,11 +5,10 @@ Finance Agent MCP Server for Zava Retail
 This MCP server provides finance-related tools and operations to support
 finance agents with order policies, contracts, sales analysis, and inventory.
 
-The server uses pre-written SQL queries (not dynamically generated SQL) and
-the empty GUID for RLS for simplicity.
+The server uses pre-written SQL queries (not dynamically generated SQL) with SQLite ORM.
 """
 
-from ..finance_postgres import FinancePostgreSQLProvider
+from ..finance_sqlite import FinanceSQLiteProvider
 from ..config import Config
 
 import asyncio
@@ -48,10 +47,10 @@ mcp = FastMCP("Zava Finance Agent MCP Server")
 config = Config()
 
 # Create database provider
-finance_provider = FinancePostgreSQLProvider()
+finance_provider = FinanceSQLiteProvider()
 
 
-async def get_finance_provider() -> FinancePostgreSQLProvider:
+async def get_finance_provider() -> FinanceSQLiteProvider:
     """Get or create finance provider instance."""
     return finance_provider
 
@@ -144,7 +143,7 @@ async def get_supplier_contract(
 
 @mcp.tool()
 async def get_historical_sales_data(
-    days_back: int = 90,
+    days_back: int = 30,
     store_id: Optional[int] = None,
     category_name: Optional[str] = None
 ) -> str:
@@ -156,7 +155,7 @@ async def get_historical_sales_data(
     filtered by store and category. Default lookback period is 90 days.
     
     Args:
-        days_back: Number of days to look back (default: 90)
+        days_back: Number of days to look back (default: 30)
         store_id: Optional store ID to filter results
         category_name: Optional category name to filter results
     
@@ -165,8 +164,8 @@ async def get_historical_sales_data(
         Includes date, store, category, revenue, orders, and customer metrics.
     
     Example:
-        >>> # Get last 90 days of sales for Electronics
-        >>> result = await get_historical_sales_data(days_back=90, category_name="Electronics")
+        >>> # Get last 30 days of sales for Electronics
+        >>> result = await get_historical_sales_data(days_back=30, category_name="Electronics")
         >>> data = json.loads(result)
         >>> total_revenue = sum(row[data['c'].index('total_revenue')] for row in data['r'])
     """
@@ -196,7 +195,7 @@ async def get_historical_sales_data(
 async def get_current_inventory_status(
     store_id: Optional[int] = None,
     category_name: Optional[str] = None,
-    low_stock_threshold: int = 50
+    low_stock_threshold: int = 10
 ) -> str:
     """
     Get current inventory status across stores with values and low stock alerts.
@@ -208,7 +207,7 @@ async def get_current_inventory_status(
     Args:
         store_id: Optional store ID to filter results
         category_name: Optional category name to filter results
-        low_stock_threshold: Stock level below which to trigger alert (default: 50)
+        low_stock_threshold: Stock level below which to trigger alert (default: 10)
     
     Returns:
         JSON string with format: {"c": [columns], "r": [[row data]], "n": count}
@@ -218,7 +217,7 @@ async def get_current_inventory_status(
         >>> # Get low stock items in Electronics
         >>> result = await get_current_inventory_status(
         >>>     category_name="Electronics",
-        >>>     low_stock_threshold=20
+        >>>     low_stock_threshold=10
         >>> )
         >>> data = json.loads(result)
         >>> low_stock_items = [row for row in data['r'] 
@@ -314,11 +313,11 @@ async def run_http_server() -> None:
         await mcp.run_streamable_http_async()
         
     finally:
-        # Close the pool on shutdown
+        # Close the engine on shutdown
         try:
-            await finance_provider.close_pool()
+            await finance_provider.close_engine()
         except Exception as e:
-            logger.error("⚠️  Error closing finance database pool: %s", e)
+            logger.error("⚠️  Error closing finance database engine: %s", e)
 
 
 def main() -> None:
