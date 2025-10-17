@@ -311,15 +311,14 @@ The generator implements **multi-zone seasonal multipliers** across three climat
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| **Customers** | 50,000+ | Realistic demographic profiles across 15 US cities and online |
+| **Customers** | 20,000+ | Realistic demographic profiles across 15 US cities and online |
 | **Products** | 129 | Complete retail catalog (accessories, apparel, footwear, outerwear) |
-| **Product Images** | 129 | Product images linked to database for image-based searches |
 | **Stores** | 16 | 15 physical popup stores + 1 online store across major US cities |
 | **Suppliers** | 20 | Complete supplier directory with static contract data and procurement workflow |
-| **Orders** | 200,000+ | Multi-year transaction history with detailed sales data |
-| **Inventory Items** | 3,000+ | Store-specific inventory across multiple locations |
-| **Image Embeddings** | 129 | AI embeddings stored as serialized strings |
-| **Description Embeddings** | 129 | AI embeddings stored as serialized strings |
+| **Orders** | 50,000+ | Multi-year transaction history with detailed sales data |
+| **Inventory Items** | 480 | Store-specific inventory across multiple locations |
+| **Image Embeddings** | 129 | AI embeddings stored as serialized strings (when populated) |
+| **Description Embeddings** | 129 | AI embeddings stored as serialized strings (when populated) |
 
 This database provides a realistic foundation for retail analytics, machine learning experimentation, seasonal trend analysis, and multi-tenant application development in the retail industry. The SQLite database with serialized embeddings enables advanced AI-powered product similarity searches, comprehensive sales analytics, and sophisticated procurement workflows.
 
