@@ -28,6 +28,15 @@ from app.config import Config
 from app.sales_analysis_postgres import PostgreSQLSchemaProvider
 from app.agents.stock import workflow
 
+# SQLAlchemy imports for SQLite
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from app.models.sqlite import Base
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -39,8 +48,10 @@ logger = logging.getLogger(__name__)
 config = Config()
 SCHEMA_NAME = "retail"
 
-# Database connection
+# Database connections
 db_provider: Optional[PostgreSQLSchemaProvider] = None
+sqlalchemy_engine: Optional[AsyncEngine] = None
+async_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
 
 # Pydantic models for API responses
@@ -221,18 +232,43 @@ class ManagementProductResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown events"""
-    global db_provider
+    global db_provider, sqlalchemy_engine, async_session_factory
 
     # Startup
     logger.info("🚀 Starting GitHub API Server...")
+
+    # Initialize PostgreSQL connection pool (legacy)
     try:
         db_provider = PostgreSQLSchemaProvider()
         await db_provider.create_pool()
-        logger.info("✅ Database connection pool created")
+        logger.info("✅ PostgreSQL connection pool created")
     except Exception as e:
-        logger.error(f"❌ Failed to initialize database: {e}")
+        logger.error(f"❌ Failed to initialize PostgreSQL: {e}")
         raise
 
+    # Initialize SQLAlchemy async engine for SQLite
+    try:
+        sqlite_url = config.sqlite_database_url or "sqlite+aiosqlite:///./data/retail.db"
+        sqlalchemy_engine = create_async_engine(
+            sqlite_url,
+            connect_args={"timeout": 30, "check_same_thread": False},
+            pool_pre_ping=True,
+            echo=False,
+        )
+
+        # Create async session factory
+        async_session_factory = async_sessionmaker(
+            sqlalchemy_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+
+        logger.info(f"✅ SQLAlchemy async engine created: {sqlite_url}")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize SQLAlchemy: {e}")
+        raise
+
+    # Initialize cache
     backend = InMemoryBackend()
     FastAPICache.init(backend=backend)
 
@@ -240,9 +276,16 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("🛑 Shutting down GitHub API Server...")
+
+    # Close PostgreSQL pool
     if db_provider:
         await db_provider.close_pool()
-        logger.info("✅ Database connection pool closed")
+        logger.info("✅ PostgreSQL connection pool closed")
+
+    # Dispose SQLAlchemy engine
+    if sqlalchemy_engine:
+        await sqlalchemy_engine.dispose()
+        logger.info("✅ SQLAlchemy async engine disposed")
 
 
 # Create FastAPI app
@@ -252,6 +295,26 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+
+# Helper function to get SQLAlchemy session
+def get_db_session() -> AsyncSession:
+    """
+    Get a new SQLAlchemy async session.
+
+    Returns:
+        AsyncSession: A new async database session
+
+    Raises:
+        RuntimeError: If the session factory is not initialized
+    """
+    if not async_session_factory:
+        raise RuntimeError(
+            "Database session factory not initialized. "
+            "Ensure the application has started."
+        )
+    return async_session_factory()
+
 
 # Configure CORS
 app.add_middleware(

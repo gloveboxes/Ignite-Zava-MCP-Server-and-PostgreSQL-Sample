@@ -41,6 +41,11 @@ class Config:
         self._postgres_password: str = self._clean_env_value(os.getenv("POSTGRES_PASSWORD", ""))
         self._postgres_application_name: str = self._clean_env_value(os.getenv("POSTGRES_APPLICATION_NAME", "mcp-server"))
 
+        # SQLite database URL
+        self._sqlite_database_url: str = self._clean_env_value(
+            os.getenv("SQLITE_DATABASE_URL", "sqlite+aiosqlite:///./data/retail.db")
+        )
+
         # Load and clean Application Insights connection string
         appinsights_raw = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING", "")
         self._appinsights_connection_string: str = self._clean_env_value(
@@ -91,6 +96,11 @@ class Config:
     def postgres_application_name(self) -> str:
         """Returns the PostgreSQL application name."""
         return self._postgres_application_name
+
+    @property
+    def sqlite_database_url(self) -> str:
+        """Returns the SQLite database URL."""
+        return self._sqlite_database_url
 
     def get_postgres_connection_params(self) -> dict:
         """Returns PostgreSQL connection parameters as a dictionary for asyncpg."""
