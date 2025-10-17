@@ -323,35 +323,50 @@ def insert_suppliers(session: Session):
                 state = 'WA'
                 postal_code = '98000'
             
+            # Get minimum order amount from JSON, or use default
             min_order = supplier.get('min_order_amount', 500.00)
             bulk_threshold = min_order * 5
             bulk_discount = random.uniform(5.0, 10.0)
             
+            # Get rating from JSON, or use default
             rating = supplier.get('rating', 4.0)
-            is_preferred = supplier.get('is_preferred', rating >= 4.5)
+            
+            # Get ESG compliance from JSON, with fallback logic
+            esg_compliant = supplier.get('esg_compliant', rating >= 4.0)
+            
+            # Get preferred vendor status from JSON, with fallback logic
+            is_preferred = supplier.get('preferred_vendor', rating >= 4.5)
+            
+            # Get approved vendor status from JSON, with fallback logic
+            is_approved = supplier.get('approved_vendor', rating >= 3.5)
             
             supplier_id = supplier.get('supplier_id', idx)
             
+            # Get payment terms from contract if available, otherwise from supplier
+            payment_terms = supplier.get('payment_terms', 'Net 30')
+            if 'contracts' in supplier and len(supplier['contracts']) > 0:
+                payment_terms = supplier['contracts'][0].get('payment_terms', payment_terms)
+            
             supplier_objects.append(Supplier(
                 supplier_id=supplier_id,
-                supplier_name=supplier.get('name', f'Supplier {idx}'),
+                supplier_name=supplier.get('supplier_name', supplier.get('name', f'Supplier {idx}')),
                 supplier_code=supplier_code,
-                contact_email=supplier.get('email', f'contact{idx}@supplier.com'),
-                contact_phone=supplier.get('phone', f'(555) {idx:03d}-0000'),
+                contact_email=supplier.get('contact_email', supplier.get('email', f'contact{idx}@supplier.com')),
+                contact_phone=supplier.get('contact_phone', supplier.get('phone', f'(555) {idx:03d}-0000')),
                 address_line1=address_line1,
                 address_line2='',
                 city=city,
                 state_province=state,
                 postal_code=postal_code,
                 country='USA',
-                payment_terms=supplier.get('payment_terms', 'Net 30'),
+                payment_terms=payment_terms,
                 lead_time_days=supplier.get('lead_time_days', 14),
                 minimum_order_amount=min_order,
                 bulk_discount_threshold=bulk_threshold,
                 bulk_discount_percent=bulk_discount,
                 supplier_rating=rating,
-                esg_compliant=True if is_preferred else False,
-                approved_vendor=True,
+                esg_compliant=esg_compliant,
+                approved_vendor=is_approved,
                 preferred_vendor=is_preferred
             ))
         
@@ -634,8 +649,8 @@ def insert_orders_and_items(session: Session, num_orders: int = 50000):
             selected_products = random.sample(products_in_db, num_products_per_store)
             
             for product in selected_products:
-                # Stock levels between 10 and 20 items
-                stock_level = random.randint(10, 20)
+                # Stock levels between 0 and 20 items
+                stock_level = random.randint(0, 20)
                 inventory_objects.append(Inventory(
                     store_id=store.store_id,
                     product_id=product.product_id,

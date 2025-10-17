@@ -967,28 +967,39 @@ async def insert_suppliers(conn):
             bulk_threshold = min_order * 5  # Bulk discounts at 5x minimum order
             bulk_discount = random.uniform(5.0, 10.0)  # 5-10% bulk discount
             
-            # Determine vendor status based on rating
+            # Get rating from JSON, or use default
             rating = supplier.get('rating', 4.0)
-            is_preferred = supplier.get('is_preferred', rating >= 4.5)
-            approved_vendor = True  # All loaded suppliers are approved
-            esg_compliant = is_preferred  # Preferred vendors are ESG compliant
+            
+            # Get ESG compliance from JSON, with fallback logic
+            esg_compliant = supplier.get('esg_compliant', rating >= 4.0)
+            
+            # Get preferred vendor status from JSON, with fallback logic
+            is_preferred = supplier.get('preferred_vendor', rating >= 4.5)
+            
+            # Get approved vendor status from JSON, with fallback logic
+            approved_vendor = supplier.get('approved_vendor', rating >= 3.5)
             
             # Use supplier_id from JSON if provided, otherwise use auto-increment
             supplier_id = supplier.get('supplier_id', idx)
             
+            # Get payment terms from contract if available, otherwise from supplier
+            payment_terms = supplier.get('payment_terms', 'Net 30')
+            if 'contracts' in supplier and len(supplier['contracts']) > 0:
+                payment_terms = supplier['contracts'][0].get('payment_terms', payment_terms)
+            
             supplier_insert_data.append((
                 supplier_id,
-                supplier.get('name', f'Supplier {idx}'),
+                supplier.get('supplier_name', supplier.get('name', f'Supplier {idx}')),
                 supplier_code,
-                supplier.get('email', f'contact{idx}@supplier.com'),
-                supplier.get('phone', f'(555) {idx:03d}-0000'),
+                supplier.get('contact_email', supplier.get('email', f'contact{idx}@supplier.com')),
+                supplier.get('contact_phone', supplier.get('phone', f'(555) {idx:03d}-0000')),
                 address_line1,
                 '',  # address_line2
                 city,
                 state,
                 postal_code,
                 'USA',
-                supplier.get('payment_terms', 'Net 30'),
+                payment_terms,
                 supplier.get('lead_time_days', 14),
                 min_order,
                 bulk_threshold,

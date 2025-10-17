@@ -3,14 +3,27 @@
 ## Overview
 This document provides comprehensive documentation for the GitHub Popup retail database schema, including product catalog, inventory management, supplier information, and database structure across 16 store locations.
 
-**Generated:** October 15, 2025 (Updated)  
-**Database:** PostgreSQL - GitHub Popup Retail System  
-**Schema:** retail
+**Generated:** October 17, 2025 (Updated)  
+**Database:** SQLite - GitHub Popup Retail System  
+**Database File:** `data/retail.db`  
+**Data Models:** `app/models/sqlite/` directory
 
 **Key Features:**
+- **Lightweight Database**: File-based SQLite database for easy deployment and portability
 - **Static Supplier Data**: All supplier contracts, codes, and values are managed through JSON reference files for consistent database generation
 - **Predictable Contract Values**: All 20 supplier contracts use static values rounded to $10K with standardized numbering and realistic end dates
 - **Reproducible Database**: Static reference data ensures identical results across multiple database generations for reliable testing and development
+- **Diverse Supplier Network**: 20 suppliers with varied ratings (3.2-4.8), ESG compliance (55%), and performance tiers for realistic procurement scenarios
+
+**Supplier Data Quality:**
+The database contains realistic, diverse supplier data sourced from `data/database/reference_data/supplier_data.json`:
+- **Varied Ratings:** From 3.2 (Global Headwear) to 4.8 (Urban Threads) for realistic vendor comparisons
+- **ESG Diversity:** 11 ESG-compliant suppliers (55%) and 9 non-compliant for filtering scenarios
+- **Approval Status:** 17 approved vendors, 3 pending review (Global Headwear, Streetwear Collective, Quality Basics)
+- **Preferred Vendors:** 4 top-tier suppliers marked as preferred for priority procurement
+- **Lead Time Variation:** 9-25 day range for testing time-sensitive procurement decisions
+- **Payment Terms:** Mix of Net 30 (70%), Net 45 (20%), and Net 60 (10%) for diverse cash flow scenarios
+- **Real Contact Information:** Authentic email addresses and supplier names for workshop demonstrations
 
 ---
 
@@ -65,29 +78,29 @@ This document provides comprehensive documentation for the GitHub Popup retail d
 | Store Name | Unique Products | Total Items | Total Inventory Value (Retail) |
 |------------|----------------|-------------|------------------------------|
 | **Physical Popup Stores** |
-| GitHub Popup Atlanta Midtown | 42 | 347 | $24,855.89 |
-| GitHub Popup Austin Downtown | 50 | 434 | $26,639.52 |
-| GitHub Popup Boston Back Bay | 45 | 354 | $23,280.00 |
-| GitHub Popup Chicago Loop | 47 | 386 | $26,144.93 |
-| GitHub Popup Denver LoDo | 52 | 433 | $30,455.71 |
-| GitHub Popup Miami Design District | 41 | 288 | $17,989.75 |
-| GitHub Popup Minneapolis Mill District | 50 | 421 | $31,414.38 |
-| GitHub Popup Nashville Music Row | 44 | 376 | $25,649.49 |
-| GitHub Popup NYC Times Square | 52 | 519 | $33,804.13 |
-| GitHub Popup Phoenix Scottsdale | 42 | 346 | $23,184.30 |
-| GitHub Popup Portland Pearl District | 42 | 344 | $28,992.90 |
-| GitHub Popup Raleigh Research Triangle | 44 | 401 | $31,207.56 |
-| GitHub Popup Salt Lake City Downtown | 50 | 411 | $32,906.88 |
-| GitHub Popup Seattle Capitol Hill | 45 | 423 | $32,955.78 |
-| GitHub Popup SF Union Square | 47 | 417 | $34,034.09 |
+| GitHub Popup Atlanta Midtown | 30 | 307 | $10,514.93 |
+| GitHub Popup Austin Downtown | 30 | 260 | $9,395.40 |
+| GitHub Popup Boston Back Bay | 30 | 312 | $15,145.88 |
+| GitHub Popup Chicago Loop | 30 | 306 | $14,433.94 |
+| GitHub Popup Denver LoDo | 30 | 288 | $14,935.12 |
+| GitHub Popup Miami Design District | 30 | 331 | $15,667.69 |
+| GitHub Popup Minneapolis Mill District | 30 | 300 | $13,693.00 |
+| GitHub Popup Nashville Music Row | 30 | 354 | $16,088.46 |
+| GitHub Popup NYC Times Square | 30 | 326 | $14,987.74 |
+| GitHub Popup Phoenix Scottsdale | 30 | 331 | $14,686.69 |
+| GitHub Popup Portland Pearl District | 30 | 284 | $14,409.16 |
+| GitHub Popup Raleigh Research Triangle | 30 | 337 | $17,270.63 |
+| GitHub Popup Salt Lake City Downtown | 30 | 360 | $16,609.40 |
+| GitHub Popup Seattle Capitol Hill | 30 | 312 | $14,559.88 |
+| GitHub Popup SF Union Square | 30 | 288 | $11,837.12 |
 | **Online Store** |
-| GitHub Popup Online Store | 129 | 6,217 | $437,821.29 |
+| GitHub Popup Online Store | 30 | 318 | $19,618.82 |
 
 **Total Popup Stores:** 16 (15 Physical + 1 Online)  
-**Total Physical Store Inventory Value:** $423,515.31  
-**Total Online Store Inventory Value:** $437,821.29  
-**Total Combined Inventory Value:** $861,336.60  
-**Average Physical Store Inventory Value:** $28,234.35
+**Total Physical Store Inventory Value:** $214,235.04  
+**Total Online Store Inventory Value:** $19,618.82  
+**Total Combined Inventory Value:** $233,853.86  
+**Average Physical Store Inventory Value:** $14,282.34
 
 ### Store Distribution & Themes
 
@@ -113,10 +126,10 @@ This document provides comprehensive documentation for the GitHub Popup retail d
 | **Online Store** | Global Developer Community | All Zones | Complete Catalog |
 
 ### Product Distribution Strategy
-- **Physical Stores:** Each store carries 40-55 curated products (~30% average of total catalog)
-- **Online Store:** Complete product catalog (129 products)
-- **Product Overlap:** ~20-30% core essentials shared across stores
-- **Unique Assortment:** 70-80% store-specific products based on local themes and demographics
+- **Physical Stores:** Each store carries exactly 30 curated products (~23% of total catalog)
+- **Online Store:** Carries 30 products (same selection as physical stores)
+- **Product Overlap:** All stores carry the same 30 core products
+- **Unique Assortment:** Consistent product selection across all locations
 
 ---
 
@@ -124,63 +137,78 @@ This document provides comprehensive documentation for the GitHub Popup retail d
 
 ### Supplier Directory
 
-| Supplier Name | Code | Location | Contact | ESG Compliant | Approved | Preferred | Rating |
-|--------------|------|----------|---------|---------------|----------|-----------|--------|
-| **Active Wear Solutions** | SUP010 | Tacoma, WA | amanda@activewear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Athletic Footwear Network** | SUP016 | Everett, WA | ryan.clark@athleticfootwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 2.00 |
-| **Bag & Luggage Distributors** | SUP013 | Spokane, WA | daniel.white@bagluggage.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
-| **Classic Outerwear Imports** | SUP011 | Seattle, WA | thomas.brown@classicouterwear.com | ❌ No | ✅ Yes | ❌ No | 4.40 |
-| **Comfort Footwear Wholesale** | SUP007 | Everett, WA | robert@comfortfootwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
-| **Elite Fashion Distributors** | SUP002 | Bellevue, WA | sarah.j@elitefashion.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.90 |
-| **Fashion Forward Wholesale** | SUP014 | Redmond, WA | michelle@fashionforward.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Footwear Direct International** | SUP006 | Redmond, WA | lisa.t@footweardirect.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.20 |
-| **Formal Wear Specialists** | SUP017 | Seattle, WA | susan.moore@formalwear.com | ✅ Yes | ✅ Yes | ⭐ Yes | 3.70 |
-| **Global Headwear Co** | SUP009 | Kirkland, WA | chris.w@globalheadwear.com | ❌ No | ✅ Yes | ❌ No | 2.00 |
-| **Metro Style Supply Co** | SUP004 | Seattle, WA | e.rodriguez@metrostyle.com | ✅ Yes | ✅ Yes | ⭐ Yes | 2.50 |
-| **Northwest Denim Works** | SUP005 | Spokane, WA | david.kim@nwdenim.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Pacific Apparel Group** | SUP003 | Tacoma, WA | james@pacificapparel.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
-| **Premier Accessories Ltd** | SUP008 | Seattle, WA | j.lee@premieraccessories.com | ✅ Yes | ✅ Yes | ⭐ Yes | 2.80 |
-| **Premium Denim Source** | SUP015 | Tacoma, WA | kevin@premiumdenim.com | ❌ No | ✅ Yes | ❌ No | 3.60 |
-| **Quality Basics Wholesale** | SUP020 | Tacoma, WA | mark.j@qualitybasics.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.80 |
-| **Sock & Hosiery Wholesale** | SUP012 | Bellevue, WA | patricia@socksupply.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.90 |
-| **Streetwear Collective** | SUP018 | Kirkland, WA | jason@streetwearcollective.com | ✅ Yes | ✅ Yes | ⭐ Yes | 4.70 |
-| **Urban Threads Wholesale** | SUP001 | Seattle, WA | michael.chen@urbanthreads.com | ✅ Yes | ✅ Yes | ⭐ Yes | 3.50 |
-| **Winter Wear Supply Co** | SUP019 | Spokane, WA | karen@winterwear.com | ❌ No | ✅ Yes | ❌ No | 3.50 |
+| Supplier Name | Code | Location | Contact | ESG Compliant | Approved | Preferred | Rating | Lead Time |
+|--------------|------|----------|---------|---------------|----------|-----------|--------|-----------|
+| **Urban Threads Wholesale** | SUP001 | Seattle, WA | michael.chen@urbanthreads.com | ✅ Yes | ✅ Yes | ⭐ **Yes** | 4.80 | 10 days |
+| **Elite Fashion Distributors** | SUP002 | Seattle, WA | sarah.j@elitefashion.com | ✅ Yes | ✅ Yes | ⭐ **Yes** | 4.50 | 12 days |
+| **Pacific Apparel Group** | SUP003 | Seattle, WA | james@pacificapparel.com | ✅ Yes | ✅ Yes | ❌ No | 3.80 | 14 days |
+| **Metro Style Supply Co** | SUP004 | Seattle, WA | e.rodriguez@metrostyle.com | ❌ No | ✅ Yes | ❌ No | 4.20 | 18 days |
+| **Northwest Denim Works** | SUP005 | Seattle, WA | david.kim@nwdenim.com | ✅ Yes | ✅ Yes | ❌ No | 3.90 | 15 days |
+| **Footwear Direct International** | SUP006 | Seattle, WA | lisa.t@footweardirect.com | ✅ Yes | ✅ Yes | ⭐ **Yes** | 4.60 | 11 days |
+| **Comfort Footwear Wholesale** | SUP007 | Seattle, WA | robert@comfortfootwear.com | ❌ No | ✅ Yes | ❌ No | 4.10 | 16 days |
+| **Premier Accessories Ltd** | SUP008 | Seattle, WA | j.lee@premieraccessories.com | ❌ No | ✅ Yes | ❌ No | 3.50 | 20 days |
+| **Global Headwear Co** | SUP009 | Seattle, WA | chris.w@globalheadwear.com | ❌ No | ⚠️ **No** | ❌ No | 3.20 | 25 days |
+| **Active Wear Solutions** | SUP010 | Seattle, WA | amanda@activewear.com | ✅ Yes | ✅ Yes | ❌ No | 4.30 | 13 days |
+| **Classic Outerwear Imports** | SUP011 | Seattle, WA | thomas.brown@classicouterwear.com | ✅ Yes | ✅ Yes | ❌ No | 4.40 | 14 days |
+| **Sock & Hosiery Wholesale** | SUP012 | Seattle, WA | patricia@socksupply.com | ❌ No | ✅ Yes | ❌ No | 3.60 | 17 days |
+| **Bag & Luggage Distributors** | SUP013 | Seattle, WA | daniel.white@bagluggage.com | ✅ Yes | ✅ Yes | ❌ No | 4.00 | 15 days |
+| **Fashion Forward Wholesale** | SUP014 | Seattle, WA | michelle@fashionforward.com | ✅ Yes | ✅ Yes | ⭐ **Yes** | 4.70 | 9 days |
+| **Premium Denim Source** | SUP015 | Seattle, WA | kevin@premiumdenim.com | ❌ No | ✅ Yes | ❌ No | 3.70 | 19 days |
+| **Athletic Footwear Network** | SUP016 | Seattle, WA | ryan.clark@athleticfootwear.com | ✅ Yes | ✅ Yes | ❌ No | 4.20 | 14 days |
+| **Formal Wear Specialists** | SUP017 | Seattle, WA | susan.moore@formalwear.com | ❌ No | ✅ Yes | ❌ No | 3.90 | 18 days |
+| **Streetwear Collective** | SUP018 | Seattle, WA | jason@streetwearcollective.com | ❌ No | ⚠️ **No** | ❌ No | 3.40 | 22 days |
+| **Winter Wear Supply Co** | SUP019 | Seattle, WA | karen@winterwear.com | ✅ Yes | ✅ Yes | ❌ No | 4.00 | 16 days |
+| **Quality Basics Wholesale** | SUP020 | Seattle, WA | mark.j@qualitybasics.com | ❌ No | ⚠️ **No** | ❌ No | 3.30 | 24 days |
 
 #### 💰 Supplier Bulk Discount Programs
 
-All GitHub Popup suppliers offer bulk discount programs with varying thresholds and discount rates. **Note**: Discounts apply automatically when order values exceed the specified thresholds.
+All GitHub Popup suppliers offer bulk discount programs with varying discount rates. **Note**: Discounts apply automatically when order values exceed $2,500.
 
-**Best Discount Rates:**
-- **Northwest Denim Works (SUP005)**: 9.49% discount on orders $4,000+
-- **Comfort Footwear Wholesale (SUP007)**: 9.26% discount on orders $3,000+
-- **Footwear Direct International (SUP006)**: 9.25% discount on orders $7,500+
-- **Formal Wear Specialists (SUP017)**: 9.07% discount on orders $10,000+
-- **Quality Basics Wholesale (SUP020)**: 8.99% discount on orders $2,500+
+**Discount Rates by Supplier:**
+- **Supplier 17 (SUP017)**: 9.47% discount on orders $2,500+
+- **Supplier 11 (SUP011)**: 8.90% discount on orders $2,500+
+- **Supplier 2 (SUP002)**: 8.74% discount on orders $2,500+
+- **Supplier 3 (SUP003)**: 8.41% discount on orders $2,500+
+- **Supplier 1 (SUP001)**: 8.38% discount on orders $2,500+
 
-**Most Accessible Discounts (Lowest Thresholds):**
-- **Sock & Hosiery Wholesale (SUP012)**: 7.28% discount on orders $1,500+
-- **Premier Accessories Ltd (SUP008)**: 7.92% discount on orders $2,000+
-- **Quality Basics Wholesale (SUP020)**: 8.99% discount on orders $2,500+
-- **Urban Threads Wholesale (SUP001)**: 6.46% discount on orders $2,500+
-- **Global Headwear Co (SUP009)**: 5.98% discount on orders $2,500+
+**All Suppliers:**
+All 20 suppliers offer consistent terms:
+- **Bulk Discount Threshold**: $2,500 minimum order
+- **Discount Rates**: Range from 5.12% to 9.47%
+- **Payment Terms**: Net 30 (all suppliers)
+- **Lead Time**: 14 days (all suppliers)
 
-**Premium Volume Discounts (High Thresholds):**
-- **Classic Outerwear Imports (SUP011)**: 7.44% discount on orders $12,500+
-- **Formal Wear Specialists (SUP017)**: 9.07% discount on orders $10,000+
-- **Metro Style Supply Co (SUP004)**: 8.86% discount on orders $10,000+
-
-**💡 Procurement Tip**: Quality Basics Wholesale offers the best combination of high discount rate (8.99%) and accessible threshold ($2,500), making them ideal for regular orders. Northwest Denim Works provides the highest discount rate at 9.49% for denim needs, while Sock & Hosiery Wholesale offers the lowest threshold at $1,500 for smaller frequent orders.
+**💡 Procurement Tip**: All suppliers have the same minimum order threshold ($2,500) and payment terms (Net 30). Choose suppliers based on their discount rate, with Supplier 17 offering the best rate at 9.47%.
 
 ### Supplier Key Metrics
 
 - **Total Suppliers:** 20
-- **ESG Compliant:** 16 (80%)
-- **Approved Vendors:** 20 (100%)
-- **Preferred Vendors:** 16 (80%)
-- **Average Rating:** 4.00/5.0
-- **Geographic Coverage:** Washington State
+- **ESG Compliant:** 11 (55%) - ✅ Majority ESG certified
+- **Approved Vendors:** 17 (85%) - ⚠️ 3 suppliers pending approval
+- **Preferred Vendors:** 4 (20%) - ⭐ Top-tier partners
+- **Average Rating:** 4.01/5.0 (Range: 3.2 to 4.8)
+- **Lead Time Range:** 9-25 days (Average: 16.2 days)
+- **Geographic Coverage:** All suppliers located in Seattle, WA
 - **Contract Management:** All supplier contracts use static data from JSON reference files for consistent database generation
+
+**Supplier Tiers:**
+- **🌟 Premium Tier (Rating ≥ 4.5):** 4 suppliers - Urban Threads (4.8), Fashion Forward (4.7), Footwear Direct (4.6), Elite Fashion (4.5)
+- **⭐ High Performance (Rating 4.0-4.4):** 7 suppliers - Classic Outerwear, Active Wear, Metro Style, Athletic Footwear, Comfort Footwear, Bag & Luggage, Winter Wear
+- **✓ Standard Tier (Rating 3.5-3.9):** 6 suppliers - Northwest Denim, Formal Wear, Pacific Apparel, Premium Denim, Sock & Hosiery, Premier Accessories
+- **⚠️ Review Needed (Rating < 3.5):** 3 suppliers - Streetwear Collective (3.4), Quality Basics (3.3), Global Headwear (3.2)
+
+**ESG Compliance Leaders:**
+- Urban Threads Wholesale (4.8★, Preferred)
+- Fashion Forward Wholesale (4.7★, Preferred)
+- Footwear Direct International (4.6★, Preferred)
+- Elite Fashion Distributors (4.5★, Preferred)
+- Classic Outerwear Imports (4.4★)
+- Active Wear Solutions (4.3★)
+
+**Non-Approved Vendors Requiring Review:**
+- Global Headwear Co (3.2★, 25-day lead time)
+- Streetwear Collective (3.4★, 22-day lead time)
+- Quality Basics Wholesale (3.3★, 24-day lead time)
 
 ### Static Supplier Data Implementation
 
@@ -200,14 +228,18 @@ All supplier contract information is now managed through static JSON data for co
 - **Data Integrity:** All supplier-related fields controlled via single JSON source
 
 ### Payment Terms Distribution
-- **Net 30:** 11 suppliers (55%)
-- **Net 45:** 6 suppliers (30%)
-- **Net 60:** 3 suppliers (15%)
+- **Net 30:** 14 suppliers (70%)
+- **Net 45:** 4 suppliers (20%)
+- **Net 60:** 2 suppliers (10%)
 
 ### Lead Time Analysis
-- **Average Lead Time:** 14.3 days
-- **Fastest Delivery:** 5 days (Sock & Hosiery Wholesale)
-- **Longest Lead Time:** 28 days (Classic Outerwear Imports)
+- **Average Lead Time:** 16.2 days
+- **Fastest Delivery:** 9 days (Fashion Forward Wholesale)
+- **Longest Lead Time:** 25 days (Global Headwear Co)
+- **Express Shipping (≤10 days):** 2 suppliers - Fashion Forward (9 days), Urban Threads (10 days)
+- **Standard Shipping (11-15 days):** 9 suppliers
+- **Extended Lead Time (16-20 days):** 6 suppliers
+- **Slow Delivery (>20 days):** 3 suppliers - Streetwear (22d), Quality Basics (24d), Global Headwear (25d)
 
 ---
 
@@ -245,7 +277,7 @@ All supplier contract information is now managed through static JSON data for co
 
 ## MCP Servers
 
-The Zava Retail system includes three specialized Model Context Protocol (MCP) servers that provide AI agents with access to different aspects of the retail database and operations. Each server runs on a dedicated port and offers specific tools for different business functions.
+The GitHub Popup retail system includes two specialized Model Context Protocol (MCP) servers that provide AI agents with access to different aspects of the retail database and operations. Each server runs on a dedicated port and offers specific tools for different business functions.
 
 ### 🏦 Finance Agent MCP Server (Port 8002)
 
@@ -256,7 +288,7 @@ The Zava Retail system includes three specialized Model Context Protocol (MCP) s
 #### Available Tools:
 
 ##### 1. `get_company_order_policy`
-**Purpose:** Retrieves company order processing policies and budget authorization rules.
+Get company order processing policies and budget authorization rules. Returns company policies related to order processing, budget authorization, and approval requirements. Policies can be filtered by department.
 
 **Input Parameters:**
 - `department` (Optional[str]): Optional department name to filter policies (e.g., "Procurement", "Finance")
@@ -264,7 +296,7 @@ The Zava Retail system includes three specialized Model Context Protocol (MCP) s
 **Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing policy names, types, content, thresholds, and approval requirements.
 
 ##### 2. `get_supplier_contract`
-**Purpose:** Gets supplier contract information including terms and conditions.
+Get supplier contract information including terms and conditions. Returns active contract details for a specific supplier including contract numbers, dates, values, payment terms, and renewal status.
 
 **Input Parameters:**
 - `supplier_id` (int): The unique identifier for the supplier (required)
@@ -272,74 +304,39 @@ The Zava Retail system includes three specialized Model Context Protocol (MCP) s
 **Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing contract details, dates, values, and calculated expiry information.
 
 ##### 3. `get_historical_sales_data`
-**Purpose:** Retrieves historical sales data with revenue, order counts, and customer metrics.
+Get historical sales data with revenue, order counts, and customer metrics. Returns comprehensive sales statistics including total revenue, order counts, average order values, units sold, and unique customer counts. Data can be filtered by store and category.
 
 **Input Parameters:**
-- `days_back` (int): Number of days to look back (default: 90)
+- `days_back` (int): Number of days to look back (default: 30)
 - `store_id` (Optional[int]): Optional store ID to filter results
 - `category_name` (Optional[str]): Optional category name to filter results
 
 **Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing date, store, category, revenue, orders, and customer metrics.
 
 ##### 4. `get_current_inventory_status`
-**Purpose:** Gets current inventory status across stores with values and low stock alerts.
+Get current inventory status across stores with values and low stock alerts. Returns inventory levels, cost values, retail values, and low stock alerts for products across all stores. Can be filtered by store and category.
 
 **Input Parameters:**
 - `store_id` (Optional[int]): Optional store ID to filter results
 - `category_name` (Optional[str]): Optional category name to filter results
-- `low_stock_threshold` (int): Stock level below which to trigger alert (default: 50)
+- `low_stock_threshold` (int): Stock level below which to trigger alert (default: 10)
 
 **Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing store, product, category, stock levels, values, and alerts.
 
-##### 5. `get_current_utc_date`
-**Purpose:** Gets the current date and time in UTC format for date calculations and time-sensitive operations.
+##### 5. `get_stores`
+Get store information with optional filtering by name. Returns store details including store IDs, names, and online status. Can be filtered by store name using partial, case-insensitive matching.
+
+**Input Parameters:**
+- `store_name` (Optional[str]): Optional store name to search for (partial match, case-insensitive)
+
+**Returns:** JSON string with format `{"c": [columns], "r": [[row data]], "n": count}` containing store_id, store_name, is_online, rls_user_id.
+
+##### 6. `get_current_utc_date`
+Get the current date and time in UTC format. Useful for calculating date ranges, tracking when analyses were performed, and providing context for time-sensitive financial data.
 
 **Input Parameters:** None
 
 **Returns:** ISO 8601 formatted UTC datetime string (YYYY-MM-DDTHH:MM:SS.ffffffZ)
-
----
-
-### 📊 Sales Analysis MCP Server (Port 8000)
-
-**Purpose:** Provides comprehensive customer sales database access with individual table schema tools and semantic search capabilities for Zava Retail business operations.
-
-**Endpoint:** `http://localhost:8000/mcp`
-
-#### Available Tools:
-
-##### 1. `semantic_search_products`
-**Purpose:** Searches for Zava products using natural language descriptions to find matches based on semantic similarity.
-
-**Input Parameters:**
-- `query_description` (str): Describe the Zava product you're looking for using natural language. Include purpose, features, or use case.
-- `max_rows` (int): The maximum number of products to return (default: 20)
-- `similarity_threshold` (float): A value between 20 and 80 that sets the minimum similarity threshold (default: 30.0)
-
-**Returns:** JSON with compact success format `{"c":["col1","col2"],"r":[[v11,v12],[v21,v22]],"n":2}` or error format with "err" field.
-
-##### 2. `get_multiple_table_schemas`
-**Purpose:** Retrieves schemas for multiple database tables to understand data structure.
-
-**Input Parameters:**
-- `table_names` (list[str]): List of table names from the retail schema (customers, stores, categories, products, orders, etc.)
-
-**Returns:** Concatenated schema strings for the requested tables.
-
-##### 3. `execute_sales_query`
-**Purpose:** Executes PostgreSQL queries against the sales database with proper validation and formatting.
-
-**Input Parameters:**
-- `postgresql_query` (str): A well-formed PostgreSQL query
-
-**Returns:** Query results as a formatted string with proper column headers and data.
-
-##### 4. `get_current_utc_date`
-**Purpose:** Gets the current UTC date and time for time-sensitive analysis.
-
-**Input Parameters:** None
-
-**Returns:** Current UTC date and time in ISO format (YYYY-MM-DDTHH:MM:SS.fffffZ)
 
 ---
 
@@ -352,47 +349,47 @@ The Zava Retail system includes three specialized Model Context Protocol (MCP) s
 #### Available Tools:
 
 ##### 1. `find_suppliers_for_request`
-**Purpose:** Finds suppliers that match procurement request requirements based on various criteria.
+Find suppliers that match procurement request requirements. This tool searches for suppliers based on product category, ESG compliance, rating requirements, lead time constraints, and budget considerations. Returns suppliers ranked by preference and performance.
 
 **Input Parameters:**
-- `product_category` (Optional[str]): Product category to filter suppliers by (e.g., 'Tools', 'Hardware', 'Building Materials')
-- `esg_required` (bool): Whether ESG compliance is required (default: false)
-- `min_rating` (float): Minimum supplier rating required 0.0 to 5.0 (default: 3.0)
-- `max_lead_time` (int): Maximum acceptable lead time in days (default: 30)
-- `budget_min` (Optional[float]): Minimum budget amount to consider suppliers
-- `budget_max` (Optional[float]): Maximum budget amount to filter suppliers
-- `limit` (int): Maximum number of suppliers to return (default: 10)
+- `product_category` (Optional[str]): Product category to filter suppliers by (e.g., 'Tools', 'Hardware', 'Building Materials'). Leave empty to search all categories.
+- `esg_required` (bool): Whether ESG (Environmental, Social, Governance) compliance is required. Set to true if the request specifically requires ESG-compliant suppliers. (default: false)
+- `min_rating` (float): Minimum supplier rating required 0.0 to 5.0. Default is 3.0 for acceptable quality suppliers.
+- `max_lead_time` (int): Maximum acceptable lead time in days. Default is 30 days for standard procurement.
+- `budget_min` (Optional[float]): Minimum budget amount to consider suppliers with appropriate minimum order amounts.
+- `budget_max` (Optional[float]): Maximum budget amount to filter suppliers by bulk discount thresholds.
+- `limit` (int): Maximum number of suppliers to return. Default is 10.
 
 **Returns:** JSON with supplier details including ratings, contact info, terms, and contract status.
 
 ##### 2. `get_supplier_history_and_performance`
-**Purpose:** Gets detailed supplier performance history and metrics for evaluation.
+Get detailed supplier performance history and metrics. This tool retrieves historical performance evaluations, procurement activity, and performance trends for a specific supplier. Includes cost, quality, delivery, and compliance scores over time.
 
 **Input Parameters:**
-- `supplier_id` (int): Unique identifier of the supplier
-- `months_back` (int): Number of months of history to retrieve (default: 12)
+- `supplier_id` (int): Unique identifier of the supplier to get performance history for.
+- `months_back` (int): Number of months of history to retrieve. Default is 12 months for annual performance view.
 
 **Returns:** JSON with performance scores, evaluation dates, procurement history, and trend data.
 
 ##### 3. `get_supplier_contract`
-**Purpose:** Gets supplier contract details and terms for a specific supplier.
+Get supplier contract details and terms. This tool retrieves active contract information including contract numbers, terms and conditions, payment terms, contract values, expiration dates, and renewal information for a specific supplier.
 
 **Input Parameters:**
-- `supplier_id` (int): Unique identifier of the supplier
+- `supplier_id` (int): Unique identifier of the supplier to get contract information for.
 
 **Returns:** JSON with contract details, terms, values, dates, and renewal status.
 
 ##### 4. `get_company_supplier_policy`
-**Purpose:** Gets company policies related to supplier management and procurement processes.
+Get company policies related to supplier management. This tool retrieves company policies and procedures for supplier selection, procurement processes, vendor approval requirements, and budget authorization limits. Helps ensure compliance with company guidelines.
 
 **Input Parameters:**
-- `policy_type` (Optional[str]): Type of policy ('procurement', 'vendor_approval', 'budget_authorization', 'order_processing')
-- `department` (Optional[str]): Department-specific policies to retrieve
+- `policy_type` (Optional[str]): Type of policy to retrieve. Options: 'procurement', 'vendor_approval', 'budget_authorization', 'order_processing'. Leave empty to get all supplier-related policies.
+- `department` (Optional[str]): Department-specific policies to retrieve. Leave empty to get company-wide policies.
 
 **Returns:** JSON with policy documents, procedures, requirements, and approval thresholds.
 
 ##### 5. `get_current_utc_date`
-**Purpose:** Gets the current UTC date and time for time-sensitive supplier analysis.
+Get the current UTC date and time in ISO format. Useful for date-time relative queries or understanding the current date for time-sensitive supplier analysis.
 
 **Input Parameters:** None
 
@@ -416,8 +413,7 @@ The Zava Retail system includes three specialized Model Context Protocol (MCP) s
 
 **Usage Pattern:**
 1. **Finance Agent** → Finance MCP Server (8002) for financial data and policies
-2. **Sales Agent** → Sales Analysis MCP Server (8000) for product search and sales queries  
-3. **Supplier Agent** → Supplier MCP Server (8001) for vendor management and procurement
+2. **Supplier Agent** → Supplier MCP Server (8001) for vendor management and procurement
 
 ---
 
@@ -482,30 +478,16 @@ The GitHub Popup retail system implements sophisticated seasonal demand patterns
 
 ## Complete Database Schema
 
-### Row Level Security (RLS) Implementation
+### Database Overview
 
-The GitHub Popup retail database implements PostgreSQL Row Level Security to ensure data isolation between stores:
+The GitHub Popup retail system uses a SQLite database located at `data/retail.db`.
 
-**RLS User System:**
-- Each store has a unique `rls_user_id` (UUID) that controls data access
-- **Super Manager UUID:** `00000000-0000-0000-0000-000000000000` - Has access to all data across stores
-- Store-specific UUIDs restrict access to relevant data only
-
-**Key RLS Tables:**
-- `retail.stores` - Each store has unique rls_user_id for access control
-- `retail.customers` - Customer data tied to primary store via foreign key
-- `retail.orders` - Order access controlled by store association
-- `retail.inventory` - Inventory visible only to authorized store users
-
-**Security Benefits:**
-- Multi-tenant architecture within single database
-- Store managers only see their store's data
-- Corporate users (with super manager UUID) have full access
-- Prevents accidental data exposure between stores
+**Data Models:**
+All data models and table definitions are available in the `app/models/sqlite/` directory.
 
 ### Core Tables Overview
 
-The GitHub Popup retail database consists of 17 tables organized into the following functional areas:
+The GitHub Popup retail database consists of 15 tables organized into the following functional areas:
 
 1. **Customer Management**: `customers`
 2. **Store Management**: `stores` (with RLS user mapping)
@@ -514,11 +496,10 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 5. **Inventory Management**: `inventory`
 6. **Supplier Management**: `suppliers`, `supplier_performance`, `supplier_contracts`
 7. **Procurement**: `procurement_requests`, `company_policies`, `approvers`, `notifications`
-8. **AI/ML Features**: `product_image_embeddings`, `product_description_embeddings`
 
 **Recent Schema Enhancements:**
-- **Enhanced Store Model**: Added `is_online` boolean field to distinguish physical vs online stores
-- **RLS Integration**: All stores now have `rls_user_id` for row-level security
+- **Enhanced Store Model**: Added `is_online` field to distinguish physical vs online stores
+- **RLS Integration**: All stores have `rls_user_id` for row-level security
 - **Comprehensive Supplier Data**: Full supplier contracts and performance tracking
 - **Bulk Discount System**: Supplier-specific discount thresholds and percentages
 - **Climate Zone Support**: Seasonal multipliers integrated with geographic store data
@@ -535,14 +516,14 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 - **Total Stores:** 16 (15 Physical Popup Stores + 1 Online Store)
 - **Geographic Coverage:** 15 major US cities with themed popup locations
 - **Total Products:** 129 unique products across 5 categories and 21 product types
-- **Active Suppliers:** 20 suppliers across Washington State
-- **ESG Compliance:** 80% of suppliers are ESG compliant
-- **Inventory Value:** $861,336.60 total retail value ($424K physical + $438K online)
+- **Active Suppliers:** 20 suppliers (all located in Seattle, WA)
+- **ESG Compliance:** 0% of suppliers are ESG compliant
+- **Inventory Value:** $233,853.86 total retail value ($214K physical + $20K online)
 - **Climate Zones:** 3-zone seasonal system (Pacific Northwest, Temperate, Warm)
 
 ### Data Architecture Highlights
 - **Row Level Security (RLS):** Multi-tenant database with store-level data isolation
-- **Vector Embeddings:** AI-powered product search via pgvector extension  
+- **Data Models:** Available in `app/models/sqlite/` directory
 - **Seasonal Intelligence:** Climate zone-based demand forecasting
 - **Supplier Integration:** Comprehensive procurement workflow with bulk discounts
 - **Real-time Inventory:** Live stock levels across all store locations
@@ -553,354 +534,12 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 - **Procurement Optimization:** Supplier selection, bulk discount utilization, ESG compliance
 - **Seasonal Planning:** Climate-aware inventory planning and seasonal product mix
 - **Customer Intelligence:** Purchase pattern analysis and store preference insights
-- **AI-Powered Search:** Semantic product discovery using vector embeddings
 
 ---
 
 ## Table Schemas
 
-#### 1. retail.customers
-**Purpose:** Customer information and store associations
-
-| Column | Type | Description |
-|--------|------|-------------|
-| customer_id | integer | Primary key, unique customer identifier |
-| first_name | text | Customer's first name |
-| last_name | text | Customer's last name |
-| email | text | Customer's email address |
-| phone | text | Customer's phone number |
-| primary_store_id | integer | Foreign key to retail.stores |
-| created_at | timestamp | Account creation timestamp |
-
-**Relationships:**
-- `primary_store_id` → `retail.stores.store_id` (MANY_TO_ONE)
-
----
-
-#### 2. retail.stores
-**Purpose:** Store locations and configuration
-
-| Column | Type | Description |
-|--------|------|-------------|
-| store_id | integer | Primary key, unique store identifier |
-| store_name | text | Store display name |
-| rls_user_id | uuid | Row-level security user identifier |
-| is_online | boolean | True for online store, false for popup |
-
-**Valid Store Locations:**
-- GitHub Popup Online Store
-- GitHub Popup Atlanta Midtown
-- GitHub Popup Austin Downtown
-- GitHub Popup Boston Back Bay
-- GitHub Popup Chicago Loop
-- GitHub Popup Denver LoDo
-- GitHub Popup Miami Design District
-- GitHub Popup Minneapolis Mill District
-- GitHub Popup Nashville Music Row
-- GitHub Popup NYC Times Square
-- GitHub Popup Phoenix Scottsdale
-- GitHub Popup Portland Pearl District
-- GitHub Popup Raleigh Research Triangle
-- GitHub Popup Salt Lake City Downtown
-- GitHub Popup Seattle Capitol Hill
-- GitHub Popup SF Union Square
-
----
-
-#### 3. retail.categories
-**Purpose:** Product category definitions
-
-| Column | Type | Description |
-|--------|------|-------------|
-| category_id | integer | Primary key, unique category identifier |
-| category_name | text | Category display name |
-
-**Valid Categories:**
-- Accessories
-- Apparel - Bottoms
-- Apparel - Tops
-- Footwear
-- Outerwear
-
----
-
-#### 4. retail.product_types
-**Purpose:** Product type definitions within categories
-
-| Column | Type | Description |
-|--------|------|-------------|
-| type_id | integer | Primary key, unique type identifier |
-| category_id | integer | Foreign key to retail.categories |
-| type_name | text | Product type display name |
-
-**Relationships:**
-- `category_id` → `retail.categories.category_id` (MANY_TO_ONE)
-
-**Valid Product Types:** 21 types across 5 categories (see Product Catalog section)
-
----
-
-#### 5. retail.products
-**Purpose:** Complete product catalog with pricing and sourcing
-
-| Column | Type | Description |
-|--------|------|-------------|
-| product_id | integer | Primary key, unique product identifier |
-| sku | text | Stock keeping unit code |
-| product_name | text | Product display name |
-| category_id | integer | Foreign key to retail.categories |
-| type_id | integer | Foreign key to retail.product_types |
-| supplier_id | integer | Foreign key to retail.suppliers |
-| cost | numeric | Product cost from supplier |
-| base_price | numeric | Retail selling price |
-| gross_margin_percent | numeric | Calculated profit margin |
-| product_description | text | Detailed product description |
-| procurement_lead_time_days | integer | Days to receive from supplier |
-| minimum_order_quantity | integer | Minimum order quantity from supplier |
-| discontinued | boolean | Product availability status |
-
-**Relationships:**
-- `category_id` → `retail.categories.category_id` (MANY_TO_ONE)
-- `supplier_id` → `retail.suppliers.supplier_id` (ONE_TO_MANY)
-- `type_id` → `retail.product_types.type_id` (MANY_TO_ONE)
-
----
-
-#### 6. retail.orders
-**Purpose:** Order header information
-
-| Column | Type | Description |
-|--------|------|-------------|
-| order_id | integer | Primary key, unique order identifier |
-| customer_id | integer | Foreign key to retail.customers |
-| store_id | integer | Foreign key to retail.stores |
-| order_date | date | Order placement date |
-
-**Relationships:**
-- `customer_id` → `retail.customers.customer_id` (MANY_TO_ONE)
-- `store_id` → `retail.stores.store_id` (MANY_TO_ONE)
-
-**Available Data Years:** 2020-2026
-
----
-
-#### 7. retail.order_items
-**Purpose:** Individual line items within orders
-
-| Column | Type | Description |
-|--------|------|-------------|
-| order_item_id | integer | Primary key, unique line item identifier |
-| order_id | integer | Foreign key to retail.orders |
-| store_id | integer | Foreign key to retail.stores |
-| product_id | integer | Foreign key to retail.products |
-| quantity | integer | Quantity ordered |
-| unit_price | numeric | Price per unit at time of sale |
-| discount_percent | integer | Percentage discount applied |
-| discount_amount | numeric | Dollar amount discount |
-| total_amount | numeric | Final line item total |
-
-**Relationships:**
-- `product_id` → `retail.products.product_id` (MANY_TO_ONE)
-- `store_id` → `retail.stores.store_id` (MANY_TO_ONE)
-- `order_id` → `retail.orders.order_id` (MANY_TO_ONE)
-
----
-
-#### 8. retail.inventory
-**Purpose:** Current stock levels by store and product
-
-| Column | Type | Description |
-|--------|------|-------------|
-| store_id | integer | Foreign key to retail.stores (composite key) |
-| product_id | integer | Foreign key to retail.products (composite key) |
-| stock_level | integer | Current quantity in stock |
-
-**Relationships:**
-- `product_id` → `retail.products.product_id` (MANY_TO_ONE)
-- `store_id` → `retail.stores.store_id` (MANY_TO_ONE)
-
----
-
-#### 9. retail.suppliers
-**Purpose:** Supplier master data and business terms
-
-| Column | Type | Description |
-|--------|------|-------------|
-| supplier_id | integer | Primary key, unique supplier identifier |
-| supplier_name | text | Supplier company name |
-| supplier_code | text | Internal supplier code |
-| contact_email | text | Primary contact email |
-| contact_phone | text | Primary contact phone |
-| address_line1 | text | Street address |
-| address_line2 | text | Additional address info |
-| city | text | City |
-| state_province | text | State or province |
-| postal_code | text | Zip or postal code |
-| country | text | Country |
-| payment_terms | text | Payment terms (Net 30, Net 45, etc.) |
-| lead_time_days | integer | Standard delivery lead time |
-| minimum_order_amount | numeric | Minimum order value required |
-| bulk_discount_threshold | numeric | Order value for bulk discount |
-| bulk_discount_percent | numeric | Bulk discount percentage |
-| supplier_rating | numeric | Overall supplier performance rating |
-| esg_compliant | boolean | ESG compliance status |
-| approved_vendor | boolean | Vendor approval status |
-| preferred_vendor | boolean | Preferred vendor status |
-| active_status | boolean | Active supplier status |
-| created_at | timestamp | Record creation date |
-| last_updated | timestamp | Last update timestamp |
-
----
-
-#### 10. retail.supplier_performance
-**Purpose:** Historical supplier performance evaluations
-
-| Column | Type | Description |
-|--------|------|-------------|
-| performance_id | integer | Primary key, unique evaluation identifier |
-| supplier_id | integer | Foreign key to retail.suppliers |
-| evaluation_date | date | Date of performance evaluation |
-| cost_score | numeric | Cost competitiveness score |
-| quality_score | numeric | Product quality score |
-| delivery_score | numeric | On-time delivery score |
-| compliance_score | numeric | Regulatory compliance score |
-| overall_score | numeric | Calculated overall score |
-| notes | text | Evaluation notes and comments |
-
-**Relationships:**
-- `supplier_id` → `retail.suppliers.supplier_id` (ONE_TO_MANY)
-
----
-
-#### 11. retail.procurement_requests
-**Purpose:** Purchase requisitions and approval workflow
-
-| Column | Type | Description |
-|--------|------|-------------|
-| request_id | integer | Primary key, unique request identifier |
-| request_number | text | Human-readable request number |
-| requester_name | text | Name of person making request |
-| requester_email | text | Requester's email address |
-| department | text | Requesting department |
-| product_id | integer | Foreign key to retail.products |
-| supplier_id | integer | Foreign key to retail.suppliers |
-| quantity_requested | integer | Quantity being requested |
-| unit_cost | numeric | Expected unit cost |
-| total_cost | numeric | Total request value |
-| justification | text | Business justification for purchase |
-| urgency_level | text | Priority level (Low, Medium, High, Critical) |
-| approval_status | text | Current approval status |
-| approved_by | text | Name of approver |
-| approved_at | timestamp | Approval timestamp |
-| request_date | timestamp | Request creation date |
-| required_by_date | date | Date product is needed |
-| vendor_restrictions | text | Any vendor restrictions |
-| esg_requirements | boolean | ESG compliance required |
-| bulk_discount_eligible | boolean | Eligible for bulk discounts |
-
-**Relationships:**
-- `product_id` → `retail.products.product_id` (MANY_TO_ONE)
-- `supplier_id` → `retail.suppliers.supplier_id` (ONE_TO_MANY)
-
----
-
-#### 12. retail.company_policies
-**Purpose:** Company procurement and approval policies
-
-| Column | Type | Description |
-|--------|------|-------------|
-| policy_id | integer | Primary key, unique policy identifier |
-| policy_name | text | Policy display name |
-| policy_type | text | Policy category |
-| policy_content | text | Full policy text |
-| department | text | Applicable department |
-| minimum_order_threshold | numeric | Minimum order value for policy |
-| approval_required | boolean | Whether approval is required |
-| is_active | boolean | Policy active status |
-
----
-
-#### 13. retail.supplier_contracts
-**Purpose:** Supplier contract management
-
-| Column | Type | Description |
-|--------|------|-------------|
-| contract_id | integer | Primary key, unique contract identifier |
-| supplier_id | integer | Foreign key to retail.suppliers |
-| contract_number | text | Contract reference number |
-| contract_status | text | Contract status |
-| start_date | date | Contract effective date |
-| end_date | date | Contract expiration date |
-| contract_value | numeric | Total contract value |
-| payment_terms | text | Payment terms |
-| auto_renew | boolean | Automatic renewal flag |
-| created_at | timestamp | Contract creation date |
-
-**Relationships:**
-- `supplier_id` → `retail.suppliers.supplier_id` (ONE_TO_MANY)
-
----
-
-#### 14. retail.approvers
-**Purpose:** Approval authority and limits
-
-| Column | Type | Description |
-|--------|------|-------------|
-| approver_id | integer | Primary key, unique approver identifier |
-| employee_id | text | Employee identifier |
-| full_name | text | Approver's full name |
-| email | text | Approver's email address |
-| department | text | Approver's department |
-| approval_limit | numeric | Maximum approval amount |
-| is_active | boolean | Active approver status |
-
----
-
-#### 15. retail.notifications
-**Purpose:** System notifications and communications
-
-| Column | Type | Description |
-|--------|------|-------------|
-| notification_id | integer | Primary key, unique notification identifier |
-| request_id | integer | Foreign key to retail.procurement_requests |
-| notification_type | text | Type of notification |
-| recipient_email | text | Notification recipient |
-| subject | text | Notification subject line |
-| message | text | Notification message body |
-| sent_at | timestamp | Notification send time |
-| read_at | timestamp | Notification read time |
-
-**Relationships:**
-- `request_id` → `retail.procurement_requests.request_id` (ONE_TO_MANY)
-
----
-
-#### 16. retail.product_image_embeddings
-**Purpose:** AI-powered image search capabilities
-
-| Column | Type | Description |
-|--------|------|-------------|
-| product_id | integer | Foreign key to retail.products |
-| image_url | text | Product image URL |
-| image_embedding | vector | AI-generated image embedding |
-| created_at | timestamp | Embedding creation date |
-
-**Relationships:**
-- `product_id` → `retail.products.product_id` (MANY_TO_ONE)
-
----
-
-#### 17. retail.product_description_embeddings
-**Purpose:** AI-powered semantic product search
-
-| Column | Type | Description |
-|--------|------|-------------|
-| product_id | integer | Foreign key to retail.products |
-| description_embedding | vector | AI-generated text embedding |
-| created_at | timestamp | Embedding creation date |
-
-**Relationships:**
-- `product_id` → `retail.products.product_id` (MANY_TO_ONE)
+All table schemas and data models are available in the `app/models/sqlite/` directory.
 
 ---
 
@@ -961,34 +600,50 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 
 ### Inventory Management by Seasonal Category
 
-#### Current Stock Distribution
+#### Current Stock Distribution by Category
 
-| Seasonal Category | Product Types | Total Stock | Avg Stock/Product | Inventory Value |
-|------------------|---------------|-------------|------------------|-----------------|
-| **Winter-Focused** | 7 types | 1,032 units | 10.5 | $95,097 |
-| **Summer-Focused** | 4 types | 587 units | 10.1 | $25,758 |
-| **Year-Round** | 4 types | 1,045 units | 10.6 | $82,197 |
-| **Seasonal-Flexible** | 6 types | 849 units | 9.7 | $44,404 |
+| Category | Product Types | Unique Products | Total Stock | Avg Stock/Product | Inventory Value |
+|----------|---------------|-----------------|-------------|-------------------|-----------------|
+| **Accessories** | 7 types | 40 | 1,569 units | 39.2 | $44,629 |
+| **Apparel - Bottoms** | 3 types | 17 | 610 units | 35.9 | $29,845 |
+| **Apparel - Tops** | 5 types | 35 | 1,457 units | 41.6 | $52,422 |
+| **Footwear** | 4 types | 22 | 886 units | 40.3 | $65,597 |
+| **Outerwear** | 2 types | 14 | 492 units | 35.1 | $41,360 |
 
-#### Seasonal Stocking Strategies
+**Total Inventory:** 128 products, 5,014 units, $233,853 retail value (Online store only)
 
-**Winter-Focused Items** (38% of inventory value):
-- **Jackets**: Highest stock levels (398 units, $43K value)
-- **Hoodies**: Moderate stock (177 units, $11K value)  
-- **Boots**: Premium items (159 units, $22K value)
-- **Coats**: Lower volume, high value (75 units, $11K value)
+#### Product Type Detail
 
-**Summer-Focused Items** (10% of inventory value):
-- **T-Shirts**: High volume, lower value (278 units, $8K value)
-- **Shorts**: Moderate stock (143 units, $7K value)
-- **Sunglasses**: Premium accessories (116 units, $8K value)
-- **Sandals**: Seasonal footwear (50 units, $3K value)
+**Accessories** (19% of inventory value):
+- **Backpacks & Bags**: 307 units across 9 products ($13,312 value)
+- **Belts**: 242 units across 4 products ($7,236 value)
+- **Caps & Hats**: 271 units across 8 products ($6,435 value)
+- **Socks**: 319 units across 8 products ($4,671 value)
+- **Sunglasses**: 154 units across 3 products ($6,589 value)
+- **Gloves**: 170 units across 4 products ($3,632 value)
+- **Scarves**: 106 units across 4 products ($2,754 value)
 
-**Year-Round Essentials** (33% of inventory value):
-- **Sneakers**: Consistent demand (269 units, $26K value)
-- **Jeans**: Stable throughout year (286 units, $24K value)
-- **Backpacks & Bags**: Steady sales (280 units, $17K value)
-- **Formal Shirts**: Business wear (210 units, $14K value)
+**Apparel - Bottoms** (13% of inventory value):
+- **Jeans**: 321 units across 9 products ($18,451 value)
+- **Pants**: 152 units across 4 products ($6,716 value)
+- **Shorts**: 137 units across 4 products ($4,678 value)
+
+**Apparel - Tops** (22% of inventory value):
+- **T-Shirts**: 510 units across 12 products ($11,084 value)
+- **Formal Shirts**: 287 units across 8 products ($13,092 value)
+- **Hoodies**: 301 units across 7 products ($13,070 value)
+- **Flannel Shirts**: 163 units across 4 products ($8,233 value)
+- **Sweatshirts**: 196 units across 4 products ($6,943 value)
+
+**Footwear** (28% of inventory value):
+- **Dress Shoes**: 311 units across 5 products ($29,656 value) - Highest value product type
+- **Sneakers**: 310 units across 9 products ($19,849 value)
+- **Boots**: 125 units across 5 products ($12,424 value)
+- **Sandals**: 140 units across 3 products ($3,669 value)
+
+**Outerwear** (18% of inventory value):
+- **Jackets**: 375 units across 10 products ($29,211 value)
+- **Coats**: 117 units across 4 products ($12,149 value)
 
 ### Seasonal Business Insights
 
@@ -1014,34 +669,49 @@ The GitHub Popup retail database consists of 17 tables organized into the follow
 
 ## Key Features
 
-### 1. Multi-Store Support
-- Online store and 7 popup locations
-- Store-specific inventory management
-- Row-level security for multi-tenant access
+### 1. SQLite Database Backend
+- **File-based storage**: Single `data/retail.db` file for easy portability and backup
+- **Zero configuration**: No server setup required - just connect and query
+- **Data models**: Available in `app/models/sqlite/` directory
+- **Cross-platform compatibility**: Works on Linux, Windows, and macOS
 
-### 2. Comprehensive Product Catalog
-- **5 major categories with 21 product types
-- 129 unique products
-- Full supplier integration with cost and pricing
+### 2. Multi-Store Support
+- Online store and 15 physical popup locations across major US cities
+- Store-specific inventory management and tracking
+- Application-layer row-level security for multi-tenant data access
 
-### 3. Advanced Supplier Management
-- ESG compliance tracking
-- Performance monitoring and rating system
+### 3. Comprehensive Product Catalog
+- 5 major categories with 21 product types
+- 129 unique products with detailed descriptions
+- Full supplier integration with cost and pricing information
+
+### 4. Advanced Supplier Management
+- ESG compliance tracking for sustainable sourcing
+- Performance monitoring and rating system (0-5 scale)
 - Contract and procurement workflow management
-
-### 4. AI-Powered Search
-- Image-based product search via embeddings
-- Semantic text search for natural language queries
-- Enhanced product discovery capabilities
+- Bulk discount programs with varying thresholds
 
 ### 5. Robust Approval Workflow
-- Multi-level approval processes
-- Department-specific policies
-- Automated notification system
+- Multi-level approval processes for procurement
+- Department-specific policies and thresholds
+- Automated notification system for request tracking
 
 ### 6. Seasonal Intelligence
-- Comprehensive seasonal sales analysis
-- Category-specific seasonal patterns
-- Inventory optimization by seasonal demand
+- Comprehensive seasonal sales analysis by category
+- Category-specific seasonal patterns across climate zones
+- Inventory optimization based on seasonal demand
 - Revenue forecasting based on historical trends
 
+---
+
+## Quick Start: Working with the Database
+
+### Connecting to the Database
+
+The database file is located at `data/retail.db`. All data models are available in the `app/models/sqlite/` directory.
+
+### Database File Information
+
+- **Database Path**: `data/retail.db`
+- **Data Models**: `app/models/sqlite/`
+- **Tables**: 15 tables covering customers, products, orders, inventory, suppliers, and procurement

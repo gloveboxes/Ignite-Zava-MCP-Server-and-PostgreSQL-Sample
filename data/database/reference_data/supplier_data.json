@@ -19,7 +19,13 @@
         "contact_email": "michael.chen@urbanthreads.com",
         "contact_phone": "+1-206-555-0101",
         "supplier_code": "SUP001",
-        "supplier_name": "Urban Threads Wholesale"
+        "supplier_name": "Urban Threads Wholesale",
+        "rating": 4.8,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": true,
+        "lead_time_days": 10,
+        "min_order_amount": 1000.00
     },
     "2": {
         "contracts": [
@@ -41,7 +47,13 @@
         "contact_email": "sarah.j@elitefashion.com",
         "contact_phone": "+1-425-555-0102",
         "supplier_code": "SUP002",
-        "supplier_name": "Elite Fashion Distributors"
+        "supplier_name": "Elite Fashion Distributors",
+        "rating": 4.5,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": true,
+        "lead_time_days": 12,
+        "min_order_amount": 800.00
     },
     "3": {
         "contracts": [
@@ -63,7 +75,13 @@
         "contact_email": "james@pacificapparel.com",
         "contact_phone": "+1-253-555-0103",
         "supplier_code": "SUP003",
-        "supplier_name": "Pacific Apparel Group"
+        "supplier_name": "Pacific Apparel Group",
+        "rating": 3.8,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 14,
+        "min_order_amount": 600.00
     },
     "4": {
         "contracts": [
@@ -85,7 +103,13 @@
         "contact_email": "e.rodriguez@metrostyle.com",
         "contact_phone": "+1-206-555-0104",
         "supplier_code": "SUP004",
-        "supplier_name": "Metro Style Supply Co"
+        "supplier_name": "Metro Style Supply Co",
+        "rating": 4.2,
+        "esg_compliant": false,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 18,
+        "min_order_amount": 750.00
     },
     "5": {
         "contracts": [
@@ -107,7 +131,13 @@
         "contact_email": "david.kim@nwdenim.com",
         "contact_phone": "+1-509-555-0105",
         "supplier_code": "SUP005",
-        "supplier_name": "Northwest Denim Works"
+        "supplier_name": "Northwest Denim Works",
+        "rating": 3.9,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 15,
+        "min_order_amount": 650.00
     },
     "6": {
         "contracts": [
@@ -129,7 +159,13 @@
         "contact_email": "lisa.t@footweardirect.com",
         "contact_phone": "+1-425-555-0106",
         "supplier_code": "SUP006",
-        "supplier_name": "Footwear Direct International"
+        "supplier_name": "Footwear Direct International",
+        "rating": 4.6,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": true,
+        "lead_time_days": 11,
+        "min_order_amount": 900.00
     },
     "7": {
         "contracts": [
@@ -151,7 +187,13 @@
         "contact_email": "robert@comfortfootwear.com",
         "contact_phone": "+1-425-555-0107",
         "supplier_code": "SUP007",
-        "supplier_name": "Comfort Footwear Wholesale"
+        "supplier_name": "Comfort Footwear Wholesale",
+        "rating": 4.1,
+        "esg_compliant": false,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 16,
+        "min_order_amount": 700.00
     },
     "8": {
         "contracts": [
@@ -173,7 +215,13 @@
         "contact_email": "j.lee@premieraccessories.com",
         "contact_phone": "+1-206-555-0108",
         "supplier_code": "SUP008",
-        "supplier_name": "Premier Accessories Ltd"
+        "supplier_name": "Premier Accessories Ltd",
+        "rating": 3.5,
+        "esg_compliant": false,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 20,
+        "min_order_amount": 500.00
     },
     "9": {
         "contracts": [
@@ -195,7 +243,13 @@
         "contact_email": "chris.w@globalheadwear.com",
         "contact_phone": "+1-425-555-0109",
         "supplier_code": "SUP009",
-        "supplier_name": "Global Headwear Co"
+        "supplier_name": "Global Headwear Co",
+        "rating": 3.2,
+        "esg_compliant": false,
+        "approved_vendor": false,
+        "preferred_vendor": false,
+        "lead_time_days": 25,
+        "min_order_amount": 450.00
     },
     "10": {
         "contracts": [
@@ -217,7 +271,13 @@
         "contact_email": "amanda@activewear.com",
         "contact_phone": "+1-253-555-0110",
         "supplier_code": "SUP010",
-        "supplier_name": "Active Wear Solutions"
+        "supplier_name": "Active Wear Solutions",
+        "rating": 4.3,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 13,
+        "min_order_amount": 850.00
     },
     "11": {
         "contracts": [
@@ -239,7 +299,13 @@
         "contact_email": "thomas.brown@classicouterwear.com",
         "contact_phone": "+1-206-555-0111",
         "supplier_code": "SUP011",
-        "supplier_name": "Classic Outerwear Imports"
+        "supplier_name": "Classic Outerwear Imports",
+        "rating": 4.4,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 14,
+        "min_order_amount": 800.00
     },
     "12": {
         "contracts": [
@@ -261,7 +327,13 @@
         "contact_email": "patricia@socksupply.com",
         "contact_phone": "+1-425-555-0112",
         "supplier_code": "SUP012",
-        "supplier_name": "Sock & Hosiery Wholesale"
+        "supplier_name": "Sock & Hosiery Wholesale",
+        "rating": 3.6,
+        "esg_compliant": false,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 17,
+        "min_order_amount": 550.00
     },
     "13": {
         "contracts": [
@@ -283,7 +355,13 @@
         "contact_email": "daniel.white@bagluggage.com",
         "contact_phone": "+1-509-555-0113",
         "supplier_code": "SUP013",
-        "supplier_name": "Bag & Luggage Distributors"
+        "supplier_name": "Bag & Luggage Distributors",
+        "rating": 4.0,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 15,
+        "min_order_amount": 700.00
     },
     "14": {
         "contracts": [
@@ -305,7 +383,13 @@
         "contact_email": "michelle@fashionforward.com",
         "contact_phone": "+1-425-555-0114",
         "supplier_code": "SUP014",
-        "supplier_name": "Fashion Forward Wholesale"
+        "supplier_name": "Fashion Forward Wholesale",
+        "rating": 4.7,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": true,
+        "lead_time_days": 9,
+        "min_order_amount": 950.00
     },
     "15": {
         "contracts": [
@@ -327,7 +411,13 @@
         "contact_email": "kevin@premiumdenim.com",
         "contact_phone": "+1-253-555-0115",
         "supplier_code": "SUP015",
-        "supplier_name": "Premium Denim Source"
+        "supplier_name": "Premium Denim Source",
+        "rating": 3.7,
+        "esg_compliant": false,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 19,
+        "min_order_amount": 600.00
     },
     "16": {
         "contracts": [
@@ -349,7 +439,13 @@
         "contact_email": "ryan.clark@athleticfootwear.com",
         "contact_phone": "+1-425-555-0116",
         "supplier_code": "SUP016",
-        "supplier_name": "Athletic Footwear Network"
+        "supplier_name": "Athletic Footwear Network",
+        "rating": 4.2,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 14,
+        "min_order_amount": 750.00
     },
     "17": {
         "contracts": [
@@ -371,7 +467,13 @@
         "contact_email": "susan.moore@formalwear.com",
         "contact_phone": "+1-206-555-0117",
         "supplier_code": "SUP017",
-        "supplier_name": "Formal Wear Specialists"
+        "supplier_name": "Formal Wear Specialists",
+        "rating": 3.9,
+        "esg_compliant": false,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 18,
+        "min_order_amount": 650.00
     },
     "18": {
         "contracts": [
@@ -393,7 +495,13 @@
         "contact_email": "jason@streetwearcollective.com",
         "contact_phone": "+1-425-555-0118",
         "supplier_code": "SUP018",
-        "supplier_name": "Streetwear Collective"
+        "supplier_name": "Streetwear Collective",
+        "rating": 3.4,
+        "esg_compliant": false,
+        "approved_vendor": false,
+        "preferred_vendor": false,
+        "lead_time_days": 22,
+        "min_order_amount": 480.00
     },
     "19": {
         "contracts": [
@@ -415,7 +523,13 @@
         "contact_email": "karen@winterwear.com",
         "contact_phone": "+1-509-555-0119",
         "supplier_code": "SUP019",
-        "supplier_name": "Winter Wear Supply Co"
+        "supplier_name": "Winter Wear Supply Co",
+        "rating": 4.0,
+        "esg_compliant": true,
+        "approved_vendor": true,
+        "preferred_vendor": false,
+        "lead_time_days": 16,
+        "min_order_amount": 700.00
     },
     "20": {
         "contracts": [
@@ -437,6 +551,12 @@
         "contact_email": "mark.j@qualitybasics.com",
         "contact_phone": "+1-253-555-0120",
         "supplier_code": "SUP020",
-        "supplier_name": "Quality Basics Wholesale"
+        "supplier_name": "Quality Basics Wholesale",
+        "rating": 3.3,
+        "esg_compliant": false,
+        "approved_vendor": false,
+        "preferred_vendor": false,
+        "lead_time_days": 24,
+        "min_order_amount": 400.00
     }
 }
