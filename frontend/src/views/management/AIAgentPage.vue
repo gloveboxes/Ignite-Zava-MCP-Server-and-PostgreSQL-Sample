@@ -44,7 +44,7 @@
           Running in demo mode (backend unavailable)
         </div>
         
-        <div class="input-group">
+        <div class="input-group" v-if="isAdmin">
           <label for="store-select" class="input-label">
             <i class="bi bi-shop"></i> Select Store
           </label>
@@ -59,6 +59,16 @@
               {{ store.name }} {{ store.is_online ? '(Online)' : '' }}
             </option>
           </select>
+        </div>
+
+        <!-- Store Info for Store Managers (Read-only) -->
+        <div class="input-group store-info-readonly" v-else>
+          <label class="input-label">
+            <i class="bi bi-shop"></i> Store
+          </label>
+          <div class="store-display">
+            {{ stores[0]?.name || 'Loading...' }}
+          </div>
         </div>
         
         <div class="input-group">
@@ -297,6 +307,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import { apiClient, config } from '../../config/api'
+import { authStore } from '../../stores/auth'
 
 // Configure marked options
 marked.setOptions({
@@ -374,10 +385,26 @@ const renderedSummary = computed(() => {
   }
 })
 
+// Check if user is admin
+const isAdmin = computed(() => authStore.user?.role === 'admin')
+
 // Fetch stores from API
 const fetchStores = async () => {
   loadingStores.value = true
   try {
+    // If user is a store manager, use their store_id directly
+    if (!isAdmin.value && authStore.user?.store_id) {
+      selectedStoreId.value = authStore.user.store_id
+      stores.value = [{
+        id: authStore.user.store_id,
+        name: authStore.user.store_name || 'Your Store',
+        is_online: false
+      }]
+      loadingStores.value = false
+      return
+    }
+
+    // For admin users, fetch all stores
     const response = await apiClient.get('/api/stores')
     stores.value = response.data.stores || []
     // Set first store as default if available
@@ -390,12 +417,12 @@ const fetchStores = async () => {
     // Provide a fallback mock store so the workflow can still be tested
     stores.value = [
       {
-        id: 1,
-        name: 'GitHub Popup Downtown Redmond',
+        id: authStore.user?.store_id || 1,
+        name: authStore.user?.store_name || 'GitHub Popup Downtown Redmond',
         is_online: false
       }
     ]
-    selectedStoreId.value = 1
+    selectedStoreId.value = authStore.user?.store_id || 1
   } finally {
     loadingStores.value = false
   }
@@ -1122,6 +1149,17 @@ onUnmounted(() => {
 .store-select:disabled {
   background-color: #f8f9fa;
   cursor: not-allowed;
+}
+
+.store-info-readonly .store-display {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: #f8f9fa;
+  color: #495057;
+  font-weight: 500;
 }
 
 .instructions-input {

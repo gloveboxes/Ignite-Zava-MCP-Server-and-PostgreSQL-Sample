@@ -1,11 +1,6 @@
 <template>
   <div class="dashboard-page">
     <div class="container">
-      <div class="page-header">
-        <h1>Dashboard</h1>
-        <p class="page-description">Overview of store operations and key metrics</p>
-      </div>
-
       <!-- Loading State -->
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
@@ -13,6 +8,27 @@
 
       <!-- Dashboard Content -->
       <div v-else>
+        <!-- User Banner -->
+        <div class="user-banner">
+          <div class="banner-image" :style="{ backgroundImage: `url(${storeImage})` }">
+            <div class="banner-overlay"></div>
+          </div>
+          <div class="banner-content">
+            <div class="banner-info">
+              <div class="banner-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+              </div>
+              <div class="banner-text">
+                <h2 class="banner-title">{{ storeName }}</h2>
+                <p class="banner-subtitle">Logged in as <strong>{{ username }}</strong> • {{ userRole }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Stats Cards -->
         <div class="stats-grid">
           <div class="stat-card">
@@ -121,28 +137,62 @@
             </div>
           </div>
 
-          <!-- Recent Activity -->
-          <div class="chart-card">
-            <h3 class="chart-title">Recent Activity</h3>
-            <div class="activity-list">
-              <div 
-                v-for="activity in stats.recentActivity" 
-                :key="activity.id"
-                class="activity-item"
-              >
-                <div class="activity-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12 6 12 12 16 14"/>
-                  </svg>
-                </div>
-                <div class="activity-content">
-                  <div class="activity-action">{{ activity.action }}</div>
-                  <div class="activity-details">
-                    {{ activity.item }}
-                    <span v-if="activity.store"> • {{ activity.store }}</span>
+          <!-- Weekly Insights (AI-Driven) -->
+          <div class="chart-card insights-card">
+            <div class="insights-header">
+              <h3 class="chart-title">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: middle; margin-right: 0.5rem;">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                  <circle cx="12" cy="10" r="1" fill="currentColor"/>
+                  <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                </svg>
+                Weekly Insights
+              </h3>
+              <span class="ai-badge">✨ AI Generated</span>
+            </div>
+            
+            <div class="insights-content">
+              <p class="insights-summary">
+                {{ weeklyInsights.summary }}
+              </p>
+              
+              <div class="insights-list">
+                <div 
+                  v-for="(insight, index) in weeklyInsights.insights" 
+                  :key="index"
+                  class="insight-item"
+                  :class="'insight-' + insight.type"
+                >
+                  <div class="insight-icon">
+                    <svg v-if="insight.type === 'success'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <svg v-else-if="insight.type === 'warning'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                      <line x1="12" y1="9" x2="12" y2="13"/>
+                      <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="12" y1="16" x2="12" y2="12"/>
+                      <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
                   </div>
-                  <div class="activity-time">{{ activity.time }}</div>
+                  <div class="insight-text">
+                    <strong>{{ insight.title }}</strong>
+                    <p>{{ insight.description }}</p>
+                  </div>
+                  <button
+                    v-if="insight.action"
+                    class="insight-action-btn"
+                    @click="handleInsightAction(insight.action)"
+                  >
+                    {{ insight.action.label }}
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -213,9 +263,15 @@
 
 <script>
 import { managementService } from '../../services/management';
+import { authStore } from '../../stores/auth';
+import { useRouter } from 'vue-router';
 
 export default {
   name: 'DashboardPage',
+  setup() {
+    const router = useRouter();
+    return { router };
+  },
   data() {
     return {
       loading: false,
@@ -229,8 +285,159 @@ export default {
         revenueChange: 0,
         topCategories: [],
         recentActivity: []
-      }
+      },
     };
+  },
+  computed: {
+    // Role-based AI insights (hardcoded for now, will be API-driven later)
+    weeklyInsights() {
+      const role = authStore.user?.role;
+      const storeId = authStore.user?.store_id;
+      
+      // Manager1 - NYC Times Square specific insights
+      if (role === 'store_manager' && storeId === 1) {
+        return {
+          summary: "NYC Times Square store performance remains strong this week with foot traffic up 12%. Weather forecasts indicate a significant cold snap arriving next week (temperatures dropping to 28°F/-2°C). This presents an immediate opportunity to capitalize on cold-weather accessory demand, particularly beanies and winter hats which saw 340% increase during last year's similar weather event.",
+          insights: [
+            {
+              type: "warning",
+              title: "Cold Snap Alert - Stock Winter Accessories",
+              description: "Weather forecast shows temperatures dropping to 28°F starting Monday. Current beanie inventory: 47 units. Recommend immediate order of 200+ units across popular styles. Last year's cold snap generated $8,400 in beanie sales over 3 days.",
+              action: {
+                label: "View Beanies",
+                type: "product-search",
+                query: "beanie"
+              }
+            },
+            {
+              type: "success",
+              title: "Tourist Season Performance",
+              description: "Times Square location seeing 18% increase in tourist traffic vs last month. Branded merchandise and gift items up 24% week-over-week."
+            },
+            {
+              type: "info",
+              title: "Peak Hours Optimization",
+              description: "Busiest hours: 2-6pm weekdays, 11am-8pm weekends. Consider adjusting staff schedules to maximize customer service during these windows."
+            },
+            {
+              type: "success",
+              title: "Local Partnership Opportunity",
+              description: "NYC-themed merchandise performing exceptionally well (32% of accessory sales). Consider expanding local artist collaborations for holiday season."
+            }
+          ]
+        };
+      }
+      
+      // Admin - All stores overview
+      if (role === 'admin') {
+        return {
+          summary: "Enterprise-wide performance analysis shows strong quarterly momentum with total revenue up 16% across all locations. Pike Place continues to lead in sales growth (+28%), while Spokane Pavilion requires attention for underperformance. Urban Threads supplier failing to meet contract terms with 23% late deliveries impacting inventory availability.",
+          insights: [
+            {
+              type: "success",
+              title: "Top Performing Store: Pike Place",
+              description: "Pike Place location leading network with 28% sales growth and 4.8★ customer satisfaction. Strong performance in outdoor and lifestyle categories. Consider this location for new product line testing.",
+              action: {
+                label: "View Details",
+                type: "navigation",
+                path: "/management/stores?store=3"
+              }
+            },
+            {
+              type: "warning",
+              title: "Underperforming Location: Spokane Pavilion",
+              description: "Spokane Pavilion down 12% vs target with declining foot traffic. Inventory turnover rate below network average. Recommend immediate strategic review and potential merchandising refresh.",
+              action: {
+                label: "View Analysis",
+                type: "navigation",
+                path: "/management/stores?store=4"
+              }
+            },
+            {
+              type: "success",
+              title: "Product Line Winner: Technical Outerwear",
+              description: "Technical outerwear category exceeding projections by 34% network-wide. Mountain Peak Outfitters partnership driving strong margins (42%) and customer satisfaction. Expand SKU count by 25% for Q4.",
+              action: {
+                label: "View Category",
+                type: "product-search",
+                query: "outerwear technical"
+              }
+            },
+            {
+              type: "warning",
+              title: "Supplier Contract Breach: Urban Threads",
+              description: "Urban Threads missing SLA targets: 23% late deliveries, 8% quality defects. Contract terms require 95% on-time delivery. Recommend supplier review meeting and potential penalty assessment.",
+              action: {
+                label: "View Supplier",
+                type: "navigation",
+                path: "/management/suppliers?supplier=urban-threads"
+              }
+            }
+          ]
+        };
+      }
+      
+      // Default fallback for other store managers
+      return {
+        summary: "Your store performance this week shows strong momentum with notable improvements in inventory turnover and customer engagement. Here are the key highlights and recommendations:",
+        insights: [
+          {
+            type: "success",
+            title: "Strong Performance in Outerwear",
+            description: "Outerwear category showing 23% increase in sales compared to last week. Consider restocking popular items like the Bomber Jacket and Rain Jacket."
+          },
+          {
+            type: "warning",
+            title: "Low Stock Alert - Footwear",
+            description: "Classic White Sneakers and Running Athletic Shoes inventory is critically low. Recommend immediate reorder to avoid stockouts during peak season.",
+            action: {
+              label: "View Inventory",
+              type: "navigation",
+              path: "/management/inventory?category=footwear&status=low"
+            }
+          },
+          {
+            type: "info",
+            title: "Supplier Performance",
+            description: "Urban Threads Wholesale has consistently delivered on time with 98% accuracy. Consider increasing order volume to leverage bulk discounts."
+          },
+          {
+            type: "success",
+            title: "Seasonal Opportunity",
+            description: "With fall approaching, accessories like beanies and gloves are expected to see 40% increase in demand. Stock levels are currently optimal."
+          }
+        ]
+      };
+    },
+    username() {
+      return authStore.user?.username || 'User';
+    },
+    storeName() {
+      return authStore.user?.store_name || (authStore.user?.role === 'admin' ? 'All Stores' : 'Store');
+    },
+    userRole() {
+      const role = authStore.user?.role || '';
+      if (role === 'admin') return 'Administrator';
+      if (role === 'store_manager') return 'Store Manager';
+      return role;
+    },
+    storeImage() {
+      // Map store names to image files
+      const storeName = authStore.user?.store_name;
+      if (!storeName) return '/images/store.png';
+      
+      // Convert store name to image filename
+      const imageMap = {
+        'GitHub Popup NYC Times Square': '/images/store_nyc_times_square.png',
+        'GitHub Popup SF Union Square': '/images/store.png', // Use default for SF
+        'GitHub Popup Pike Place': '/images/store_pike_place.png',
+        'GitHub Popup Kirkland Waterfront': '/images/store_kirkland_waterfront.png',
+        'GitHub Popup Spokane Pavilion': '/images/store_spokane_pavilion.png',
+        'GitHub Popup Everett Station': '/images/store_everett_station.png'
+      };
+      
+      return imageMap[storeName] || '/images/store.png';
+    }
   },
   async mounted() {
     await this.loadDashboard();
@@ -251,6 +458,25 @@ export default {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }).format(num);
+    },
+    handleInsightAction(action) {
+      if (!action) return;
+      
+      switch (action.type) {
+        case 'product-search':
+          // Navigate to products page with search query
+          this.router.push({
+            path: '/management/products',
+            query: { search: action.query }
+          });
+          break;
+        case 'navigation':
+          // Direct navigation to specified path
+          this.router.push(action.path);
+          break;
+        default:
+          console.warn('Unknown action type:', action.type);
+      }
     }
   }
 };
@@ -275,6 +501,78 @@ export default {
 .page-description {
   color: var(--secondary-color);
   font-size: 1rem;
+}
+
+/* User Banner */
+.user-banner {
+  position: relative;
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.banner-image {
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.banner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6));
+}
+
+.banner-content {
+  padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.banner-info {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.banner-icon {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  backdrop-filter: blur(10px);
+}
+
+.banner-text {
+  flex: 1;
+}
+
+.banner-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  color: white;
+}
+
+.banner-subtitle {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+}
+
+.banner-subtitle strong {
+  font-weight: 600;
+  color: white;
 }
 
 /* Stats Grid */
@@ -463,57 +761,178 @@ export default {
   color: var(--text-color);
 }
 
-/* Activity List */
-.activity-list {
+/* Weekly Insights */
+.insights-card {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border: 2px solid #e1e8ed;
+}
+
+.insights-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.insights-content {
+  background: white;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.insights-summary {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-color);
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.insights-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.activity-item {
+.insight-item {
   display: flex;
-  gap: 0.75rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.activity-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.activity-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
+  gap: 0.875rem;
+  padding: 1rem;
+  border-radius: 8px;
+  border-left: 3px solid;
   background: var(--hover-color);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.insight-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.insight-item.insight-success {
+  border-left-color: #388e3c;
+  background: #e8f5e9;
+}
+
+.insight-item.insight-warning {
+  border-left-color: #f57c00;
+  background: #fff3e0;
+}
+
+.insight-item.insight-info {
+  border-left-color: #1976d2;
+  background: #e3f2fd;
+}
+
+.insight-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-color);
   flex-shrink: 0;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.activity-content {
+.insight-success .insight-icon {
+  color: #388e3c;
+}
+
+.insight-warning .insight-icon {
+  color: #f57c00;
+}
+
+.insight-info .insight-icon {
+  color: #1976d2;
+}
+
+.insight-text {
   flex: 1;
 }
 
-.activity-action {
+.insight-text strong {
+  display: block;
+  font-size: 0.925rem;
   font-weight: 600;
   color: var(--text-color);
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
 }
 
-.activity-details {
+.insight-text p {
   font-size: 0.875rem;
+  line-height: 1.5;
   color: var(--secondary-color);
-  margin-bottom: 0.25rem;
+  margin: 0;
 }
 
-.activity-time {
-  font-size: 0.75rem;
-  color: var(--secondary-color);
+.insight-action-btn {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.insight-success .insight-action-btn {
+  color: #2e7d32;
+  border-color: #2e7d32;
+}
+
+.insight-success .insight-action-btn:hover {
+  background: #2e7d32;
+  color: white;
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);
+}
+
+.insight-warning .insight-action-btn {
+  color: #e65100;
+  border-color: #e65100;
+}
+
+.insight-warning .insight-action-btn:hover {
+  background: #e65100;
+  color: white;
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(230, 81, 0, 0.3);
+}
+
+.insight-info .insight-action-btn {
+  color: #1565c0;
+  border-color: #1565c0;
+}
+
+.insight-info .insight-action-btn:hover {
+  background: #1565c0;
+  color: white;
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.3);
 }
 
 /* Quick Actions */
