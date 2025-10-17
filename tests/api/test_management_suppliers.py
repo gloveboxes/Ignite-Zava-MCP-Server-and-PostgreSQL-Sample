@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 """Test suite for supplier management endpoints."""
 
-def test_get_suppliers(test_client: TestClient):
+def test_get_suppliers(test_client: TestClient, admin_auth_headers: dict):
     """
     Test GET /api/management/suppliers endpoint.
     
@@ -17,7 +17,7 @@ def test_get_suppliers(test_client: TestClient):
     - SupplierList response model
     - Suppliers ordered by preference and rating
     """
-    response = test_client.get("/api/management/suppliers")
+    response = test_client.get("/api/management/suppliers", headers=admin_auth_headers)
     
     assert response.status_code == 200
     data = response.json()
@@ -48,7 +48,7 @@ def test_get_suppliers(test_client: TestClient):
         assert "min_order" in supplier
         assert "bulk_discount" in supplier
 
-def test_get_suppliers_returns_correct_schema(test_client: TestClient):
+def test_get_suppliers_returns_correct_schema(test_client: TestClient, admin_auth_headers: dict):
     """
     Test that suppliers endpoint returns data matching SupplierList schema.
     
@@ -57,7 +57,7 @@ def test_get_suppliers_returns_correct_schema(test_client: TestClient):
     - Each supplier has all required fields
     - Categories array is populated
     """
-    response = test_client.get("/api/management/suppliers")
+    response = test_client.get("/api/management/suppliers", headers=admin_auth_headers)
     assert response.status_code == 200
     data = response.json()
     
@@ -86,7 +86,7 @@ def test_get_suppliers_returns_correct_schema(test_client: TestClient):
         # Rating should be between 0 and 5
         assert 0 <= supplier["rating"] <= 5
 
-def test_get_suppliers_ordering(test_client: TestClient):
+def test_get_suppliers_ordering(test_client: TestClient, admin_auth_headers: dict):
     """
     Test that suppliers are ordered correctly.
     
@@ -95,7 +95,7 @@ def test_get_suppliers_ordering(test_client: TestClient):
     - Within each group, suppliers are ordered by rating
     - Only active suppliers are returned
     """
-    response = test_client.get("/api/management/suppliers")
+    response = test_client.get("/api/management/suppliers", headers=admin_auth_headers)
     assert response.status_code == 200
     data = response.json()
     

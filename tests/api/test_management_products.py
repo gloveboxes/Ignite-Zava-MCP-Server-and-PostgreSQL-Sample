@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 """Test suite for product management endpoints."""
 
-def test_get_management_products(test_client: TestClient):
+def test_get_management_products(test_client: TestClient, admin_auth_headers: dict):
     """
     Test GET /api/management/products endpoint.
     
@@ -17,7 +17,7 @@ def test_get_management_products(test_client: TestClient):
     - ManagementProductResponse with products and pagination
     - Products with aggregated stock info
     """
-    response = test_client.get("/api/management/products?limit=10")
+    response = test_client.get("/api/management/products?limit=10", headers=admin_auth_headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -47,7 +47,7 @@ def test_get_management_products(test_client: TestClient):
     for field in required_fields:
         assert field in product, f"Missing required field: {field}"
 
-def test_get_management_products_with_category_filter(test_client: TestClient):
+def test_get_management_products_with_category_filter(test_client: TestClient, admin_auth_headers: dict):
     """
     Test management products endpoint with category filter.
     
@@ -56,7 +56,7 @@ def test_get_management_products_with_category_filter(test_client: TestClient):
     - Filter is case-insensitive
     """
     # First get a valid category from existing products
-    all_response = test_client.get("/api/management/products?limit=100")
+    all_response = test_client.get("/api/management/products?limit=100", headers=admin_auth_headers)
     all_data = all_response.json()
     
     # Get the first category we find
@@ -64,7 +64,7 @@ def test_get_management_products_with_category_filter(test_client: TestClient):
     test_category = all_data["products"][0]["category"]
     
     # Get products in that category
-    response = test_client.get(f"/api/management/products?category={test_category}&limit=50")
+    response = test_client.get(f"/api/management/products?category={test_category}&limit=50", headers=admin_auth_headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -77,7 +77,7 @@ def test_get_management_products_with_category_filter(test_client: TestClient):
     for product in products:
         assert product["category"].lower() == test_category.lower()
 
-def test_get_management_products_with_supplier_filter(test_client: TestClient):
+def test_get_management_products_with_supplier_filter(test_client: TestClient, admin_auth_headers: dict):
     """
     Test management products endpoint with supplier_id filter.
     
@@ -85,7 +85,7 @@ def test_get_management_products_with_supplier_filter(test_client: TestClient):
     - Only products from specified supplier are returned
     """
     # First get a valid supplier_id
-    all_response = test_client.get("/api/management/products?limit=100")
+    all_response = test_client.get("/api/management/products?limit=100", headers=admin_auth_headers)
     all_data = all_response.json()
     
     # Find a product with a supplier
@@ -98,7 +98,7 @@ def test_get_management_products_with_supplier_filter(test_client: TestClient):
     assert supplier_id is not None, "No products with suppliers found"
     
     # Test filtering by that supplier
-    response = test_client.get(f"/api/management/products?supplier_id={supplier_id}")
+    response = test_client.get(f"/api/management/products?supplier_id={supplier_id}", headers=admin_auth_headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -112,7 +112,7 @@ def test_get_management_products_with_supplier_filter(test_client: TestClient):
         if product.get("supplier_id") is not None:
             assert product["supplier_id"] == supplier_id
 
-def test_get_management_products_with_discontinued_filter(test_client: TestClient):
+def test_get_management_products_with_discontinued_filter(test_client: TestClient, admin_auth_headers: dict):
     """
     Test management products endpoint with discontinued filter.
     
@@ -121,7 +121,7 @@ def test_get_management_products_with_discontinued_filter(test_client: TestClien
     - discontinued=false returns only active products
     """
     # Test active products (discontinued=false)
-    active_response = test_client.get("/api/management/products?discontinued=false&limit=50")
+    active_response = test_client.get("/api/management/products?discontinued=false&limit=50", headers=admin_auth_headers)
     assert active_response.status_code == 200
     
     active_data = active_response.json()
@@ -132,7 +132,7 @@ def test_get_management_products_with_discontinued_filter(test_client: TestClien
         assert product["discontinued"] == False
     
     # Test discontinued products (discontinued=true)
-    discontinued_response = test_client.get("/api/management/products?discontinued=true&limit=50")
+    discontinued_response = test_client.get("/api/management/products?discontinued=true&limit=50", headers=admin_auth_headers)
     assert discontinued_response.status_code == 200
     
     discontinued_data = discontinued_response.json()
@@ -142,7 +142,7 @@ def test_get_management_products_with_discontinued_filter(test_client: TestClien
     for product in discontinued_products:
         assert product["discontinued"] == True
 
-def test_get_management_products_with_search(test_client: TestClient):
+def test_get_management_products_with_search(test_client: TestClient, admin_auth_headers: dict):
     """
     Test management products endpoint with search parameter.
     
@@ -153,7 +153,7 @@ def test_get_management_products_with_search(test_client: TestClient):
     - Search is case-insensitive
     """
     # Search for a common term like "shirt"
-    response = test_client.get("/api/management/products?search=shirt&limit=50")
+    response = test_client.get("/api/management/products?search=shirt&limit=50", headers=admin_auth_headers)
     assert response.status_code == 200
     
     data = response.json()
@@ -172,7 +172,7 @@ def test_get_management_products_with_search(test_client: TestClient):
                 break
         assert found_match, "Search results don't contain the search term"
 
-def test_get_management_products_pagination(test_client: TestClient):
+def test_get_management_products_pagination(test_client: TestClient, admin_auth_headers: dict):
     """
     Test management products endpoint pagination.
     
@@ -183,7 +183,7 @@ def test_get_management_products_pagination(test_client: TestClient):
     - pagination.has_more is accurate
     """
     # Get first page
-    first_page = test_client.get("/api/management/products?limit=5&offset=0")
+    first_page = test_client.get("/api/management/products?limit=5&offset=0", headers=admin_auth_headers)
     assert first_page.status_code == 200
     first_data = first_page.json()
     
@@ -192,7 +192,7 @@ def test_get_management_products_pagination(test_client: TestClient):
     assert first_data["pagination"]["offset"] == 0
     
     # Get second page
-    second_page = test_client.get("/api/management/products?limit=5&offset=5")
+    second_page = test_client.get("/api/management/products?limit=5&offset=5", headers=admin_auth_headers)
     assert second_page.status_code == 200
     second_data = second_page.json()
     
@@ -205,7 +205,7 @@ def test_get_management_products_pagination(test_client: TestClient):
         # Should have different products
         assert first_ids != second_ids
 
-def test_get_management_products_stock_aggregation(test_client: TestClient):
+def test_get_management_products_stock_aggregation(test_client: TestClient, admin_auth_headers: dict):
     """
     Test that stock aggregation is calculated correctly.
     
@@ -214,7 +214,7 @@ def test_get_management_products_stock_aggregation(test_client: TestClient):
     - store_count is accurate
     - stock_value and retail_value are calculated correctly
     """
-    response = test_client.get("/api/management/products?limit=20")
+    response = test_client.get("/api/management/products?limit=20", headers=admin_auth_headers)
     assert response.status_code == 200
     
     data = response.json()

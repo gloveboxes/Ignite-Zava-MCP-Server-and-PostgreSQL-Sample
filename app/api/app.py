@@ -44,7 +44,6 @@ from app.models.sqlite.products import Product as ProductModel
 from app.models.sqlite.categories import Category as CategoryModel
 from app.models.sqlite.product_types import ProductType as ProductTypeModel
 from app.models.sqlite.suppliers import Supplier as SupplierModel
-from app.models.sqlite.product_embeddings import ProductImageEmbedding as ProductImageEmbeddingModel
 from app.api.models import (
     Product, ProductList, Store, StoreList, Category, CategoryList, 
     TopCategory, TopCategoryList, Supplier, SupplierList, 
@@ -444,12 +443,11 @@ async def get_featured_products(
                     ProductModel.product_description,
                     SupplierModel.supplier_name,
                     ProductModel.discontinued,
-                    ProductImageEmbeddingModel.image_url
+                    ProductModel.image_url
                 )
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
                 .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
-                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
                 .where(ProductModel.discontinued == False)
                 .order_by(ProductModel.gross_margin_percent.desc(), func.random())
                 .limit(limit)
@@ -534,12 +532,11 @@ async def get_products_by_category(
                     ProductModel.product_description,
                     SupplierModel.supplier_name,
                     ProductModel.discontinued,
-                    ProductImageEmbeddingModel.image_url
+                    ProductModel.image_url
                 )
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
                 .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
-                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
                 .where(ProductModel.discontinued == False)
                 .where(func.lower(CategoryModel.category_name) == func.lower(category))
                 .order_by(ProductModel.product_name)
@@ -609,12 +606,11 @@ async def get_product_by_id(product_id: int) -> Product:
                     ProductModel.product_description,
                     SupplierModel.supplier_name,
                     ProductModel.discontinued,
-                    ProductImageEmbeddingModel.image_url
+                    ProductModel.image_url
                 )
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
                 .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
-                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
                 .where(ProductModel.product_id == product_id)
             )
 
@@ -679,12 +675,11 @@ async def get_product_by_sku(sku: str) -> Product:
                     ProductModel.product_description,
                     SupplierModel.supplier_name,
                     ProductModel.discontinued,
-                    ProductImageEmbeddingModel.image_url
+                    ProductModel.image_url
                 )
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
                 .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
-                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
                 .where(ProductModel.sku == sku)
             )
 
@@ -956,14 +951,13 @@ async def get_inventory(
             # Build base query with joins
             base_stmt = (
                 select(InventoryModel, StoreModel, ProductModel, CategoryModel,
-                       ProductTypeModel, SupplierModel, ProductImageEmbeddingModel)
+                       ProductTypeModel, SupplierModel)
                 .select_from(InventoryModel)
                 .join(StoreModel, InventoryModel.store_id == StoreModel.store_id)
                 .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
                 .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
-                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
             )
 
             # Apply store filter - store managers can only see their store
@@ -1042,7 +1036,6 @@ async def get_inventory(
                 category_obj = row[3]
                 product_type = row[4]
                 supplier = row[5]
-                image_embedding = row[6]
 
                 stock_level = inventory.stock_level
                 reorder_point = low_stock_threshold
@@ -1091,7 +1084,7 @@ async def get_inventory(
                     supplier_name=supplier.supplier_name if supplier else None,
                     supplier_code=supplier.supplier_code if supplier else None,
                     lead_time=supplier.lead_time_days if supplier else None,
-                    image_url=image_embedding.image_url if image_embedding else None
+                    image_url=product.image_url
                 ))
 
             # Use the summary statistics from the dedicated query
@@ -1174,14 +1167,13 @@ async def get_products(
                     func.coalesce(func.sum(InventoryModel.stock_level), 0).label(
                         'total_stock'),
                     func.count(InventoryModel.store_id).label('store_count'),
-                    ProductImageEmbeddingModel.image_url
+                    ProductModel.image_url
                 )
                 .select_from(ProductModel)
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
                 .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
                 .outerjoin(InventoryModel, ProductModel.product_id == InventoryModel.product_id)
-                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
             )
 
             # Store manager filtering - only show products in their store
@@ -1217,7 +1209,7 @@ async def get_products(
                 SupplierModel.supplier_name,
                 SupplierModel.supplier_code,
                 SupplierModel.lead_time_days,
-                ProductImageEmbeddingModel.image_url
+                ProductModel.image_url
             )
 
             # Get total count (need to count before limit/offset)

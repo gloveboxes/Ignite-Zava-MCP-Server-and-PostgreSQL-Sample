@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 """Test suite for management dashboard endpoints."""
 
-def test_get_top_categories(test_client: TestClient):
+def test_get_top_categories(test_client: TestClient, admin_auth_headers: dict):
     """
     Test GET /api/management/dashboard/top-categories endpoint.
     
@@ -17,7 +17,7 @@ def test_get_top_categories(test_client: TestClient):
     - TopCategoryList response model
     - Categories ordered by revenue
     """
-    response = test_client.get("/api/management/dashboard/top-categories")
+    response = test_client.get("/api/management/dashboard/top-categories", headers=admin_auth_headers)
     
     assert response.status_code == 200
     data = response.json()
@@ -50,7 +50,7 @@ def test_get_top_categories(test_client: TestClient):
             for i in range(len(data["categories"]) - 1):
                 assert data["categories"][i]["revenue"] >= data["categories"][i + 1]["revenue"]
 
-def test_get_top_categories_with_limit(test_client: TestClient):
+def test_get_top_categories_with_limit(test_client: TestClient, admin_auth_headers: dict):
     """
     Test top categories endpoint with limit parameter.
     
@@ -60,24 +60,24 @@ def test_get_top_categories_with_limit(test_client: TestClient):
     - Max limit is 10
     """
     # Test with custom limit
-    response = test_client.get("/api/management/dashboard/top-categories?limit=3")
+    response = test_client.get("/api/management/dashboard/top-categories?limit=3", headers=admin_auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data["categories"]) <= 3
     
     # Test with max limit
-    response = test_client.get("/api/management/dashboard/top-categories?limit=10")
+    response = test_client.get("/api/management/dashboard/top-categories?limit=10", headers=admin_auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data["categories"]) <= 10
     
     # Test default limit (5)
-    response = test_client.get("/api/management/dashboard/top-categories")
+    response = test_client.get("/api/management/dashboard/top-categories", headers=admin_auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data["categories"]) <= 5
 
-def test_get_top_categories_calculations(test_client: TestClient):
+def test_get_top_categories_calculations(test_client: TestClient, admin_auth_headers: dict):
     """
     Test that top categories calculations are correct.
     
@@ -86,7 +86,7 @@ def test_get_top_categories_calculations(test_client: TestClient):
     - Max value matches top category
     - Potential profit is calculated correctly
     """
-    response = test_client.get("/api/management/dashboard/top-categories?limit=5")
+    response = test_client.get("/api/management/dashboard/top-categories?limit=5", headers=admin_auth_headers)
     assert response.status_code == 200
     data = response.json()
     

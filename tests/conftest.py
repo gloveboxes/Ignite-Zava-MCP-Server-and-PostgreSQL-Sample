@@ -27,6 +27,28 @@ def test_client() -> Generator[TestClient, None, None]:
         yield client
 
 
+@pytest.fixture(scope="function")
+def admin_auth_headers(test_client: TestClient) -> dict:
+    """
+    Get authentication headers for admin user.
+    
+    Logs in as admin and returns headers with Bearer token.
+    
+    Args:
+        test_client: The test client fixture
+        
+    Returns:
+        dict: Headers with Authorization token
+    """
+    response = test_client.post(
+        "/api/login",
+        json={"username": "admin", "password": "admin123"}
+    )
+    assert response.status_code == 200, f"Admin login failed: {response.json()}"
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 @pytest.fixture(scope="module")
 def test_db():
     """
