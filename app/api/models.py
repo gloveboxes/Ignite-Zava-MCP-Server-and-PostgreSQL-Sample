@@ -196,3 +196,31 @@ class TokenData(BaseModel):
     username: str
     user_role: str
     store_id: Optional[int] = None
+
+
+class InsightAction(BaseModel):
+    """Action button for an insight"""
+    label: str = Field(..., description="Button label text")
+    type: str = Field(
+        ..., description="Action type: 'product-search' or 'navigation'"
+    )
+    query: Optional[str] = Field(
+        None, description="Search query for product-search type"
+    )
+    path: Optional[str] = Field(
+        None, description="Navigation path for navigation type"
+    )
+
+
+class Insight(BaseModel):
+    """Individual AI-generated insight"""
+    type: str = Field(..., description="Insight type: 'success', 'warning', or 'info'")
+    title: str = Field(..., description="Insight title/heading")
+    description: str = Field(..., description="Detailed insight description")
+    action: Optional[InsightAction] = Field(None, description="Optional action button")
+
+
+class WeeklyInsights(BaseModel):
+    """Weekly AI insights response"""
+    summary: str = Field(..., description="Overall summary of the week's performance")
+    insights: List[Insight] = Field(..., description="List of specific insights")

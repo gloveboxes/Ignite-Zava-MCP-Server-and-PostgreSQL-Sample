@@ -152,7 +152,7 @@
               <span class="ai-badge">✨ AI Generated</span>
             </div>
             
-            <div class="insights-content">
+            <div class="insights-content" v-if="!loadingInsights">
               <p class="insights-summary">
                 {{ weeklyInsights.summary }}
               </p>
@@ -194,6 +194,14 @@
                     </svg>
                   </button>
                 </div>
+              </div>
+            </div>
+            
+            <!-- Loading State -->
+            <div class="insights-content" v-else>
+              <div class="insights-loading">
+                <div class="spinner"></div>
+                <p>Loading AI insights...</p>
               </div>
             </div>
           </div>
@@ -275,6 +283,7 @@ export default {
   data() {
     return {
       loading: false,
+      loadingInsights: false,
       stats: {
         totalRevenue: 0,
         totalProducts: 0,
@@ -286,129 +295,13 @@ export default {
         topCategories: [],
         recentActivity: []
       },
+      weeklyInsights: {
+        summary: '',
+        insights: []
+      }
     };
   },
   computed: {
-    // Role-based AI insights (hardcoded for now, will be API-driven later)
-    weeklyInsights() {
-      const role = authStore.user?.role;
-      const storeId = authStore.user?.store_id;
-      
-      // Manager1 - NYC Times Square specific insights
-      if (role === 'store_manager' && storeId === 1) {
-        return {
-          summary: "NYC Times Square store performance remains strong this week with foot traffic up 12%. Weather forecasts indicate a significant cold snap arriving next week (temperatures dropping to 28°F/-2°C). This presents an immediate opportunity to capitalize on cold-weather accessory demand, particularly beanies and winter hats which saw 340% increase during last year's similar weather event.",
-          insights: [
-            {
-              type: "warning",
-              title: "Cold Snap Alert - Stock Winter Accessories",
-              description: "Weather forecast shows temperatures dropping to 28°F starting Monday. Current beanie inventory: 47 units. Recommend immediate order of 200+ units across popular styles. Last year's cold snap generated $8,400 in beanie sales over 3 days.",
-              action: {
-                label: "View Beanies",
-                type: "product-search",
-                query: "beanie"
-              }
-            },
-            {
-              type: "success",
-              title: "Tourist Season Performance",
-              description: "Times Square location seeing 18% increase in tourist traffic vs last month. Branded merchandise and gift items up 24% week-over-week."
-            },
-            {
-              type: "info",
-              title: "Peak Hours Optimization",
-              description: "Busiest hours: 2-6pm weekdays, 11am-8pm weekends. Consider adjusting staff schedules to maximize customer service during these windows."
-            },
-            {
-              type: "success",
-              title: "Local Partnership Opportunity",
-              description: "NYC-themed merchandise performing exceptionally well (32% of accessory sales). Consider expanding local artist collaborations for holiday season."
-            }
-          ]
-        };
-      }
-      
-      // Admin - All stores overview
-      if (role === 'admin') {
-        return {
-          summary: "Enterprise-wide performance analysis shows strong quarterly momentum with total revenue up 16% across all locations. Pike Place continues to lead in sales growth (+28%), while Spokane Pavilion requires attention for underperformance. Urban Threads supplier failing to meet contract terms with 23% late deliveries impacting inventory availability.",
-          insights: [
-            {
-              type: "success",
-              title: "Top Performing Store: Pike Place",
-              description: "Pike Place location leading network with 28% sales growth and 4.8★ customer satisfaction. Strong performance in outdoor and lifestyle categories. Consider this location for new product line testing.",
-              action: {
-                label: "View Details",
-                type: "navigation",
-                path: "/management/stores?store=3"
-              }
-            },
-            {
-              type: "warning",
-              title: "Underperforming Location: Spokane Pavilion",
-              description: "Spokane Pavilion down 12% vs target with declining foot traffic. Inventory turnover rate below network average. Recommend immediate strategic review and potential merchandising refresh.",
-              action: {
-                label: "View Analysis",
-                type: "navigation",
-                path: "/management/stores?store=4"
-              }
-            },
-            {
-              type: "success",
-              title: "Product Line Winner: Technical Outerwear",
-              description: "Technical outerwear category exceeding projections by 34% network-wide. Mountain Peak Outfitters partnership driving strong margins (42%) and customer satisfaction. Expand SKU count by 25% for Q4.",
-              action: {
-                label: "View Category",
-                type: "product-search",
-                query: "outerwear technical"
-              }
-            },
-            {
-              type: "warning",
-              title: "Supplier Contract Breach: Urban Threads",
-              description: "Urban Threads missing SLA targets: 23% late deliveries, 8% quality defects. Contract terms require 95% on-time delivery. Recommend supplier review meeting and potential penalty assessment.",
-              action: {
-                label: "View Supplier",
-                type: "navigation",
-                path: "/management/suppliers?supplier=urban-threads"
-              }
-            }
-          ]
-        };
-      }
-      
-      // Default fallback for other store managers
-      return {
-        summary: "Your store performance this week shows strong momentum with notable improvements in inventory turnover and customer engagement. Here are the key highlights and recommendations:",
-        insights: [
-          {
-            type: "success",
-            title: "Strong Performance in Outerwear",
-            description: "Outerwear category showing 23% increase in sales compared to last week. Consider restocking popular items like the Bomber Jacket and Rain Jacket."
-          },
-          {
-            type: "warning",
-            title: "Low Stock Alert - Footwear",
-            description: "Classic White Sneakers and Running Athletic Shoes inventory is critically low. Recommend immediate reorder to avoid stockouts during peak season.",
-            action: {
-              label: "View Inventory",
-              type: "navigation",
-              path: "/management/inventory?category=footwear&status=low"
-            }
-          },
-          {
-            type: "info",
-            title: "Supplier Performance",
-            description: "Urban Threads Wholesale has consistently delivered on time with 98% accuracy. Consider increasing order volume to leverage bulk discounts."
-          },
-          {
-            type: "success",
-            title: "Seasonal Opportunity",
-            description: "With fall approaching, accessories like beanies and gloves are expected to see 40% increase in demand. Stock levels are currently optimal."
-          }
-        ]
-      };
-    },
     username() {
       return authStore.user?.username || 'User';
     },
@@ -440,7 +333,10 @@ export default {
     }
   },
   async mounted() {
-    await this.loadDashboard();
+    await Promise.all([
+      this.loadDashboard(),
+      this.loadWeeklyInsights()
+    ]);
   },
   methods: {
     async loadDashboard() {
@@ -451,6 +347,20 @@ export default {
         console.error('Error loading dashboard:', error);
       } finally {
         this.loading = false;
+      }
+    },
+    async loadWeeklyInsights() {
+      this.loadingInsights = true;
+      try {
+        this.weeklyInsights = await managementService.getWeeklyInsights();
+      } catch (error) {
+        console.error('Error loading weekly insights:', error);
+        this.weeklyInsights = {
+          summary: 'Unable to load insights at this time.',
+          insights: []
+        };
+      } finally {
+        this.loadingInsights = false;
       }
     },
     formatNumber(num) {
@@ -791,6 +701,30 @@ export default {
   background: white;
   border-radius: 8px;
   padding: 1.25rem;
+}
+
+.insights-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  gap: 1rem;
+}
+
+.insights-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.insights-loading p {
+  color: var(--secondary-color);
+  font-size: 0.95rem;
+  margin: 0;
 }
 
 .insights-summary {

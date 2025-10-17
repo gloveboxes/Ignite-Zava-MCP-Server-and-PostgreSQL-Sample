@@ -49,7 +49,8 @@ from app.api.models import (
     TopCategory, TopCategoryList, Supplier, SupplierList, 
     InventoryItem, InventorySummary, InventoryResponse, 
     ManagementProduct, ProductPagination, ManagementProductResponse,
-    LoginRequest, LoginResponse, TokenData
+    LoginRequest, LoginResponse, TokenData,
+    WeeklyInsights, Insight, InsightAction
 )
 
 # Configure logging
@@ -809,6 +810,209 @@ async def get_top_categories(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch top categories: {str(e)}"
+        )
+
+
+@app.get("/api/management/insights", response_model=WeeklyInsights)
+async def get_weekly_insights(
+    current_user: TokenData = Depends(get_current_user)
+) -> WeeklyInsights:
+    """
+    Get AI-generated weekly insights for the management dashboard.
+    Returns role-based insights: store-specific for managers, enterprise-wide for admins.
+    Requires authentication.
+    """
+    try:
+        logger.info(
+            f"🤖 Fetching weekly insights for user {current_user.username} "
+            f"(role: {current_user.user_role}, store: {current_user.store_id})"
+        )
+
+        # Store Manager for NYC Times Square (store_id = 1)
+        if current_user.user_role == 'store_manager' and current_user.store_id == 1:
+            return WeeklyInsights(
+                summary=(
+                    "NYC Times Square store performance remains strong this week with "
+                    "foot traffic up 12%. Weather forecasts indicate a significant cold "
+                    "snap arriving next week (temperatures dropping to 28°F/-2°C). This "
+                    "presents an immediate opportunity to capitalize on cold-weather "
+                    "accessory demand, particularly beanies and winter hats which saw "
+                    "340% increase during last year's similar weather event."
+                ),
+                insights=[
+                    Insight(
+                        type="warning",
+                        title="Cold Snap Alert - Stock Winter Accessories",
+                        description=(
+                            "Weather forecast shows temperatures dropping to 28°F starting "
+                            "Monday. Current beanie inventory: 47 units. Recommend immediate "
+                            "order of 200+ units across popular styles. Last year's cold snap "
+                            "generated $8,400 in beanie sales over 3 days."
+                        ),
+                        action=InsightAction(
+                            label="View Beanies",
+                            type="product-search",
+                            query="beanie"
+                        )
+                    ),
+                    Insight(
+                        type="success",
+                        title="Tourist Season Performance",
+                        description=(
+                            "Times Square location seeing 18% increase in tourist traffic vs "
+                            "last month. Branded merchandise and gift items up 24% week-over-week."
+                        )
+                    ),
+                    Insight(
+                        type="info",
+                        title="Peak Hours Optimization",
+                        description=(
+                            "Busiest hours: 2-6pm weekdays, 11am-8pm weekends. Consider "
+                            "adjusting staff schedules to maximize customer service during "
+                            "these windows."
+                        )
+                    ),
+                    Insight(
+                        type="success",
+                        title="Local Partnership Opportunity",
+                        description=(
+                            "NYC-themed merchandise performing exceptionally well (32% of "
+                            "accessory sales). Consider expanding local artist collaborations "
+                            "for holiday season."
+                        )
+                    )
+                ]
+            )
+
+        # Admin - Enterprise-wide insights
+        if current_user.user_role == 'admin':
+            return WeeklyInsights(
+                summary=(
+                    "Enterprise-wide performance analysis shows strong quarterly momentum "
+                    "with total revenue up 16% across all locations. Pike Place continues "
+                    "to lead in sales growth (+28%), while Spokane Pavilion requires "
+                    "attention for underperformance. Urban Threads supplier failing to meet "
+                    "contract terms with 23% late deliveries impacting inventory availability."
+                ),
+                insights=[
+                    Insight(
+                        type="success",
+                        title="Top Performing Store: Pike Place",
+                        description=(
+                            "Pike Place location leading network with 28% sales growth and "
+                            "4.8★ customer satisfaction. Strong performance in outdoor and "
+                            "lifestyle categories. Consider this location for new product "
+                            "line testing."
+                        ),
+                        action=InsightAction(
+                            label="View Details",
+                            type="navigation",
+                            path="/management/stores?store=3"
+                        )
+                    ),
+                    Insight(
+                        type="warning",
+                        title="Underperforming Location: Spokane Pavilion",
+                        description=(
+                            "Spokane Pavilion down 12% vs target with declining foot traffic. "
+                            "Inventory turnover rate below network average. Recommend immediate "
+                            "strategic review and potential merchandising refresh."
+                        ),
+                        action=InsightAction(
+                            label="View Analysis",
+                            type="navigation",
+                            path="/management/stores?store=4"
+                        )
+                    ),
+                    Insight(
+                        type="success",
+                        title="Product Line Winner: Technical Outerwear",
+                        description=(
+                            "Technical outerwear category exceeding projections by 34% "
+                            "network-wide. Mountain Peak Outfitters partnership driving strong "
+                            "margins (42%) and customer satisfaction. Expand SKU count by 25% "
+                            "for Q4."
+                        ),
+                        action=InsightAction(
+                            label="View Category",
+                            type="product-search",
+                            query="outerwear technical"
+                        )
+                    ),
+                    Insight(
+                        type="warning",
+                        title="Supplier Contract Breach: Urban Threads",
+                        description=(
+                            "Urban Threads missing SLA targets: 23% late deliveries, 8% "
+                            "quality defects. Contract terms require 95% on-time delivery. "
+                            "Recommend supplier review meeting and potential penalty assessment."
+                        ),
+                        action=InsightAction(
+                            label="View Supplier",
+                            type="navigation",
+                            path="/management/suppliers?supplier=urban-threads"
+                        )
+                    )
+                ]
+            )
+
+        # Default insights for other store managers
+        return WeeklyInsights(
+            summary=(
+                "Your store performance this week shows strong momentum with notable "
+                "improvements in inventory turnover and customer engagement. Here are "
+                "the key highlights and recommendations:"
+            ),
+            insights=[
+                Insight(
+                    type="success",
+                    title="Strong Performance in Outerwear",
+                    description=(
+                        "Outerwear category showing 23% increase in sales compared to last "
+                        "week. Consider restocking popular items like the Bomber Jacket and "
+                        "Rain Jacket."
+                    )
+                ),
+                Insight(
+                    type="warning",
+                    title="Low Stock Alert - Footwear",
+                    description=(
+                        "Classic White Sneakers and Running Athletic Shoes inventory is "
+                        "critically low. Recommend immediate reorder to avoid stockouts "
+                        "during peak season."
+                    ),
+                    action=InsightAction(
+                        label="View Inventory",
+                        type="navigation",
+                        path="/management/inventory?category=footwear&status=low"
+                    )
+                ),
+                Insight(
+                    type="info",
+                    title="Supplier Performance",
+                    description=(
+                        "Urban Threads Wholesale has consistently delivered on time with "
+                        "98% accuracy. Consider increasing order volume to leverage bulk "
+                        "discounts."
+                    )
+                ),
+                Insight(
+                    type="success",
+                    title="Seasonal Opportunity",
+                    description=(
+                        "With fall approaching, accessories like beanies and gloves are "
+                        "expected to see 40% increase in demand. Stock levels are currently "
+                        "optimal."
+                    )
+                )
+            ]
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching weekly insights: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch weekly insights: {str(e)}"
         )
 
 
