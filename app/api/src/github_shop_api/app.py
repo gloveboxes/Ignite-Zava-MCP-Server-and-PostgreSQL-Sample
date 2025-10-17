@@ -26,9 +26,8 @@ from pydantic import BaseModel
 import json
 import secrets
 from datetime import datetime, timezone
-from typing import Dict
-from app.config import Config
-from app.agents.stock import workflow
+from github_shop_shared.config import Config
+from github_shop_agents.stock import workflow
 
 # SQLAlchemy imports for SQLite
 from sqlalchemy import select, func, case
@@ -38,13 +37,13 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from app.models.sqlite.stores import Store as StoreModel
-from app.models.sqlite.inventory import Inventory as InventoryModel
-from app.models.sqlite.products import Product as ProductModel
-from app.models.sqlite.categories import Category as CategoryModel
-from app.models.sqlite.product_types import ProductType as ProductTypeModel
-from app.models.sqlite.suppliers import Supplier as SupplierModel
-from app.api.models import (
+from github_shop_shared.models.sqlite.stores import Store as StoreModel
+from github_shop_shared.models.sqlite.inventory import Inventory as InventoryModel
+from github_shop_shared.models.sqlite.products import Product as ProductModel
+from github_shop_shared.models.sqlite.categories import Category as CategoryModel
+from github_shop_shared.models.sqlite.product_types import ProductType as ProductTypeModel
+from github_shop_shared.models.sqlite.suppliers import Supplier as SupplierModel
+from .models import (
     Product, ProductList, Store, StoreList, Category, CategoryList, 
     TopCategory, TopCategoryList, Supplier, SupplierList, 
     InventoryItem, InventorySummary, InventoryResponse, 

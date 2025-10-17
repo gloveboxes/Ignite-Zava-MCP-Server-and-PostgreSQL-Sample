@@ -1,0 +1,17 @@
+[project]
+name = "github-shop-mcp"
+version = "0.1.0"
+description = "MCP server for the shop application"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.10.0,<2.0.0",
+    # local editable packages
+    "github-shop-shared",
+]
+
+[tool.uv.sources]
+github-shop-shared = { path = "../shared", editable = true }
+
+[build-system]
+requires = ["uv_build>=0.9.3,<0.10.0"]
+build-backend = "uv_build"

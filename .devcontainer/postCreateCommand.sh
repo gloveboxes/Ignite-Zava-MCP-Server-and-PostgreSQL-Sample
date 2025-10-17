@@ -13,6 +13,8 @@ chmod +x ./dotnet-install.sh
 export PATH="$HOME/.aspire/bin:$HOME/.dotnet:$PATH"
 echo 'export PATH="$HOME/.aspire/bin:$HOME/.dotnet:$PATH"' >> ~/.bashrc
 
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 echo "Setup complete!"
 echo "- Python environment: ready"
 echo "- Node.js: $(node --version)"

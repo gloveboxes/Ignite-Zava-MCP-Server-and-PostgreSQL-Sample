@@ -8,8 +8,8 @@ finance agents with order policies, contracts, sales analysis, and inventory.
 The server uses pre-written SQL queries (not dynamically generated SQL) with SQLite ORM.
 """
 
-from ..finance_sqlite import FinanceSQLiteProvider
-from ..config import Config
+from shared.finance_sqlite import FinanceSQLiteProvider
+from shared.config import Config
 
 import asyncio
 import json

@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 # Suppress verbose Azure Application Insights logging (same as sales_analysis.py)
 for name in [
     "azure.core.pipeline.policies.http_logging_policy",
-    "azure.ai.agents", 
+    "azure.ai.agents",
     "azure.ai.projects",
     "azure.core",
     "azure.identity",

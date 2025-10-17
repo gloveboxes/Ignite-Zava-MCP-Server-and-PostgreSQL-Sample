@@ -1,5 +1,4 @@
 # Copyright (c) Microsoft. All rights reserved.
-import asyncio
 import os
 
 from agent_framework import (
@@ -32,13 +31,6 @@ else:
                                         endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT_GPT5"),
                                         deployment_name=os.environ.get("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME_GPT5"),
                                         api_version=os.environ.get("AZURE_OPENAI_ENDPOINT_VERSION_GPT5", "2024-02-15-preview"))
-
-# Send a little prompt to test the client is working.
-response = asyncio.run(chat_client.client.chat.completions.create(
-    model=GPT_DEPLOYMENT,
-    messages=[{"role": "user", "content": "What is 1+1 answer with the number only"}],
-))
-print("Test response from Azure OpenAI:", response.choices[0].message.content)
 
 class StockItem(BaseModel):
     sku: str

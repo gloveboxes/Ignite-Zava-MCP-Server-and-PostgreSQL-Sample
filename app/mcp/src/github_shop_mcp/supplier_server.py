@@ -20,8 +20,8 @@ from mcp.server.fastmcp import Context, FastMCP
 from opentelemetry.instrumentation.starlette import StarletteInstrumentor
 from pydantic import Field
 
-from ..config import Config
-from ..supplier_sqlite import SupplierSQLiteProvider
+from shared.config import Config
+from shared.supplier_sqlite import SupplierSQLiteProvider
 
 config = Config()
 logger = logging.getLogger(__name__)
@@ -272,7 +272,7 @@ async def run_http_server() -> None:
     # Ensure a single connection pool is created once for the process.
     try:
         await supplier_provider.create_pool()
-        
+
         # Instrument Starlette after pool creation
         StarletteInstrumentor().instrument()
         
