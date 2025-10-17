@@ -251,6 +251,56 @@ async def get_current_inventory_status(
 
 
 @mcp.tool()
+async def get_stores(
+    store_name: Optional[str] = None
+) -> str:
+    """
+    Get store information with optional filtering by name.
+    
+    Returns store details including store IDs, names, and online status.
+    Can be filtered by store name using partial, case-insensitive matching.
+    Returns all stores if no filter is provided.
+    
+    Args:
+        store_name: Optional store name to search for (partial match, case-insensitive)
+    
+    Returns:
+        JSON string with format: {"c": [columns], "r": [[row data]], "n": count}
+        Includes store_id, store_name, is_online, rls_user_id.
+    
+    Example:
+        >>> # Get all stores
+        >>> result = await get_stores()
+        >>> data = json.loads(result)
+        >>> store_ids = [row[data['c'].index('store_id')] for row in data['r']]
+        >>> 
+        >>> # Search by name
+        >>> result = await get_stores(store_name="Downtown")
+        >>> 
+        >>> # Get online stores
+        >>> result = await get_stores(store_name="Online")
+    """
+    try:
+        provider = await get_finance_provider()
+        result = await provider.get_stores(
+            store_name=store_name
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error in get_stores: {e}")
+        return json.dumps(
+            {
+                "err": f"Failed to retrieve stores: {e!s}",
+                "c": [],
+                "r": [],
+                "n": 0,
+            },
+            separators=(",", ":"),
+            default=str,
+        )
+
+
+@mcp.tool()
 async def get_current_utc_date() -> str:
     """
     Get the current date and time in UTC format.
@@ -301,6 +351,7 @@ async def run_http_server() -> None:
         logger.info("  - get_supplier_contract: Get supplier contract details")
         logger.info("  - get_historical_sales_data: Get sales metrics (90 day default)")
         logger.info("  - get_current_inventory_status: Get inventory with valuations")
+        logger.info("  - get_stores: Get store information by name")
         logger.info("  - get_current_utc_date: Get current date/time")
         
         # Configure server settings

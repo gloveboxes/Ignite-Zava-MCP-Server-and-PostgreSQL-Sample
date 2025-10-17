@@ -488,6 +488,77 @@ class FinanceSQLiteProvider:
                     default=str,
                 )
 
+    async def get_stores(
+        self,
+        store_name: Optional[str] = None,
+    ) -> str:
+        """
+        Get store information with optional filtering.
+
+        Returns store details including store IDs, names, and online status.
+        Can be filtered by store name. Returns all stores if no filters provided.
+
+        Args:
+            store_name: Optional store name to search for (partial match, case-insensitive)
+
+        Returns:
+            JSON string with format: {"c": [columns], "r": [[row data]], "n": count}
+            Includes store_id, store_name, is_online, and rls_user_id.
+        """
+        async with self.get_session() as session:
+            try:
+                # Build query using ORM
+                stmt = select(
+                    Store.store_id,
+                    Store.store_name,
+                    Store.is_online,
+                    Store.rls_user_id,
+                )
+
+                # Apply filter if provided
+                if store_name:
+                    stmt = stmt.where(
+                        func.upper(Store.store_name).like(f"%{store_name.upper()}%")
+                    )
+
+                stmt = stmt.order_by(Store.store_name)
+
+                result = await session.execute(stmt)
+                rows = result.mappings().all()
+
+                if not rows:
+                    return json.dumps(
+                        {
+                            "c": [],
+                            "r": [],
+                            "n": 0,
+                            "msg": "No stores found matching the criteria",
+                        },
+                        separators=(",", ":"),
+                        default=str,
+                    )
+
+                columns = list(rows[0].keys())
+                data_rows = [[row[col] for col in columns] for row in rows]
+
+                return json.dumps(
+                    {"c": columns, "r": data_rows, "n": len(data_rows)},
+                    separators=(",", ":"),
+                    default=str,
+                )
+
+            except Exception as e:
+                return json.dumps(
+                    {
+                        "err": f"Store query failed: {e!s}",
+                        "c": [],
+                        "r": [],
+                        "n": 0,
+                    },
+                    separators=(",", ":"),
+                    default=str,
+                )
+
 
 async def test_connection() -> bool:
     """Test SQLite connection and return success status."""
@@ -541,6 +612,20 @@ async def main() -> None:
             # Test 4: Get current inventory status
             logger.info("📊 Test 4: Get current inventory status")
             result = await provider.get_current_inventory_status(low_stock_threshold=10)
+            logger.info(
+                "Result: %s", result[: 200] + "..." if len(result) > 200 else result
+            )
+
+            # Test 5: Get all stores
+            logger.info("📊 Test 5: Get all stores")
+            result = await provider.get_stores()
+            logger.info(
+                "Result: %s", result[: 200] + "..." if len(result) > 200 else result
+            )
+
+            # Test 6: Get stores by name
+            logger.info("📊 Test 6: Get stores by name (Online)")
+            result = await provider.get_stores(store_name="Online")
             logger.info(
                 "Result: %s", result[: 200] + "..." if len(result) > 200 else result
             )
