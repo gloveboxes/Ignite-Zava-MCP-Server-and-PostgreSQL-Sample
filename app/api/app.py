@@ -168,6 +168,43 @@ class InventoryResponse(BaseModel):
     summary: InventorySummary
 
 
+class ManagementProduct(BaseModel):
+    """Model for product information in management interface with inventory details."""
+    product_id: int = Field(..., description="Unique product identifier")
+    sku: str = Field(..., description="Stock Keeping Unit identifier")
+    name: str = Field(..., description="Product name")
+    description: Optional[str] = Field(None, description="Product description")
+    category: str = Field(..., description="Product category name")
+    type: str = Field(..., description="Product type name")
+    base_price: float = Field(..., description="Base retail price")
+    cost: float = Field(..., description="Cost per unit")
+    margin: float = Field(..., description="Gross margin percentage")
+    discontinued: bool = Field(..., description="Whether product is discontinued")
+    supplier_id: Optional[int] = Field(None, description="Supplier identifier")
+    supplier_name: Optional[str] = Field(None, description="Supplier name")
+    supplier_code: Optional[str] = Field(None, description="Supplier code")
+    lead_time: Optional[int] = Field(None, description="Lead time in days")
+    total_stock: int = Field(..., description="Total stock across all stores")
+    store_count: int = Field(..., description="Number of stores carrying this product")
+    stock_value: float = Field(..., description="Total inventory value at cost")
+    retail_value: float = Field(..., description="Total inventory value at retail price")
+    image_url: Optional[str] = Field(None, description="Product image URL")
+
+
+class ProductPagination(BaseModel):
+    """Pagination information for product list."""
+    total: int = Field(..., description="Total number of products matching criteria")
+    limit: int = Field(..., description="Maximum number of products per page")
+    offset: int = Field(..., description="Current offset in results")
+    has_more: bool = Field(..., description="Whether more products are available")
+
+
+class ManagementProductResponse(BaseModel):
+    """Response model for management products list with pagination."""
+    products: List[ManagementProduct] = Field(..., description="List of products")
+    pagination: ProductPagination = Field(..., description="Pagination information")
+
+
 # Lifespan context manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1004,15 +1041,15 @@ async def get_inventory(
         await db_provider.release_connection(conn)
 
 
-@app.get("/api/management/products")
+@app.get("/api/management/products", response_model=ManagementProductResponse)
 async def get_products(
-    category: str = None,
-    supplier_id: int = None,
-    discontinued: bool = None,
-    search: str = None,
+    category: Optional[str] = None,
+    supplier_id: Optional[int] = None,
+    discontinued: Optional[bool] = None,
+    search: Optional[str] = None,
     limit: int = 100,
     offset: int = 0
-):
+) -> ManagementProductResponse:
     """
     Get products with detailed information including pricing, suppliers, and stock status.
     
@@ -1116,39 +1153,39 @@ async def get_products(
             stock_value = cost * total_stock
             retail_value = base_price * total_stock
             
-            products.append({
-                "productId": row['product_id'],
-                "sku": row['sku'],
-                "name": row['product_name'],
-                "description": row['product_description'],
-                "category": row['category_name'],
-                "type": row['type_name'],
-                "basePrice": base_price,
-                "cost": cost,
-                "margin": margin,
-                "discontinued": row['discontinued'],
-                "supplierId": row['supplier_id'],
-                "supplierName": row['supplier_name'],
-                "supplierCode": row['supplier_code'],
-                "leadTime": row['lead_time_days'],
-                "totalStock": total_stock,
-                "storeCount": int(row['store_count']),
-                "stockValue": round(stock_value, 2),
-                "retailValue": round(retail_value, 2),
-                "imageUrl": row['image_url']
-            })
+            products.append(ManagementProduct(
+                product_id=row['product_id'],
+                sku=row['sku'],
+                name=row['product_name'],
+                description=row['product_description'],
+                category=row['category_name'],
+                type=row['type_name'],
+                base_price=base_price,
+                cost=cost,
+                margin=margin,
+                discontinued=row['discontinued'],
+                supplier_id=row['supplier_id'],
+                supplier_name=row['supplier_name'],
+                supplier_code=row['supplier_code'],
+                lead_time=row['lead_time_days'],
+                total_stock=total_stock,
+                store_count=int(row['store_count']),
+                stock_value=round(stock_value, 2),
+                retail_value=round(retail_value, 2),
+                image_url=row['image_url']
+            ))
 
         logger.info(f"✅ Retrieved {len(products)} products (total: {total_count})")
 
-        return {
-            "products": products,
-            "pagination": {
-                "total": total_count,
-                "limit": limit,
-                "offset": offset,
-                "hasMore": (offset + len(products)) < total_count
-            }
-        }
+        return ManagementProductResponse(
+            products=products,
+            pagination=ProductPagination(
+                total=total_count,
+                limit=limit,
+                offset=offset,
+                has_more=(offset + len(products)) < total_count
+            )
+        )
 
     except Exception as e:
         logger.error(f"❌ Error fetching products: {e}")

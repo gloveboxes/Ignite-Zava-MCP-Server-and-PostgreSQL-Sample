@@ -196,36 +196,58 @@ export const managementService = {
   },
 
   getMockProducts() {
-    return [
-      {
-        id: 1,
-        name: 'Classic White Sneakers',
-        sku: 'FOOT-SNK-001',
-        category: 'Footwear',
-        type: 'Sneakers',
-        supplier: 'Athletic Footwear Network',
-        unitPrice: 79.99,
-        costPrice: 45.00,
-        margin: 43.7,
-        totalStock: 35,
-        status: 'active',
-        lastRestocked: '2025-10-10'
-      },
-      {
-        id: 2,
-        name: 'Laptop Commuter Backpack',
-        sku: 'ACC-BAG-002',
-        category: 'Accessories',
-        type: 'Backpacks & Bags',
-        supplier: 'Bag & Luggage Distributors',
-        unitPrice: 82.07,
-        costPrice: 48.50,
-        margin: 40.9,
-        totalStock: 39,
-        status: 'active',
-        lastRestocked: '2025-10-12'
+    return {
+      products: [
+        {
+          product_id: 1,
+          sku: 'FOOT-SNK-001',
+          name: 'Classic White Sneakers',
+          description: 'Comfortable classic white sneakers',
+          category: 'Footwear',
+          type: 'Sneakers',
+          base_price: 79.99,
+          cost: 45.00,
+          margin: 43.7,
+          discontinued: false,
+          supplier_id: 1,
+          supplier_name: 'Athletic Footwear Network',
+          supplier_code: 'SUP001',
+          lead_time: 7,
+          total_stock: 35,
+          store_count: 3,
+          stock_value: 1575.00,
+          retail_value: 2799.65,
+          image_url: '/images/products/sneakers-white.jpg'
+        },
+        {
+          product_id: 2,
+          sku: 'ACC-BAG-002',
+          name: 'Laptop Commuter Backpack',
+          description: 'Professional laptop backpack',
+          category: 'Accessories',
+          type: 'Backpacks & Bags',
+          base_price: 82.07,
+          cost: 48.50,
+          margin: 40.9,
+          discontinued: false,
+          supplier_id: 2,
+          supplier_name: 'Bag & Luggage Distributors',
+          supplier_code: 'SUP002',
+          lead_time: 10,
+          total_stock: 39,
+          store_count: 3,
+          stock_value: 1891.50,
+          retail_value: 3200.73,
+          image_url: '/images/products/backpack-laptop.jpg'
+        }
+      ],
+      pagination: {
+        total: 2,
+        limit: 100,
+        offset: 0,
+        has_more: false
       }
-    ];
+    };
   },
 
   getMockPolicies() {
