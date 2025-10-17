@@ -466,9 +466,14 @@ def insert_products(session: Session):
                     if not supplier_id:
                         supplier_id = random.choice(default_suppliers).supplier_id
                     
-                    cost = round(random.uniform(10.0, 500.0), 2)
-                    markup = random.uniform(1.5, 3.0)
-                    base_price = round(cost * markup, 2)
+                    # Use the JSON price as the actual store selling price
+                    json_price = product.get('price', 19.99)
+                    base_price = round(float(json_price), 2)
+                    
+                    # Calculate cost for 33% gross margin
+                    # Gross Margin = (Selling Price - Cost) / Selling Price = 0.33
+                    # Therefore: Cost = Selling Price × (1 - 0.33) = Selling Price × 0.67
+                    cost = round(base_price * 0.67, 2)
                     
                     # Extract image_url from product data (remove 'images/' prefix)
                     image_path = product.get('image_path', '')

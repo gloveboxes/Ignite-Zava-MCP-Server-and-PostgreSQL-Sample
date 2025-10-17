@@ -1344,13 +1344,13 @@ async def insert_products(conn):
                     )[0]
                     supplier_id = supplier['supplier_id']
                     
-                    # Treat the JSON price as the cost
-                    cost = float(json_price)
+                    # Treat the JSON price as the actual store selling price
+                    base_price = float(json_price)
                     
-                    # Calculate selling price for 33% gross margin
+                    # Calculate cost for 33% gross margin
                     # Gross Margin = (Selling Price - Cost) / Selling Price = 0.33
-                    # Therefore: Selling Price = Cost / (1 - 0.33) = Cost / 0.67
-                    base_price = round(cost / 0.67, 2)
+                    # Therefore: Cost = Selling Price × (1 - 0.33) = Selling Price × 0.67
+                    cost = round(base_price * 0.67, 2)
                     
                     # Set procurement lead time based on supplier
                     # Get supplier info for lead time

@@ -15,8 +15,6 @@ __all__ = [
     "OrderItem",
     "Order",
     "ProcurementRequest",
-    "ProductDescriptionEmbedding",
-    "ProductImageEmbedding",
     "ProductType",
     "Product",
     "Store",
@@ -35,7 +33,6 @@ from .notifications import Notification
 from .order_items import OrderItem
 from .orders import Order
 from .procurement_requests import ProcurementRequest
-from .product_embeddings import ProductDescriptionEmbedding, ProductImageEmbedding
 from .product_types import ProductType
 from .products import Product
 from .stores import Store
