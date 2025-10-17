@@ -809,7 +809,9 @@ export default {
 }
 
 .insight-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
   gap: 0.875rem;
   padding: 1rem;
   border-radius: 8px;
@@ -848,6 +850,8 @@ export default {
   flex-shrink: 0;
   background: white;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  grid-row: 1 / 2;
+  align-self: start;
 }
 
 .insight-success .insight-icon {
@@ -863,7 +867,8 @@ export default {
 }
 
 .insight-text {
-  flex: 1;
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
 }
 
 .insight-text strong {
@@ -882,11 +887,14 @@ export default {
 }
 
 .insight-action-btn {
-  align-self: flex-end;
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: 0.375rem;
   padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
   background: white;
   border: 2px solid currentColor;
   border-radius: 8px;
@@ -896,7 +904,6 @@ export default {
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .insight-success .insight-action-btn {
