@@ -1,12 +1,12 @@
-# GitHub Popup Stores PostgreSQL Database Generator
+# GitHub Popup Stores SQLite Database Generator
 
-This directory contains the PostgreSQL database generator for **GitHub Popup Stores**, a fictional retail company with popup locations across the US. The generator creates a comprehensive sales database with realistic retail data patterns, seasonal variations, and advanced features for data analysis and agentic applications.
+This directory contains the SQLite database generator for **GitHub Popup Stores**, a fictional retail company with popup locations across the US. The generator creates a comprehensive sales database with realistic retail data patterns, seasonal variations, and advanced features for data analysis and agentic applications.
 
 ## Quick Start
 
-### How to Generate the GitHub Popup Stores PostgreSQL Database
+### How to Generate the GitHub Popup Stores SQLite Database
 
-To generate the complete GitHub Popup Stores PostgreSQL database:
+To generate the complete GitHub Popup Stores SQLite database:
 
 ```bash
 # Navigate to the database directory
@@ -15,36 +15,34 @@ cd data/database
 pip install -r requirements.txt
 
 # Run the generator (creates complete database)
-python generate_github_postgres.py
+python generate_github_sqlite_sqlalchemy.py
 
 # Or run with specific options
-python generate_github_postgres.py --show-stats          # Show database statistics
-python generate_github_postgres.py --embeddings-only     # Populate embeddings only
-python generate_github_postgres.py --verify-embeddings   # Verify embeddings table
-python generate_github_postgres.py --verify-seasonal     # Verify seasonal patterns
-python generate_github_postgres.py --clear-embeddings    # Clear existing embeddings
-python generate_github_postgres.py --batch-size 200      # Set embedding batch size
-python generate_github_postgres.py --num-customers 100000 # Set number of customers
-python generate_github_postgres.py --help                # Show all options
+python generate_github_sqlite_sqlalchemy.py --show-stats          # Show database statistics
+python generate_github_sqlite_sqlalchemy.py --embeddings-only     # Populate embeddings only
+python generate_github_sqlite_sqlalchemy.py --verify-embeddings   # Verify embeddings table
+python generate_github_sqlite_sqlalchemy.py --verify-seasonal     # Verify seasonal patterns
+python generate_github_sqlite_sqlalchemy.py --clear-embeddings    # Clear existing embeddings
+python generate_github_sqlite_sqlalchemy.py --batch-size 200      # Set embedding batch size
+python generate_github_sqlite_sqlalchemy.py --num-customers 100000 # Set number of customers
+python generate_github_sqlite_sqlalchemy.py --help                # Show all options
 ```
 
 **Prerequisites:**
 
-- PostgreSQL 17+ with pgvector extension
-- Python 3.13+ with required packages (asyncpg, faker, python-dotenv)
+- Python 3.13+ with required packages (sqlalchemy, faker, python-dotenv)
 - Required JSON reference files (see Reference Data Files section below)
 
 ### Database Schema Reference
 
-A complete schema backup is available at `/workspace/zava_retail_schema.sql` containing:
-- **17 Tables** - Complete retail schema with all column definitions
-- **14 Sequences** - Auto-increment sequences for primary keys  
-- **60 Indexes** - Performance optimization including vector indexes
-- **19 Foreign Key Constraints** - Referential integrity relationships
-- **13 RLS Policies** - Row Level Security for multi-tenant access
-- **11 Check Constraints** - Data validation constraints
+The complete database structure is defined in the SQLAlchemy ORM models located in `/workspace/app/models/sqlite/` containing:
 
-This schema file can be used to recreate the database structure on any PostgreSQL instance with pgvector extension.
+- **17 Tables** - Complete retail schema with all column definitions
+- **Relationships** - Bi-directional ORM relationships between entities
+- **Constraints** - Data integrity constraints (unique, foreign key, check constraints)
+- **Default Values** - Automatic timestamp and status field defaults
+
+See the [SQLite Models README](/workspace/app/models/sqlite/README.md) for detailed information about the database structure, models, and relationships.
 
 ## Available Tools
 
@@ -52,13 +50,13 @@ This directory contains several utility tools for managing and working with the 
 
 ### **Core Database Tools**
 
-- **`generate_github_postgres.py`** - Main database generator that creates the complete GitHub Popup Stores retail database with realistic sales data, seasonal patterns, and AI embeddings
+- **`generate_github_sqlite_sqlalchemy.py`** - Main database generator that creates the complete GitHub Popup Stores retail database with realistic sales data, seasonal patterns, and AI embeddings
 - **`count_products.py`** - Analyzes and reports product counts across categories and embedding status from the JSON reference files
 
 ### **AI/ML and Embedding Tools**
 
-- **`add_image_embeddings.py`** - Generates 512-dimensional image embeddings for product images using OpenAI CLIP-ViT-Base-Patch32 model
-- **`add_description_embeddings.py`** - Creates 1536-dimensional text embeddings for product descriptions using Azure OpenAI text-embedding-3-small model
+- **`add_image_embeddings.py`** - Generates image embeddings for product images (stored as serialized strings in SQLite)
+- **`add_description_embeddings.py`** - Creates text embeddings for product descriptions (stored as serialized strings in SQLite)
 - **`query_by_description.py`** - Interactive search tool that finds products using natural language queries via semantic similarity search
 - **`image_generation.py`** - Generates product images using Azure OpenAI DALL-E 3 and updates the JSON file with image paths
 
@@ -68,7 +66,8 @@ This directory contains several utility tools for managing and working with the 
 
 ### **Documentation**
 
-- **`RLS_USER_GUIDE.md`** & **`row_level_security_guide.md`** - Documentation for Row-Level Security implementation and usage
+- **`README.md`** - This file, documentation for the SQLite database generator
+- **See also**: `/workspace/app/models/sqlite/README.md` - Complete SQLite ORM model documentation
 
 ### **Reference Data Files**
 
@@ -89,45 +88,29 @@ The database generator creates a complete retail ecosystem for GitHub Popup Stor
 
 ## Generated Database Structure
 
-### Available Users
-
-#### 1. `postgres` (Superuser)
-
-- **Username**: `postgres`
-- **Password**: `P@ssw0rd!`
-- **Privileges**: Superuser (bypasses Row level Security (RLS) by default)
-- **Use case**: Database administration, schema creation, data generation
-- **Created**: Automatically by PostgreSQL
-
-#### 2. `store_manager` (Regular User)
-
-- **Username**: `store_manager`
-- **Password**: `StoreManager123!`
-- **Privileges**: Regular user (RLS policies apply)
-- **Use case**: Testing RLS policies, simulating application user access
-- **Created**: Automatically by `init-db.sh` during database initialization
-
 ### Core Tables
 
-#### **Customers** (`retail.customers`)
+The SQLite database contains 17 interconnected tables. For complete details on all models, relationships, and constraints, see the [SQLite Models README](/workspace/app/models/sqlite/README.md).
 
-- **50,000+ customer records** with realistic demographic data
-- Customer information: names, emails, phone numbers
-- Primary store assignments based on geographic distribution
-
-#### **Stores** (`retail.stores`)
+#### **Stores** (`stores`)
 
 - **16 retail locations** across major US cities:
   - **Physical stores (15)**: NYC Times Square, SF Union Square, Austin Downtown, Denver LoDo, Chicago Loop, Boston Back Bay, Seattle Capitol Hill, Atlanta Midtown, Miami Design District, Portland Pearl District, Nashville Music Row, Phoenix Scottsdale, Minneapolis Mill District, Raleigh Research Triangle, Salt Lake City Downtown
   - **Online store (1)**: GitHub Popup Online Store
 - Each store has unique characteristics:
-  - Customer distribution weights (traffic patterns)
-  - Order frequency multipliers
-  - Order value multipliers
-  - Geographic and climate zone assignments
-- Row-Level Security (RLS) support for store manager access control
+  - Store ID and name
+  - RLS user ID for access control  
+  - Online/physical store flag
+- Relationships with orders, inventory, order items, and customers
 
-#### **Product Catalog** (`retail.categories`, `retail.product_types`, `retail.products`)
+#### **Customers** (`customers`)
+
+- **50,000+ customer records** with realistic demographic data
+- Customer information: names, emails, phone numbers
+- Primary store assignments based on geographic distribution
+- Relationships with orders
+
+#### **Product Catalog** (`categories`, `product_types`, `products`)
 
 - **5 main product categories** with comprehensive retail inventory:
   - **Accessories**: Backpacks & Bags, Belts, Caps & Hats, Gloves, Scarves, Socks, Sunglasses
@@ -140,33 +123,49 @@ The database generator creates a complete retail ecosystem for GitHub Popup Stor
 - **Cost and pricing structure** with consistent 33% gross margin
 - **Complete product specifications**: SKUs, descriptions, pricing
 - **Supplier integration**: Full procurement workflow with 20 suppliers using static contract data for consistent results
+- Relationships with categories, product types, suppliers, order items, inventory, and embeddings
 
-#### **Orders & Sales** (`retail.orders`, `retail.order_items`)
+#### **Orders & Sales** (`orders`, `order_items`)
 
 - **Historical transaction data** spanning 2020-2026
-- **Order header** information: customer, store, date
+- **Order header** information: customer, store, date, status
 - **Detailed line items**: products, quantities, prices, discounts
 - **Variable order patterns** based on store characteristics and seasonality
+- Relationships with customers, stores, and products
 
-#### **Inventory** (`retail.inventory`)
+#### **Inventory** (`inventory`)
 
 - **Store-specific stock levels** for all products
 - **Seasonal inventory adjustments** based on demand patterns
 - **Geographic distribution** reflecting local market preferences
+- Relationships with stores and products
 
-#### **Product Image Embeddings** (`retail.product_image_embeddings`)
+#### **Suppliers** (`suppliers`)
 
-- **AI ready vector embeddings** for product images
-- **512-dimensional vectors** using pgvector extension
-- **Vector similarity search** capabilities for recommendation systems
-- **Image metadata** and embedding relationships
+- **20 supplier profiles** with complete static data
+- Supplier information: names, codes, contact details
+- ESG compliance status, ratings, lead times
+- Relationships with products, contracts, and performance records
 
-#### **Product Description Embeddings** (`retail.product_description_embeddings`)
+#### **Procurement & Business Logic**
 
-- **AI ready vector embeddings** for product descriptions
-- **1536-dimensional vectors** using pgvector extension
-- **Text-based similarity search** capabilities for recommendation systems
-- **Enhanced product discovery** through semantic search
+Additional tables for complete business operations:
+- **`procurement_requests`** - Purchase requisition workflow
+- **`approvers`** - Approval authority definitions
+- **`supplier_contracts`** - Contract management
+- **`supplier_performance`** - Supplier evaluation and ratings
+- **`company_policies`** - Business rules and approval policies
+- **`notifications`** - System notifications
+
+#### **Product Embeddings** (`product_image_embeddings`, `product_description_embeddings`)
+
+- **AI ready vector embeddings** stored as serialized strings in SQLite
+- **Image embeddings**: Product visual features for image-based search
+- **Description embeddings**: Text features for semantic search
+- **Similarity search capabilities** for recommendation systems (requires deserialization)
+- Relationships with products
+
+For complete details on all 17 tables, their fields, constraints, and relationships, see the [SQLite Models README](/workspace/app/models/sqlite/README.md).
 
 ## Key Data Features
 
@@ -234,35 +233,34 @@ The generator implements **multi-zone seasonal multipliers** across three climat
 
 ### 🔒 Security & Access Control
 
-#### **Row-Level Security (RLS)**
+#### **Store Manager Isolation**
 
-- **Store manager isolation**: Each manager sees only their store's data
-- **Super manager access**: UUID `00000000-0000-0000-0000-000000000000` bypasses all restrictions
-- **Secure multi-tenancy**: Perfect for workshop and demo scenarios
-- **Policy coverage**: Orders, order items, inventory, customers
+- **RLS User IDs**: Each store has a unique RLS user ID for access control
+- **Multi-tenancy support**: Store-specific data can be isolated in application logic
+- **Controlled access** to reference data (products, categories)
 
 #### **Manager Access Patterns**
 
-- **Unique UUIDs** for each store manager
-- **Complete data isolation** between stores
-- **Controlled access** to reference data (products, categories)
+- **Unique UUIDs** for each store manager stored in the stores table
+- **Application-level data isolation** between stores
+- **Super manager access**: UUID `00000000-0000-0000-0000-000000000000` for administrative access
 
 ### 🚀 Advanced Features
 
 #### **Vector Search Capabilities**
 
-- **pgvector integration** for similarity search
-- **Product image embeddings** (512-dimensional) for visual recommendation engines
-- **Product description embeddings** (1536-dimensional) for semantic text search
-- **Optimized vector indexes** for performance
+- **Embedding storage**: Product image and description embeddings stored as serialized strings
+- **Product image embeddings** for visual recommendation engines
+- **Product description embeddings** for semantic text search
+- **Application-level similarity**: Embeddings can be deserialized for use in Python/ML applications
 - **Dual embedding support** ready for multimodal ML applications
 
 #### **Performance Optimization**
 
-- **Comprehensive indexing strategy**: 20+ optimized indexes
-- **Covering indexes** for common query patterns
+- **SQLite optimizations**: Proper indexing strategy for common query patterns
+- **Foreign key constraints**: Referential integrity maintained at database level
 - **Batch insert operations** for large data volumes
-- **Query performance monitoring** and optimization
+- **Efficient querying** with ORM relationships
 
 #### **Data Quality & Validation**
 
@@ -273,11 +271,10 @@ The generator implements **multi-zone seasonal multipliers** across three climat
 
 ## Technical Requirements
 
-- **PostgreSQL 17+** with pgvector extension
-- **Python 3.13+** with asyncpg, faker, python-dotenv
-- **Database**: `zava` with `retail` schema
-- **Memory**: Recommended 4GB+ for large datasets
-- **Storage**: ~2GB for complete database with embeddings
+- **Python 3.13+** with sqlalchemy, faker, python-dotenv
+- **SQLite 3**: Built-in with Python, no separate installation required
+- **Memory**: Recommended 2GB+ for large datasets
+- **Storage**: ~500MB for complete database with embeddings
 
 ## Reference Data Files
 
@@ -314,17 +311,16 @@ The generator implements **multi-zone seasonal multipliers** across three climat
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| **Customers** | 50,000+ | Realistic demographic profiles across 15 US cities and online |
+| **Customers** | 20,000+ | Realistic demographic profiles across 15 US cities and online |
 | **Products** | 129 | Complete retail catalog (accessories, apparel, footwear, outerwear) |
-| **Product Images** | 129 | Product images linked to database for image-based searches |
 | **Stores** | 16 | 15 physical popup stores + 1 online store across major US cities |
 | **Suppliers** | 20 | Complete supplier directory with static contract data and procurement workflow |
-| **Orders** | 200,000+ | Multi-year transaction history with detailed sales data |
-| **Inventory Items** | 3,000+ | Store-specific inventory across multiple locations |
-| **Image Embeddings** | 129 | AI-powered image similarity searches using OpenAI CLIP-ViT-Base-Patch32 |
-| **Description Embeddings** | 129 | AI-powered text similarity searches using text-embedding-3-small |
+| **Orders** | 50,000+ | Multi-year transaction history with detailed sales data |
+| **Inventory Items** | 480 | Store-specific inventory across multiple locations |
+| **Image Embeddings** | 129 | AI embeddings stored as serialized strings (when populated) |
+| **Description Embeddings** | 129 | AI embeddings stored as serialized strings (when populated) |
 
-This database provides a realistic foundation for retail analytics, machine learning experimentation, seasonal trend analysis, and multi-tenant application development in the retail industry. The database supports PostgreSQL with pgvector extension, enabling advanced AI-powered product similarity searches, comprehensive sales analytics, and sophisticated procurement workflows.
+This database provides a realistic foundation for retail analytics, machine learning experimentation, seasonal trend analysis, and multi-tenant application development in the retail industry. The SQLite database with serialized embeddings enables advanced AI-powered product similarity searches, comprehensive sales analytics, and sophisticated procurement workflows.
 
 ## JSON Data File Schemas
 
@@ -357,8 +353,8 @@ Defines the complete product catalog with embeddings and seasonal patterns:
 
 **Key Points:**
 
-- `image_embedding`: 512-dimensional vector for image similarity search with pgvector
-- `description_embedding`: 1536-dimensional vector for text similarity search with pgvector
+- **`image_embedding`: Serialized embedding array for image similarity search
+- **`description_embedding`**: Serialized embedding array for text similarity search
 - `price`: Treated as wholesale cost; retail price calculated with 33% gross margin
 - Each category can contain multiple product types, each with an array of products
 - Seasonal multipliers are now defined separately in `seasonal_multipliers.json`
@@ -433,57 +429,61 @@ Defines comprehensive supplier profiles with static contract data for consistent
 
 ### Database Connection Configuration
 
-The generator connects to PostgreSQL using these default settings:
+The generator creates a SQLite database file:
 
-- **Host**: `db` (Docker container)
-- **Port**: `5432`
-- **Database**: `zava`
-- **Schema**: `retail`
-- **User**: `postgres`
-- **Password**: `P@ssw0rd!`
+- **Database File**: `retail.db` (or custom path)
+- **Schema**: All tables in the default SQLite schema
+- **Connection**: SQLite file-based, no server required
+- **ORM**: SQLAlchemy with declarative models in `/workspace/app/models/sqlite/`
 
-Connection settings can be overridden using environment variables or a `.env` file.
+Configuration can be customized using environment variables or a `.env` file.
 
 ## Database Schema Reference
 
-The complete database schema is available in `/workspace/zava_retail_schema.sql`. This file contains the full DDL (Data Definition Language) for recreating the entire database structure.
+The complete database schema is defined using SQLAlchemy ORM models in `/workspace/app/models/sqlite/`. This directory contains Python class definitions for all database tables and their relationships.
 
 ### Schema Highlights
 
 #### **Core Tables (17 total)**
-- `retail.stores` - Store locations with RLS user mappings
-- `retail.customers` - Customer profiles with store associations
-- `retail.categories` - Product category hierarchy
-- `retail.product_types` - Product type definitions within categories
-- `retail.products` - Complete product catalog with supplier relationships
-- `retail.suppliers` - Supplier directory with procurement terms
-- `retail.orders` - Order header information
-- `retail.order_items` - Detailed line items for each order
-- `retail.inventory` - Store-specific stock levels
-- `retail.supplier_performance` - Supplier evaluation and ratings
-- `retail.procurement_requests` - Purchase requisition workflow
-- `retail.company_policies` - Business rules and approval policies
-- `retail.supplier_contracts` - Contract management
-- `retail.approvers` - Approval authority definitions
-- `retail.notifications` - System notifications
-- `retail.product_image_embeddings` - AI image vector embeddings (512-dim)
-- `retail.product_description_embeddings` - AI text vector embeddings (1536-dim)
+- `stores` - Store locations with RLS user mappings
+- `customers` - Customer profiles with store associations
+- `categories` - Product category hierarchy
+- `product_types` - Product type definitions within categories
+- `products` - Complete product catalog with supplier relationships
+- `suppliers` - Supplier directory with procurement terms
+- `orders` - Order header information
+- `order_items` - Detailed line items for each order
+- `inventory` - Store-specific stock levels
+- `supplier_performance` - Supplier evaluation and ratings
+- `procurement_requests` - Purchase requisition workflow
+- `company_policies` - Business rules and approval policies
+- `supplier_contracts` - Contract management
+- `approvers` - Approval authority definitions
+- `notifications` - System notifications
+- `product_image_embeddings` - AI image embeddings (serialized)
+- `product_description_embeddings` - AI text embeddings (serialized)
 
 #### **Advanced Features**
-- **Row Level Security (RLS)**: Multi-tenant data isolation with store-specific access control
-- **Vector Search**: pgvector integration for AI-powered product similarity searches
-- **Performance Optimization**: 60+ indexes including covering indexes and vector indexes
-- **Data Integrity**: 19 foreign key constraints and 11 check constraints
-- **Seasonal Intelligence**: Climate zone-based seasonal multipliers
-- **Procurement Workflow**: Complete supplier management and approval processes
+- **ORM Relationships**: Bi-directional relationships for easy data navigation
+- **Constraints**: Foreign keys, unique constraints, and check constraints
+- **Default Values**: Automatic timestamps and status fields
+- **Type Safety**: SQLAlchemy types for data validation
 
 #### **Usage**
-```bash
-# Restore schema to a new PostgreSQL database
-psql -h localhost -U postgres -d your_database -f /workspace/zava_retail_schema.sql
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from app.models.sqlite import Base, Product, Store, Order
 
-# Or use with Docker
-docker exec -i postgres_container psql -U postgres -d zava < /workspace/zava_retail_schema.sql
+# Create/connect to database
+engine = create_engine('sqlite:///retail.db')
+Base.metadata.create_all(engine)
+
+# Query data
+session = Session(engine)
+products = session.query(Product).all()
 ```
 
-The schema file includes all necessary DDL statements to recreate the complete database structure on any PostgreSQL 17+ instance with the pgvector extension.
+For complete documentation of all models, relationships, and usage examples, see:
+- [SQLite Models README](/workspace/app/models/sqlite/README.md) - Complete model documentation
+- `/workspace/app/models/sqlite/` - Individual model files with detailed implementations
