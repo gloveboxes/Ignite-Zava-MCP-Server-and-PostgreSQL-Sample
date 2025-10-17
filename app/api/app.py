@@ -16,6 +16,11 @@ from agent_framework import (ChatMessage,
                              WorkflowStartedEvent)
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+# Initialize in startup event
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
+from fastapi_cache.decorator import cache
+
 from pydantic import BaseModel, Field
 import json
 from datetime import datetime, timezone
@@ -33,7 +38,6 @@ logger = logging.getLogger(__name__)
 # Configuration
 config = Config()
 SCHEMA_NAME = "retail"
-RLS_USER_ID = ""  # Empty for no RLS restrictions
 
 # Database connection
 db_provider: Optional[PostgreSQLSchemaProvider] = None
@@ -77,6 +81,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}")
         raise
+
+    backend = InMemoryBackend()
+    FastAPICache.init(backend=backend)
 
     yield
 
@@ -128,6 +135,7 @@ async def health_check():
 
 # Stores endpoint
 @app.get("/api/stores")
+@cache(expire=600)
 async def get_stores():
     """
     Get all store locations with inventory counts and details.
@@ -143,13 +151,6 @@ async def get_stores():
         conn = await db_provider.get_connection()
 
         try:
-            # Set RLS user if needed
-            if RLS_USER_ID:
-                await conn.execute(
-                    "SELECT set_config('app.current_rls_user_id', $1, false)",
-                    RLS_USER_ID
-                )
-
             # Query stores with product counts and inventory values
             query = """
                 SELECT
@@ -227,6 +228,7 @@ async def get_stores():
 
 # Featured products endpoint
 @app.get("/api/products/featured", response_model=ProductList)
+@cache(expire=600)
 async def get_featured_products(
     limit: int = Query(8, ge=1, le=50, description="Number of products to return")
 ):
@@ -244,13 +246,6 @@ async def get_featured_products(
         conn = await db_provider.get_connection()
 
         try:
-            # Set RLS user if needed
-            if RLS_USER_ID:
-                await conn.execute(
-                    "SELECT set_config('app.current_rls_user_id', $1, false)",
-                    RLS_USER_ID
-                )
-
             # Query for featured products
             # Strategy: Get products with good variety across categories
             # Prefer products with higher margins (more popular/profitable)
@@ -337,11 +332,18 @@ async def get_products_by_category(
         conn = await db_provider.get_connection()
 
         try:
-            # Set RLS user if needed
-            if RLS_USER_ID:
-                await conn.execute(
-                    "SELECT set_config('app.current_rls_user_id', $1, false)",
-                    RLS_USER_ID
+            # Get total products in category for pagination
+            total_query = """
+                SELECT COUNT(*) FROM retail.products p
+                INNER JOIN retail.categories c ON p.category_id = c.category_id
+                WHERE p.discontinued = false
+                    AND LOWER(c.category_name) = LOWER($1)
+            """
+            total_count: int = await conn.fetchval(total_query, category) # pyright: ignore[reportAssignmentType]
+            if total_count == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No products found in category '{category}'"
                 )
 
             # Query products by category
@@ -372,19 +374,6 @@ async def get_products_by_category(
 
             rows = await conn.fetch(query, category, limit, offset)
 
-            if not rows:
-                # Check if category exists
-                category_check = await conn.fetchval(
-                    """SELECT COUNT(*) FROM retail.categories
-                       WHERE LOWER(category_name) = LOWER($1)""",
-                    category
-                )
-                if category_check == 0:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Category '{category}' not found"
-                    )
-
             products = []
             for row in rows:
                 products.append(Product(
@@ -408,7 +397,7 @@ async def get_products_by_category(
 
             return ProductList(
                 products=products,
-                total=len(products)
+                total=total_count
             )
 
         finally:
@@ -441,13 +430,6 @@ async def get_product_by_id(product_id: int):
         conn = await db_provider.get_connection()
 
         try:
-            # Set RLS user if needed
-            if RLS_USER_ID:
-                await conn.execute(
-                    "SELECT set_config('app.current_rls_user_id', $1, false)",
-                    RLS_USER_ID
-                )
-
             # Query single product by ID
             query = """
                 SELECT
@@ -527,13 +509,6 @@ async def get_product_by_sku(sku: str):
         conn = await db_provider.get_connection()
 
         try:
-            # Set RLS user if needed
-            if RLS_USER_ID:
-                await conn.execute(
-                    "SELECT set_config('app.current_rls_user_id', $1, false)",
-                    RLS_USER_ID
-                )
-
             # Query single product by SKU
             query = """
                 SELECT
@@ -600,6 +575,7 @@ async def get_product_by_sku(sku: str):
 
 
 @app.get("/api/management/dashboard/top-categories")
+@cache(expire=600)
 async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Number of top categories to return")):
     """
     Get top categories by total inventory value (cost * stock).
@@ -1202,6 +1178,7 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
 
 # Root endpoint
 @app.get("/")
+@cache(expire=600)
 async def root():
     """Root endpoint"""
     return {

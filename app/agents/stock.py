@@ -1,4 +1,5 @@
 # Copyright (c) Microsoft. All rights reserved.
+import asyncio
 import os
 
 from agent_framework import (
@@ -22,7 +23,22 @@ finance_mcp_tools = MCPStreamableHTTPTool(
     load_prompts=False,
     request_timeout=30,
 )
+
 GPT_DEPLOYMENT = os.getenv("GPT_MODEL_DEPLOYMENT_NAME", "gpt-4o-mini")
+if os.environ.get("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME_GPT5") is None:
+    chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name=GPT_DEPLOYMENT)
+else:
+    chat_client = AzureOpenAIChatClient(api_key=os.environ.get("AZURE_OPENAI_API_KEY_GPT5"),
+                                        endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT_GPT5"),
+                                        deployment_name=os.environ.get("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME_GPT5"),
+                                        api_version=os.environ.get("AZURE_OPENAI_ENDPOINT_VERSION_GPT5", "2024-02-15-preview"))
+
+# Send a little prompt to test the client is working.
+response = asyncio.run(chat_client.client.chat.completions.create(
+    model=GPT_DEPLOYMENT,
+    messages=[{"role": "user", "content": "What is 1+1 answer with the number only"}],
+))
+print("Test response from Azure OpenAI:", response.choices[0].message.content)
 
 class StockItem(BaseModel):
     sku: str
@@ -128,7 +144,6 @@ class Summarizer(Executor):
         await ctx.send_message(response.messages)
         await ctx.yield_output(RestockResult(items=stock_result.collection.items, summary=response.text))
 
-chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name=GPT_DEPLOYMENT)
 
 # Instantiate the two agent backed executors.
 stock = StockExtractor(chat_client)
