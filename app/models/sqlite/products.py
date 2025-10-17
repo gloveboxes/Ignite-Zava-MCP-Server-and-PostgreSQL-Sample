@@ -26,6 +26,7 @@ class Product(Base):
     procurement_lead_time_days = Column(Integer, default=14)
     minimum_order_quantity = Column(Integer, default=1)
     discontinued = Column(Boolean, default=False)
+    image_url = Column(String, nullable=True)
     
     # Relationships
     category = relationship("Category", back_populates="products")
