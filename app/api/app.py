@@ -6,7 +6,7 @@ Provides REST API endpoints for the frontend application.
 
 import logging
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Optional
 
 from agent_framework import (ChatMessage,
                              ExecutorInvokedEvent,
@@ -21,7 +21,7 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from fastapi_cache.decorator import cache
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import json
 from datetime import datetime, timezone
 from app.config import Config
@@ -42,6 +42,7 @@ from app.models.sqlite.categories import Category as CategoryModel
 from app.models.sqlite.product_types import ProductType as ProductTypeModel
 from app.models.sqlite.suppliers import Supplier as SupplierModel
 from app.models.sqlite.product_embeddings import ProductImageEmbedding as ProductImageEmbeddingModel
+from app.api.models import Product, ProductList, Store, StoreList, Category, CategoryList, TopCategory, TopCategoryList, Supplier, SupplierList, InventoryItem, InventorySummary, InventoryResponse, ManagementProduct, ProductPagination, ManagementProductResponse
 
 # Configure logging
 logging.basicConfig(
@@ -57,180 +58,6 @@ SCHEMA_NAME = "retail"
 # Database connections
 sqlalchemy_engine: Optional[AsyncEngine] = None
 async_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
-
-
-# Pydantic models for API responses
-class Product(BaseModel):
-    """Product model for API responses"""
-    product_id: int = Field(..., description="Unique product identifier")
-    sku: str = Field(..., description="Stock keeping unit")
-    product_name: str = Field(..., description="Product display name")
-    category_name: str = Field(..., description="Product category")
-    type_name: str = Field(..., description="Product type")
-    unit_price: float = Field(..., description="Retail price")
-    cost: float = Field(..., description="Product cost")
-    gross_margin_percent: float = Field(..., description="Profit margin percentage")
-    product_description: Optional[str] = Field(None, description="Product description")
-    supplier_name: Optional[str] = Field(None, description="Supplier name")
-    discontinued: bool = Field(False, description="Product availability status")
-    image_url: Optional[str] = Field(None, description="Product image URL")
-
-
-class ProductList(BaseModel):
-    """List of products response"""
-    products: List[Product]
-    total: int
-
-
-class Store(BaseModel):
-    """Store location model for API responses"""
-    id: int = Field(..., description="Unique store identifier")
-    name: str = Field(..., description="Store name")
-    location: str = Field(..., description="Store location/address")
-    is_online: bool = Field(..., description="Whether this is an online store")
-    location_key: str = Field(..., description="Location key for image mapping")
-    products: int = Field(..., description="Number of products in stock")
-    total_stock: int = Field(..., description="Total stock level across products")
-    inventory_value: float = Field(..., description="Total inventory retail value")
-    status: str = Field(..., description="Store status (Open/Online)")
-    hours: str = Field(..., description="Store operating hours")
-
-
-class StoreList(BaseModel):
-    """List of stores response"""
-    stores: List[Store]
-    total: int
-
-
-class Category(BaseModel):
-    """Category model for API responses"""
-    id: int = Field(..., description="Unique category identifier")
-    name: str = Field(..., description="Category name")
-
-
-class CategoryList(BaseModel):
-    """List of categories response"""
-    categories: List[Category]
-    total: int
-
-
-class TopCategory(BaseModel):
-    """Top category model for dashboard analytics"""
-    name: str = Field(..., description="Category name")
-    revenue: float = Field(..., description="Total retail value of inventory")
-    percentage: float = Field(..., description="Percentage relative to top category")
-    product_count: int = Field(..., description="Number of distinct products")
-    total_stock: int = Field(..., description="Total stock level across products")
-    cost_value: float = Field(..., description="Total cost value of inventory")
-    potential_profit: float = Field(..., description="Potential profit if all sold")
-
-
-class TopCategoryList(BaseModel):
-    """List of top categories response"""
-    categories: List[TopCategory]
-    total: int = Field(..., description="Number of categories returned")
-    max_value: float = Field(..., description="Maximum revenue value for percentage calculation")
-
-
-class Supplier(BaseModel):
-    """Supplier model for management interface"""
-    id: int = Field(..., description="Unique supplier identifier")
-    name: str = Field(..., description="Supplier name")
-    code: str = Field(..., description="Supplier code")
-    location: str = Field(..., description="Supplier location (city, state)")
-    contact: str = Field(..., description="Contact email address")
-    phone: str = Field(..., description="Contact phone number")
-    rating: float = Field(..., description="Supplier rating (0.0 to 5.0)")
-    esg_compliant: bool = Field(..., description="ESG compliance status")
-    approved: bool = Field(..., description="Approved vendor status")
-    preferred: bool = Field(..., description="Preferred vendor status")
-    categories: List[str] = Field(..., description="Product categories supplied")
-    lead_time: int = Field(..., description="Lead time in days")
-    payment_terms: str = Field(..., description="Payment terms")
-    min_order: float = Field(..., description="Minimum order amount")
-    bulk_discount: float = Field(..., description="Bulk discount percentage")
-
-
-class SupplierList(BaseModel):
-    """List of suppliers response"""
-    suppliers: List[Supplier]
-    total: int = Field(..., description="Total number of suppliers")
-
-
-class InventoryItem(BaseModel):
-    """Inventory item model for management interface"""
-    store_id: int = Field(..., description="Store identifier")
-    store_name: str = Field(..., description="Store name")
-    store_location: str = Field(..., description="Store location description")
-    is_online: bool = Field(..., description="Whether this is an online store")
-    product_id: int = Field(..., description="Product identifier")
-    product_name: str = Field(..., description="Product name")
-    sku: str = Field(..., description="Product SKU")
-    category: str = Field(..., description="Product category")
-    type: str = Field(..., description="Product type")
-    stock_level: int = Field(..., description="Current stock level")
-    reorder_point: int = Field(..., description="Reorder threshold")
-    is_low_stock: bool = Field(..., description="Whether stock is below reorder point")
-    unit_cost: float = Field(..., description="Unit cost")
-    unit_price: float = Field(..., description="Unit retail price")
-    stock_value: float = Field(..., description="Total cost value of stock")
-    retail_value: float = Field(..., description="Total retail value of stock")
-    supplier_name: Optional[str] = Field(None, description="Supplier name")
-    supplier_code: Optional[str] = Field(None, description="Supplier code")
-    lead_time: Optional[int] = Field(None, description="Lead time in days")
-    image_url: Optional[str] = Field(None, description="Product image URL")
-
-
-class InventorySummary(BaseModel):
-    """Inventory summary statistics"""
-    total_items: int = Field(..., description="Total number of inventory items")
-    low_stock_count: int = Field(..., description="Number of low stock items")
-    total_stock_value: float = Field(..., description="Total cost value of all stock")
-    total_retail_value: float = Field(..., description="Total retail value of all stock")
-    avg_stock_level: float = Field(..., description="Average stock level per item")
-
-
-class InventoryResponse(BaseModel):
-    """Inventory response with items and summary"""
-    inventory: List[InventoryItem]
-    summary: InventorySummary
-
-
-class ManagementProduct(BaseModel):
-    """Model for product information in management interface with inventory details."""
-    product_id: int = Field(..., description="Unique product identifier")
-    sku: str = Field(..., description="Stock Keeping Unit identifier")
-    name: str = Field(..., description="Product name")
-    description: Optional[str] = Field(None, description="Product description")
-    category: str = Field(..., description="Product category name")
-    type: str = Field(..., description="Product type name")
-    base_price: float = Field(..., description="Base retail price")
-    cost: float = Field(..., description="Cost per unit")
-    margin: float = Field(..., description="Gross margin percentage")
-    discontinued: bool = Field(..., description="Whether product is discontinued")
-    supplier_id: Optional[int] = Field(None, description="Supplier identifier")
-    supplier_name: Optional[str] = Field(None, description="Supplier name")
-    supplier_code: Optional[str] = Field(None, description="Supplier code")
-    lead_time: Optional[int] = Field(None, description="Lead time in days")
-    total_stock: int = Field(..., description="Total stock across all stores")
-    store_count: int = Field(..., description="Number of stores carrying this product")
-    stock_value: float = Field(..., description="Total inventory value at cost")
-    retail_value: float = Field(..., description="Total inventory value at retail price")
-    image_url: Optional[str] = Field(None, description="Product image URL")
-
-
-class ProductPagination(BaseModel):
-    """Pagination information for product list."""
-    total: int = Field(..., description="Total number of products matching criteria")
-    limit: int = Field(..., description="Maximum number of products per page")
-    offset: int = Field(..., description="Current offset in results")
-    has_more: bool = Field(..., description="Whether more products are available")
-
-
-class ManagementProductResponse(BaseModel):
-    """Response model for management products list with pagination."""
-    products: List[ManagementProduct] = Field(..., description="List of products")
-    pagination: ProductPagination = Field(..., description="Pagination information")
 
 
 # Lifespan context manager for startup/shutdown
@@ -472,7 +299,8 @@ async def get_categories() -> CategoryList:
 @app.get("/api/products/featured", response_model=ProductList)
 @cache(expire=600)
 async def get_featured_products(
-    limit: int = Query(8, ge=1, le=50, description="Number of products to return")
+    limit: int = Query(
+        8, ge=1, le=50, description="Number of products to return")
 ) -> ProductList:
     """
     Get featured products for the homepage.
@@ -507,10 +335,10 @@ async def get_featured_products(
                 .order_by(ProductModel.gross_margin_percent.desc(), func.random())
                 .limit(limit)
             )
-            
+
             result = await session.execute(stmt)
             rows = result.all()
-            
+
             products = []
             for row in rows:
                 products.append(Product(
@@ -527,14 +355,14 @@ async def get_featured_products(
                     discontinued=row.discontinued,
                     image_url=row.image_url
                 ))
-            
+
             logger.info(f"✅ Retrieved {len(products)} featured products")
-            
+
             return ProductList(
                 products=products,
                 total=len(products)
             )
-            
+
     except Exception as e:
         logger.error(f"❌ Error fetching featured products: {e}")
         raise HTTPException(
@@ -566,7 +394,7 @@ async def get_products_by_category(
             )
             total_result = await session.execute(total_stmt)
             total_count = total_result.scalar()
-            
+
             if total_count == 0:
                 raise HTTPException(
                     status_code=404,
@@ -695,7 +523,8 @@ async def get_product_by_id(product_id: int) -> Product:
                 image_url=row.image_url
             )
 
-            logger.info(f"✅ Retrieved product {product_id}: {product.product_name}")
+            logger.info(
+                f"✅ Retrieved product {product_id}: {product.product_name}")
 
             return product
 
@@ -764,7 +593,8 @@ async def get_product_by_sku(sku: str) -> Product:
                 image_url=row.image_url
             )
 
-            logger.info(f"✅ Retrieved product by SKU {sku}: {product.product_name}")
+            logger.info(
+                f"✅ Retrieved product by SKU {sku}: {product.product_name}")
 
             return product
 
@@ -787,16 +617,21 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
     """
     try:
         async with get_db_session() as session:
-            logger.info(f"📊 Fetching top {limit} categories by inventory value...")
+            logger.info(
+                f"📊 Fetching top {limit} categories by inventory value...")
 
             stmt = (
                 select(
                     CategoryModel.category_name,
-                    func.count(func.distinct(ProductModel.product_id)).label('product_count'),
+                    func.count(func.distinct(ProductModel.product_id)).label(
+                        'product_count'),
                     func.sum(InventoryModel.stock_level).label('total_stock'),
-                    func.sum(InventoryModel.stock_level * ProductModel.cost).label('total_cost_value'),
-                    func.sum(InventoryModel.stock_level * ProductModel.base_price).label('total_retail_value'),
-                    func.sum(InventoryModel.stock_level * (ProductModel.base_price - ProductModel.cost)).label('potential_profit')
+                    func.sum(InventoryModel.stock_level *
+                             ProductModel.cost).label('total_cost_value'),
+                    func.sum(InventoryModel.stock_level *
+                             ProductModel.base_price).label('total_retail_value'),
+                    func.sum(InventoryModel.stock_level * (ProductModel.base_price -
+                             ProductModel.cost)).label('potential_profit')
                 )
                 .select_from(InventoryModel)
                 .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
@@ -809,7 +644,7 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
 
             result = await session.execute(stmt)
             rows = result.all()
-            
+
             if not rows:
                 return TopCategoryList(
                     categories=[],
@@ -819,12 +654,13 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
 
             # Calculate max value for percentage calculation
             max_value = float(rows[0].total_retail_value) if rows else 0
-            
+
             categories: list[TopCategory] = []
             for row in rows:
                 retail_value = float(row.total_retail_value)
-                percentage = round((retail_value / max_value * 100), 1) if max_value > 0 else 0
-                
+                percentage = round(
+                    (retail_value / max_value * 100), 1) if max_value > 0 else 0
+
                 categories.append(TopCategory(
                     name=row.category_name,
                     revenue=round(retail_value, 2),
@@ -903,13 +739,13 @@ async def get_suppliers() -> SupplierList:
                 )
                 cat_result = await session.execute(cat_stmt)
                 categories = [cat_row[0] for cat_row in cat_result.all()]
-                
+
                 # Format location
                 location = (
                     f"{row.city}, {row.state_province}"
                     if row.city else "N/A"
                 )
-                
+
                 suppliers.append(Supplier(
                     id=row.supplier_id,
                     name=row.supplier_name,
@@ -917,15 +753,18 @@ async def get_suppliers() -> SupplierList:
                     location=location,
                     contact=row.contact_email,
                     phone=row.contact_phone or "N/A",
-                    rating=float(row.supplier_rating) if row.supplier_rating else 0.0,
+                    rating=float(
+                        row.supplier_rating) if row.supplier_rating else 0.0,
                     esg_compliant=row.esg_compliant,
                     approved=row.approved_vendor,
                     preferred=row.preferred_vendor,
                     categories=categories,
                     lead_time=row.lead_time_days,
                     payment_terms=row.payment_terms,
-                    min_order=float(row.minimum_order_amount) if row.minimum_order_amount else 0.0,
-                    bulk_discount=float(row.bulk_discount_percent) if row.bulk_discount_percent else 0.0
+                    min_order=float(
+                        row.minimum_order_amount) if row.minimum_order_amount else 0.0,
+                    bulk_discount=float(
+                        row.bulk_discount_percent) if row.bulk_discount_percent else 0.0
                 ))
 
             logger.info(f"✅ Retrieved {len(suppliers)} suppliers")
@@ -954,7 +793,7 @@ async def get_inventory(
 ) -> InventoryResponse:
     """
     Get inventory levels across stores with product and category details.
-    
+
     Args:
         store_id: Optional filter by specific store
         product_id: Optional filter by specific product
@@ -965,11 +804,13 @@ async def get_inventory(
     """
     try:
         async with get_db_session() as session:
-            logger.info(f"📦 Fetching inventory (store={store_id}, product={product_id}, category={category}, low_stock={low_stock_only})...")
+            logger.info(
+                f"📦 Fetching inventory (store={store_id}, product={product_id}, category={category}, low_stock={low_stock_only})...")
 
             # Build base query with joins
             base_stmt = (
-                select(InventoryModel, StoreModel, ProductModel, CategoryModel, ProductTypeModel, SupplierModel, ProductImageEmbeddingModel)
+                select(InventoryModel, StoreModel, ProductModel, CategoryModel,
+                       ProductTypeModel, SupplierModel, ProductImageEmbeddingModel)
                 .select_from(InventoryModel)
                 .join(StoreModel, InventoryModel.store_id == StoreModel.store_id)
                 .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
@@ -982,21 +823,28 @@ async def get_inventory(
             # Apply filters
             if store_id is not None:
                 base_stmt = base_stmt.where(StoreModel.store_id == store_id)
-            
+
             if product_id is not None:
-                base_stmt = base_stmt.where(ProductModel.product_id == product_id)
-            
+                base_stmt = base_stmt.where(
+                    ProductModel.product_id == product_id)
+
             if category:
-                base_stmt = base_stmt.where(func.lower(CategoryModel.category_name) == func.lower(category))
+                base_stmt = base_stmt.where(func.lower(
+                    CategoryModel.category_name) == func.lower(category))
 
             # Summary query - get statistics across ALL matching records
             summary_stmt = (
                 select(
-                    func.count(func.distinct(ProductModel.product_id)).label('total_items'),
-                    func.sum(case((InventoryModel.stock_level < low_stock_threshold, 1), else_=0)).label('low_stock_count'),
-                    func.sum(InventoryModel.stock_level * ProductModel.cost).label('total_stock_value'),
-                    func.sum(InventoryModel.stock_level * ProductModel.base_price).label('total_retail_value'),
-                    func.avg(InventoryModel.stock_level).label('avg_stock_level')
+                    func.count(func.distinct(ProductModel.product_id)).label(
+                        'total_items'),
+                    func.sum(case((InventoryModel.stock_level < low_stock_threshold, 1), else_=0)).label(
+                        'low_stock_count'),
+                    func.sum(InventoryModel.stock_level *
+                             ProductModel.cost).label('total_stock_value'),
+                    func.sum(InventoryModel.stock_level *
+                             ProductModel.base_price).label('total_retail_value'),
+                    func.avg(InventoryModel.stock_level).label(
+                        'avg_stock_level')
                 )
                 .select_from(InventoryModel)
                 .join(StoreModel, InventoryModel.store_id == StoreModel.store_id)
@@ -1004,14 +852,17 @@ async def get_inventory(
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
             )
-            
+
             # Apply same filters to summary query
             if store_id is not None:
-                summary_stmt = summary_stmt.where(StoreModel.store_id == store_id)
+                summary_stmt = summary_stmt.where(
+                    StoreModel.store_id == store_id)
             if product_id is not None:
-                summary_stmt = summary_stmt.where(ProductModel.product_id == product_id)
+                summary_stmt = summary_stmt.where(
+                    ProductModel.product_id == product_id)
             if category:
-                summary_stmt = summary_stmt.where(func.lower(CategoryModel.category_name) == func.lower(category))
+                summary_stmt = summary_stmt.where(func.lower(
+                    CategoryModel.category_name) == func.lower(category))
 
             # Execute summary query
             summary_result = await session.execute(summary_stmt)
@@ -1037,21 +888,22 @@ async def get_inventory(
                 product_type = row[4]
                 supplier = row[5]
                 image_embedding = row[6]
-                
+
                 stock_level = inventory.stock_level
                 reorder_point = low_stock_threshold
                 is_low_stock = stock_level < reorder_point
-                
+
                 # Skip if filtering for low stock only
                 if low_stock_only and not is_low_stock:
                     continue
-                
+
                 # Calculate inventory value
                 cost = float(product.cost) if product.cost else 0
-                base_price = float(product.base_price) if product.base_price else 0
+                base_price = float(
+                    product.base_price) if product.base_price else 0
                 stock_value = cost * stock_level
                 retail_value = base_price * stock_level
-                
+
                 # Extract location from store name
                 store_location = "Online Store"
                 if store.is_online:
@@ -1063,7 +915,7 @@ async def get_inventory(
                         store_location = name_parts[1]
                     else:
                         store_location = store.store_name
-                
+
                 inventory_items.append(InventoryItem(
                     store_id=store.store_id,
                     store_name=store.store_name,
@@ -1088,13 +940,19 @@ async def get_inventory(
                 ))
 
             # Use the summary statistics from the dedicated query
-            total_items = int(summary_row.total_items) if summary_row.total_items else 0
-            low_stock_count = int(summary_row.low_stock_count) if summary_row.low_stock_count else 0
-            total_stock_value = float(summary_row.total_stock_value) if summary_row.total_stock_value else 0.0
-            total_retail_value = float(summary_row.total_retail_value) if summary_row.total_retail_value else 0.0
-            avg_stock = float(summary_row.avg_stock_level) if summary_row.avg_stock_level else 0.0
+            total_items = int(
+                summary_row.total_items) if summary_row.total_items else 0
+            low_stock_count = int(
+                summary_row.low_stock_count) if summary_row.low_stock_count else 0
+            total_stock_value = float(
+                summary_row.total_stock_value) if summary_row.total_stock_value else 0.0
+            total_retail_value = float(
+                summary_row.total_retail_value) if summary_row.total_retail_value else 0.0
+            avg_stock = float(
+                summary_row.avg_stock_level) if summary_row.avg_stock_level else 0.0
 
-            logger.info(f"✅ Retrieved {len(inventory_items)} inventory items (showing {len(inventory_items)} of {total_items} total, {low_stock_count} low stock)")
+            logger.info(
+                f"✅ Retrieved {len(inventory_items)} inventory items (showing {len(inventory_items)} of {total_items} total, {low_stock_count} low stock)")
 
             return InventoryResponse(
                 inventory=inventory_items,
@@ -1126,7 +984,7 @@ async def get_products(
 ) -> ManagementProductResponse:
     """
     Get products with detailed information including pricing, suppliers, and stock status.
-    
+
     Args:
         category: Filter by category name
         supplier_id: Filter by supplier
@@ -1156,7 +1014,8 @@ async def get_products(
                     SupplierModel.supplier_name,
                     SupplierModel.supplier_code,
                     SupplierModel.lead_time_days,
-                    func.coalesce(func.sum(InventoryModel.stock_level), 0).label('total_stock'),
+                    func.coalesce(func.sum(InventoryModel.stock_level), 0).label(
+                        'total_stock'),
                     func.count(InventoryModel.store_id).label('store_count'),
                     ProductImageEmbeddingModel.image_url
                 )
@@ -1170,20 +1029,22 @@ async def get_products(
 
             # Apply filters
             if category:
-                stmt = stmt.where(func.lower(CategoryModel.category_name) == func.lower(category))
-            
+                stmt = stmt.where(func.lower(
+                    CategoryModel.category_name) == func.lower(category))
+
             if supplier_id is not None:
                 stmt = stmt.where(ProductModel.supplier_id == supplier_id)
-            
+
             if discontinued is not None:
                 stmt = stmt.where(ProductModel.discontinued == discontinued)
-            
+
             if search:
                 search_pattern = f"%{search}%"
                 stmt = stmt.where(
                     (func.lower(ProductModel.product_name).like(func.lower(search_pattern))) |
                     (func.lower(ProductModel.sku).like(func.lower(search_pattern))) |
-                    (func.lower(ProductModel.product_description).like(func.lower(search_pattern)))
+                    (func.lower(ProductModel.product_description).like(
+                        func.lower(search_pattern)))
                 )
 
             # Group by all non-aggregated columns
@@ -1199,12 +1060,14 @@ async def get_products(
             )
 
             # Get total count (need to count before limit/offset)
-            count_stmt = select(func.count(func.distinct(ProductModel.product_id))).select_from(stmt.alias())
+            count_stmt = select(func.count(func.distinct(
+                ProductModel.product_id))).select_from(stmt.alias())
             total_result = await session.execute(count_stmt)
             total_count = total_result.scalar()
 
             # Apply ordering and pagination
-            stmt = stmt.order_by(ProductModel.product_name).limit(limit).offset(offset)
+            stmt = stmt.order_by(ProductModel.product_name).limit(
+                limit).offset(offset)
 
             result = await session.execute(stmt)
             rows = result.all()
@@ -1213,13 +1076,14 @@ async def get_products(
             for row in rows:
                 base_price = float(row.base_price) if row.base_price else 0
                 cost = float(row.cost) if row.cost else 0
-                margin = float(row.gross_margin_percent) if row.gross_margin_percent else 0
+                margin = float(
+                    row.gross_margin_percent) if row.gross_margin_percent else 0
                 total_stock = int(row.total_stock)
-                
+
                 # Calculate inventory value
                 stock_value = cost * total_stock
                 retail_value = base_price * total_stock
-                
+
                 products.append(ManagementProduct(
                     product_id=row.product_id,
                     sku=row.sku,
@@ -1242,7 +1106,8 @@ async def get_products(
                     image_url=row.image_url
                 ))
 
-            logger.info(f"✅ Retrieved {len(products)} products (total: {total_count})")
+            logger.info(
+                f"✅ Retrieved {len(products)} products (total: {total_count})")
 
             return ManagementProductResponse(
                 products=products,
@@ -1269,16 +1134,18 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
     Streams workflow events back to the frontend in real-time.
     """
     await websocket.accept()
-    
+
     try:
         # Receive the initial request from the client
         data = await websocket.receive_text()
         request_data = json.loads(data)
 
-        input_message = request_data.get('message', 'Analyze inventory and recommend restocking priorities')
+        input_message = request_data.get(
+            'message', 'Analyze inventory and recommend restocking priorities')
         store_id = request_data.get('store_id')
-        
-        logger.info(f"🤖 AI Agent request: {input_message} (store_id: {store_id})")
+
+        logger.info(
+            f"🤖 AI Agent request: {input_message} (store_id: {store_id})")
 
         # Send initial acknowledgment
         await websocket.send_json({
@@ -1286,14 +1153,14 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
             "message": "AI Agent workflow initiated...",
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
-        
+
         # Run the workflow and stream events
         # Add store_id to the message if provided
         if store_id:
             full_message = f"{input_message}\n\nStore ID: {store_id}"
         else:
             full_message = input_message
-            
+
         input: ChatMessage = ChatMessage(role='user', text=full_message)
 
         workflow_output = None
@@ -1364,7 +1231,7 @@ async def websocket_ai_agent_inventory(websocket: WebSocket):
                 "message": f"Workflow error: {str(workflow_error)}",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
-    
+
     except WebSocketDisconnect:
         logger.info("🔌 WebSocket disconnected")
     except Exception as e:
@@ -1411,7 +1278,7 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         app,
         host="0.0.0.0",
