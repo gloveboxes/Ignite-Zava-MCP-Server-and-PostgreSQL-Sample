@@ -40,6 +40,9 @@ from app.models.sqlite.stores import Store as StoreModel
 from app.models.sqlite.inventory import Inventory as InventoryModel
 from app.models.sqlite.products import Product as ProductModel
 from app.models.sqlite.categories import Category as CategoryModel
+from app.models.sqlite.product_types import ProductType as ProductTypeModel
+from app.models.sqlite.suppliers import Supplier as SupplierModel
+from app.models.sqlite.product_embeddings import ProductImageEmbedding as ProductImageEmbeddingModel
 
 # Configure logging
 logging.basicConfig(
@@ -484,61 +487,54 @@ async def get_featured_products(
     Get featured products for the homepage.
     Returns a curated selection of products with good ratings and availability.
     """
-    if not db_provider or not db_provider.connection_pool:
-        raise HTTPException(
-            status_code=503,
-            detail="Database connection not available"
-        )
-
     try:
-        conn = await db_provider.get_connection()
-
-        try:
+        async with get_db_session() as session:
             # Query for featured products
             # Strategy: Get products with good variety across categories
             # Prefer products with higher margins (more popular/profitable)
             # Exclude discontinued items
-            query = """
-                SELECT
-                    p.product_id,
-                    p.sku,
-                    p.product_name,
-                    c.category_name,
-                    pt.type_name,
-                    p.base_price as unit_price,
-                    p.cost,
-                    p.gross_margin_percent,
-                    p.product_description,
-                    s.supplier_name,
-                    p.discontinued,
-                    pie.image_url
-                FROM retail.products p
-                INNER JOIN retail.categories c ON p.category_id = c.category_id
-                INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
-                LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
-                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
-                WHERE p.discontinued = false
-                ORDER BY p.gross_margin_percent DESC, RANDOM()
-                LIMIT $1
-            """
+            stmt = (
+                select(
+                    ProductModel.product_id,
+                    ProductModel.sku,
+                    ProductModel.product_name,
+                    CategoryModel.category_name,
+                    ProductTypeModel.type_name,
+                    ProductModel.base_price.label('unit_price'),
+                    ProductModel.cost,
+                    ProductModel.gross_margin_percent,
+                    ProductModel.product_description,
+                    SupplierModel.supplier_name,
+                    ProductModel.discontinued,
+                    ProductImageEmbeddingModel.image_url
+                )
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
+                .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
+                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
+                .where(ProductModel.discontinued == False)
+                .order_by(ProductModel.gross_margin_percent.desc(), func.random())
+                .limit(limit)
+            )
             
-            rows = await conn.fetch(query, limit)
+            result = await session.execute(stmt)
+            rows = result.all()
             
             products = []
             for row in rows:
                 products.append(Product(
-                    product_id=row['product_id'],
-                    sku=row['sku'],
-                    product_name=row['product_name'],
-                    category_name=row['category_name'],
-                    type_name=row['type_name'],
-                    unit_price=float(row['unit_price']),
-                    cost=float(row['cost']),
-                    gross_margin_percent=float(row['gross_margin_percent']),
-                    product_description=row['product_description'],
-                    supplier_name=row['supplier_name'],
-                    discontinued=row['discontinued'],
-                    image_url=row['image_url']
+                    product_id=row.product_id,
+                    sku=row.sku,
+                    product_name=row.product_name,
+                    category_name=row.category_name,
+                    type_name=row.type_name,
+                    unit_price=float(row.unit_price),
+                    cost=float(row.cost),
+                    gross_margin_percent=float(row.gross_margin_percent),
+                    product_description=row.product_description,
+                    supplier_name=row.supplier_name,
+                    discontinued=row.discontinued,
+                    image_url=row.image_url
                 ))
             
             logger.info(f"✅ Retrieved {len(products)} featured products")
@@ -547,9 +543,6 @@ async def get_featured_products(
                 products=products,
                 total=len(products)
             )
-            
-        finally:
-            await db_provider.release_connection(conn)
             
     except Exception as e:
         logger.error(f"❌ Error fetching featured products: {e}")
@@ -570,24 +563,19 @@ async def get_products_by_category(
     Get products filtered by category.
     Category names: Accessories, Apparel - Bottoms, Apparel - Tops, Footwear, Outerwear
     """
-    if not db_provider or not db_provider.connection_pool:
-        raise HTTPException(
-            status_code=503,
-            detail="Database connection not available"
-        )
-
     try:
-        conn = await db_provider.get_connection()
-
-        try:
+        async with get_db_session() as session:
             # Get total products in category for pagination
-            total_query = """
-                SELECT COUNT(*) FROM retail.products p
-                INNER JOIN retail.categories c ON p.category_id = c.category_id
-                WHERE p.discontinued = false
-                    AND LOWER(c.category_name) = LOWER($1)
-            """
-            total_count: int = await conn.fetchval(total_query, category) # pyright: ignore[reportAssignmentType]
+            total_stmt = (
+                select(func.count())
+                .select_from(ProductModel)
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .where(ProductModel.discontinued == False)
+                .where(func.lower(CategoryModel.category_name) == func.lower(category))
+            )
+            total_result = await session.execute(total_stmt)
+            total_count = total_result.scalar()
+            
             if total_count == 0:
                 raise HTTPException(
                     status_code=404,
@@ -595,48 +583,50 @@ async def get_products_by_category(
                 )
 
             # Query products by category
-            query = """
-                SELECT
-                    p.product_id,
-                    p.sku,
-                    p.product_name,
-                    c.category_name,
-                    pt.type_name,
-                    p.base_price as unit_price,
-                    p.cost,
-                    p.gross_margin_percent,
-                    p.product_description,
-                    s.supplier_name,
-                    p.discontinued,
-                    pie.image_url
-                FROM retail.products p
-                INNER JOIN retail.categories c ON p.category_id = c.category_id
-                INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
-                LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
-                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
-                WHERE p.discontinued = false
-                    AND LOWER(c.category_name) = LOWER($1)
-                ORDER BY p.product_name
-                LIMIT $2 OFFSET $3
-            """
+            stmt = (
+                select(
+                    ProductModel.product_id,
+                    ProductModel.sku,
+                    ProductModel.product_name,
+                    CategoryModel.category_name,
+                    ProductTypeModel.type_name,
+                    ProductModel.base_price.label('unit_price'),
+                    ProductModel.cost,
+                    ProductModel.gross_margin_percent,
+                    ProductModel.product_description,
+                    SupplierModel.supplier_name,
+                    ProductModel.discontinued,
+                    ProductImageEmbeddingModel.image_url
+                )
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
+                .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
+                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
+                .where(ProductModel.discontinued == False)
+                .where(func.lower(CategoryModel.category_name) == func.lower(category))
+                .order_by(ProductModel.product_name)
+                .limit(limit)
+                .offset(offset)
+            )
 
-            rows = await conn.fetch(query, category, limit, offset)
+            result = await session.execute(stmt)
+            rows = result.all()
 
             products = []
             for row in rows:
                 products.append(Product(
-                    product_id=row['product_id'],
-                    sku=row['sku'],
-                    product_name=row['product_name'],
-                    category_name=row['category_name'],
-                    type_name=row['type_name'],
-                    unit_price=float(row['unit_price']),
-                    cost=float(row['cost']),
-                    gross_margin_percent=float(row['gross_margin_percent']),
-                    product_description=row['product_description'],
-                    supplier_name=row['supplier_name'],
-                    discontinued=row['discontinued'],
-                    image_url=row['image_url']
+                    product_id=row.product_id,
+                    sku=row.sku,
+                    product_name=row.product_name,
+                    category_name=row.category_name,
+                    type_name=row.type_name,
+                    unit_price=float(row.unit_price),
+                    cost=float(row.cost),
+                    gross_margin_percent=float(row.gross_margin_percent),
+                    product_description=row.product_description,
+                    supplier_name=row.supplier_name,
+                    discontinued=row.discontinued,
+                    image_url=row.image_url
                 ))
 
             logger.info(
@@ -647,9 +637,6 @@ async def get_products_by_category(
                 products=products,
                 total=total_count
             )
-
-        finally:
-            await db_provider.release_connection(conn)
 
     except HTTPException:
         raise
@@ -668,40 +655,33 @@ async def get_product_by_id(product_id: int) -> Product:
     Get a single product by its ID.
     Returns complete product information including category, type, and supplier.
     """
-    if not db_provider or not db_provider.connection_pool:
-        raise HTTPException(
-            status_code=503,
-            detail="Database connection not available"
-        )
-
     try:
-        conn = await db_provider.get_connection()
-
-        try:
+        async with get_db_session() as session:
             # Query single product by ID
-            query = """
-                SELECT
-                    p.product_id,
-                    p.sku,
-                    p.product_name,
-                    c.category_name,
-                    pt.type_name,
-                    p.base_price as unit_price,
-                    p.cost,
-                    p.gross_margin_percent,
-                    p.product_description,
-                    s.supplier_name,
-                    p.discontinued,
-                    pie.image_url
-                FROM retail.products p
-                INNER JOIN retail.categories c ON p.category_id = c.category_id
-                INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
-                LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
-                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
-                WHERE p.product_id = $1
-            """
+            stmt = (
+                select(
+                    ProductModel.product_id,
+                    ProductModel.sku,
+                    ProductModel.product_name,
+                    CategoryModel.category_name,
+                    ProductTypeModel.type_name,
+                    ProductModel.base_price.label('unit_price'),
+                    ProductModel.cost,
+                    ProductModel.gross_margin_percent,
+                    ProductModel.product_description,
+                    SupplierModel.supplier_name,
+                    ProductModel.discontinued,
+                    ProductImageEmbeddingModel.image_url
+                )
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
+                .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
+                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
+                .where(ProductModel.product_id == product_id)
+            )
 
-            row = await conn.fetchrow(query, product_id)
+            result = await session.execute(stmt)
+            row = result.first()
 
             if not row:
                 raise HTTPException(
@@ -710,26 +690,23 @@ async def get_product_by_id(product_id: int) -> Product:
                 )
 
             product = Product(
-                product_id=row['product_id'],
-                sku=row['sku'],
-                product_name=row['product_name'],
-                category_name=row['category_name'],
-                type_name=row['type_name'],
-                unit_price=float(row['unit_price']),
-                cost=float(row['cost']),
-                gross_margin_percent=float(row['gross_margin_percent']),
-                product_description=row['product_description'],
-                supplier_name=row['supplier_name'],
-                discontinued=row['discontinued'],
-                image_url=row['image_url']
+                product_id=row.product_id,
+                sku=row.sku,
+                product_name=row.product_name,
+                category_name=row.category_name,
+                type_name=row.type_name,
+                unit_price=float(row.unit_price),
+                cost=float(row.cost),
+                gross_margin_percent=float(row.gross_margin_percent),
+                product_description=row.product_description,
+                supplier_name=row.supplier_name,
+                discontinued=row.discontinued,
+                image_url=row.image_url
             )
 
             logger.info(f"✅ Retrieved product {product_id}: {product.product_name}")
 
             return product
-
-        finally:
-            await db_provider.release_connection(conn)
 
     except HTTPException:
         raise
@@ -747,42 +724,33 @@ async def get_product_by_sku(sku: str) -> Product:
     Get a single product by its SKU.
     Returns complete product information including category, type, and supplier.
     """
-    if not db_provider or not db_provider.connection_pool:
-        raise HTTPException(
-            status_code=503,
-            detail="Database connection not available"
-        )
-
     try:
-        conn = await db_provider.get_connection()
-
-        try:
+        async with get_db_session() as session:
             # Query single product by SKU
-            query = """
-                SELECT
-                    p.product_id,
-                    p.sku,
-                    p.product_name,
-                    c.category_name,
-                    pt.type_name,
-                    p.base_price as unit_price,
-                    p.cost,
-                    p.gross_margin_percent,
-                    p.product_description,
-                    s.supplier_name,
-                    s.contact_email as supplier_email,
-                    s.contact_phone as supplier_phone,
-                    p.discontinued,
-                    pie.image_url
-                FROM retail.products p
-                INNER JOIN retail.categories c ON p.category_id = c.category_id
-                INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
-                LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
-                LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
-                WHERE p.sku = $1
-            """
+            stmt = (
+                select(
+                    ProductModel.product_id,
+                    ProductModel.sku,
+                    ProductModel.product_name,
+                    CategoryModel.category_name,
+                    ProductTypeModel.type_name,
+                    ProductModel.base_price.label('unit_price'),
+                    ProductModel.cost,
+                    ProductModel.gross_margin_percent,
+                    ProductModel.product_description,
+                    SupplierModel.supplier_name,
+                    ProductModel.discontinued,
+                    ProductImageEmbeddingModel.image_url
+                )
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
+                .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
+                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
+                .where(ProductModel.sku == sku)
+            )
 
-            row = await conn.fetchrow(query, sku)
+            result = await session.execute(stmt)
+            row = result.first()
 
             if not row:
                 raise HTTPException(
@@ -791,26 +759,23 @@ async def get_product_by_sku(sku: str) -> Product:
                 )
 
             product = Product(
-                product_id=row['product_id'],
-                sku=row['sku'],
-                product_name=row['product_name'],
-                category_name=row['category_name'],
-                type_name=row['type_name'],
-                unit_price=float(row['unit_price']),
-                cost=float(row['cost']),
-                gross_margin_percent=float(row['gross_margin_percent']),
-                product_description=row['product_description'],
-                supplier_name=row['supplier_name'],
-                discontinued=row['discontinued'],
-                image_url=row['image_url']
+                product_id=row.product_id,
+                sku=row.sku,
+                product_name=row.product_name,
+                category_name=row.category_name,
+                type_name=row.type_name,
+                unit_price=float(row.unit_price),
+                cost=float(row.cost),
+                gross_margin_percent=float(row.gross_margin_percent),
+                product_description=row.product_description,
+                supplier_name=row.supplier_name,
+                discontinued=row.discontinued,
+                image_url=row.image_url
             )
 
             logger.info(f"✅ Retrieved product by SKU {sku}: {product.product_name}")
 
             return product
-
-        finally:
-            await db_provider.release_connection(conn)
 
     except HTTPException:
         raise
@@ -829,32 +794,30 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
     Get top categories by total inventory value (cost * stock).
     Returns categories ranked by revenue potential.
     """
-    if db_provider is None:
-        raise HTTPException(status_code=500, detail="Database not initialized")
-
     try:
-        conn = await db_provider.get_connection()
-        try:
+        async with get_db_session() as session:
             logger.info(f"📊 Fetching top {limit} categories by inventory value...")
 
-            query = """
-                SELECT
-                    c.category_name,
-                    COUNT(DISTINCT p.product_id) as product_count,
-                    SUM(i.stock_level) as total_stock,
-                    SUM(i.stock_level * p.cost) as total_cost_value,
-                    SUM(i.stock_level * p.base_price) as total_retail_value,
-                    SUM(i.stock_level * (p.base_price - p.cost)) as potential_profit
-                FROM retail.inventory i
-                JOIN retail.products p ON i.product_id = p.product_id
-                JOIN retail.categories c ON p.category_id = c.category_id
-                WHERE p.discontinued = false
-                GROUP BY c.category_name
-                ORDER BY total_retail_value DESC
-                LIMIT $1
-            """
+            stmt = (
+                select(
+                    CategoryModel.category_name,
+                    func.count(func.distinct(ProductModel.product_id)).label('product_count'),
+                    func.sum(InventoryModel.stock_level).label('total_stock'),
+                    func.sum(InventoryModel.stock_level * ProductModel.cost).label('total_cost_value'),
+                    func.sum(InventoryModel.stock_level * ProductModel.base_price).label('total_retail_value'),
+                    func.sum(InventoryModel.stock_level * (ProductModel.base_price - ProductModel.cost)).label('potential_profit')
+                )
+                .select_from(InventoryModel)
+                .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .where(ProductModel.discontinued == False)
+                .group_by(CategoryModel.category_name)
+                .order_by(func.sum(InventoryModel.stock_level * ProductModel.base_price).desc())
+                .limit(limit)
+            )
 
-            rows = await conn.fetch(query, limit)
+            result = await session.execute(stmt)
+            rows = result.all()
             
             if not rows:
                 return TopCategoryList(
@@ -864,21 +827,21 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
                 )
 
             # Calculate max value for percentage calculation
-            max_value = float(rows[0]['total_retail_value']) if rows else 0
+            max_value = float(rows[0].total_retail_value) if rows else 0
             
             categories: list[TopCategory] = []
             for row in rows:
-                retail_value = float(row['total_retail_value'])
+                retail_value = float(row.total_retail_value)
                 percentage = round((retail_value / max_value * 100), 1) if max_value > 0 else 0
                 
                 categories.append(TopCategory(
-                    name=row['category_name'],
+                    name=row.category_name,
                     revenue=round(retail_value, 2),
                     percentage=percentage,
-                    product_count=int(row['product_count']),
-                    total_stock=int(row['total_stock']),
-                    cost_value=round(float(row['total_cost_value']), 2),
-                    potential_profit=round(float(row['potential_profit']), 2)
+                    product_count=int(row.product_count),
+                    total_stock=int(row.total_stock),
+                    cost_value=round(float(row.total_cost_value), 2),
+                    potential_profit=round(float(row.potential_profit), 2)
                 ))
 
             logger.info(f"✅ Retrieved {len(categories)} categories")
@@ -888,9 +851,6 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
                 total=len(categories),
                 max_value=round(max_value, 2)
             )
-
-        finally:
-            await db_provider.release_connection(conn)
 
     except Exception as e:
         logger.error(f"❌ Error fetching top categories: {e}")
@@ -906,68 +866,75 @@ async def get_suppliers() -> SupplierList:
     Get all suppliers with their details and associated product categories.
     Returns comprehensive supplier information for management interface.
     """
-    if db_provider is None:
-        raise HTTPException(status_code=500, detail="Database not initialized")
-
     try:
-        conn = await db_provider.get_connection()
-        try:
+        async with get_db_session() as session:
             logger.info("📊 Fetching suppliers...")
 
-            query = """
-                SELECT
-                    s.supplier_id,
-                    s.supplier_name,
-                    s.supplier_code,
-                    s.contact_email,
-                    s.contact_phone,
-                    s.city,
-                    s.state_province,
-                    s.payment_terms,
-                    s.lead_time_days,
-                    s.minimum_order_amount,
-                    s.bulk_discount_percent,
-                    s.supplier_rating,
-                    s.esg_compliant,
-                    s.approved_vendor,
-                    s.preferred_vendor,
-                    s.active_status,
-                    ARRAY_AGG(DISTINCT c.category_name) 
-                        FILTER (WHERE c.category_name IS NOT NULL) as categories
-                FROM retail.suppliers s
-                LEFT JOIN retail.products p ON s.supplier_id = p.supplier_id
-                LEFT JOIN retail.categories c ON p.category_id = c.category_id
-                WHERE s.active_status = true
-                GROUP BY s.supplier_id
-                ORDER BY s.preferred_vendor DESC, s.supplier_rating DESC, s.supplier_name
-            """
+            # Get basic supplier info
+            stmt = (
+                select(
+                    SupplierModel.supplier_id,
+                    SupplierModel.supplier_name,
+                    SupplierModel.supplier_code,
+                    SupplierModel.contact_email,
+                    SupplierModel.contact_phone,
+                    SupplierModel.city,
+                    SupplierModel.state_province,
+                    SupplierModel.payment_terms,
+                    SupplierModel.lead_time_days,
+                    SupplierModel.minimum_order_amount,
+                    SupplierModel.bulk_discount_percent,
+                    SupplierModel.supplier_rating,
+                    SupplierModel.esg_compliant,
+                    SupplierModel.approved_vendor,
+                    SupplierModel.preferred_vendor,
+                    SupplierModel.active_status
+                )
+                .where(SupplierModel.active_status == True)
+                .order_by(
+                    SupplierModel.preferred_vendor.desc(),
+                    SupplierModel.supplier_rating.desc(),
+                    SupplierModel.supplier_name
+                )
+            )
 
-            rows = await conn.fetch(query)
+            result = await session.execute(stmt)
+            rows = result.all()
 
             suppliers: list[Supplier] = []
             for row in rows:
+                # Get categories for this supplier
+                cat_stmt = (
+                    select(func.distinct(CategoryModel.category_name))
+                    .select_from(ProductModel)
+                    .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                    .where(ProductModel.supplier_id == row.supplier_id)
+                )
+                cat_result = await session.execute(cat_stmt)
+                categories = [cat_row[0] for cat_row in cat_result.all()]
+                
                 # Format location
                 location = (
-                    f"{row['city']}, {row['state_province']}"
-                    if row['city'] else "N/A"
+                    f"{row.city}, {row.state_province}"
+                    if row.city else "N/A"
                 )
                 
                 suppliers.append(Supplier(
-                    id=row['supplier_id'],
-                    name=row['supplier_name'],
-                    code=row['supplier_code'],
+                    id=row.supplier_id,
+                    name=row.supplier_name,
+                    code=row.supplier_code,
                     location=location,
-                    contact=row['contact_email'],
-                    phone=row['contact_phone'] or "N/A",
-                    rating=float(row['supplier_rating']) if row['supplier_rating'] else 0.0,
-                    esg_compliant=row['esg_compliant'],
-                    approved=row['approved_vendor'],
-                    preferred=row['preferred_vendor'],
-                    categories=row['categories'] or [],
-                    lead_time=row['lead_time_days'],
-                    payment_terms=row['payment_terms'],
-                    min_order=float(row['minimum_order_amount']) if row['minimum_order_amount'] else 0.0,
-                    bulk_discount=float(row['bulk_discount_percent']) if row['bulk_discount_percent'] else 0.0
+                    contact=row.contact_email,
+                    phone=row.contact_phone or "N/A",
+                    rating=float(row.supplier_rating) if row.supplier_rating else 0.0,
+                    esg_compliant=row.esg_compliant,
+                    approved=row.approved_vendor,
+                    preferred=row.preferred_vendor,
+                    categories=categories,
+                    lead_time=row.lead_time_days,
+                    payment_terms=row.payment_terms,
+                    min_order=float(row.minimum_order_amount) if row.minimum_order_amount else 0.0,
+                    bulk_discount=float(row.bulk_discount_percent) if row.bulk_discount_percent else 0.0
                 ))
 
             logger.info(f"✅ Retrieved {len(suppliers)} suppliers")
@@ -976,9 +943,6 @@ async def get_suppliers() -> SupplierList:
                 suppliers=suppliers,
                 total=len(suppliers)
             )
-
-        finally:
-            await db_provider.release_connection(conn)
 
     except Exception as e:
         logger.error(f"❌ Error fetching suppliers: {e}")
@@ -1195,131 +1159,124 @@ async def get_products(
         limit: Maximum number of records
         offset: Pagination offset
     """
-    conn = await db_provider.get_connection()
-    
     try:
-        logger.info(f"📦 Fetching products...")
+        async with get_db_session() as session:
+            logger.info("📦 Fetching products...")
 
-        # Build WHERE conditions
-        where_conditions = ["1=1"]
-        params = []
-        param_idx = 1
-
-        if category:
-            where_conditions.append(f"LOWER(c.category_name) = LOWER(${param_idx})")
-            params.append(category)
-            param_idx += 1
-
-        if supplier_id is not None:
-            where_conditions.append(f"p.supplier_id = ${param_idx}")
-            params.append(supplier_id)
-            param_idx += 1
-
-        if discontinued is not None:
-            where_conditions.append(f"p.discontinued = ${param_idx}")
-            params.append(discontinued)
-            param_idx += 1
-
-        if search:
-            where_conditions.append(
-                f"(LOWER(p.product_name) LIKE LOWER(${param_idx}) OR " +
-                f"LOWER(p.sku) LIKE LOWER(${param_idx}) OR " +
-                f"LOWER(p.product_description) LIKE LOWER(${param_idx}))"
+            # Build base query
+            stmt = (
+                select(
+                    ProductModel.product_id,
+                    ProductModel.sku,
+                    ProductModel.product_name,
+                    ProductModel.product_description,
+                    CategoryModel.category_name,
+                    ProductTypeModel.type_name,
+                    ProductModel.base_price,
+                    ProductModel.cost,
+                    ProductModel.gross_margin_percent,
+                    ProductModel.discontinued,
+                    SupplierModel.supplier_id,
+                    SupplierModel.supplier_name,
+                    SupplierModel.supplier_code,
+                    SupplierModel.lead_time_days,
+                    func.coalesce(func.sum(InventoryModel.stock_level), 0).label('total_stock'),
+                    func.count(InventoryModel.store_id).label('store_count'),
+                    ProductImageEmbeddingModel.image_url
+                )
+                .select_from(ProductModel)
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
+                .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
+                .outerjoin(InventoryModel, ProductModel.product_id == InventoryModel.product_id)
+                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
             )
-            params.append(f"%{search}%")
-            param_idx += 1
 
-        where_clause = "WHERE " + " AND ".join(where_conditions)
-
-        # Get total count
-        count_query = f"""
-            SELECT COUNT(*)
-            FROM retail.products p
-            INNER JOIN retail.categories c ON p.category_id = c.category_id
-            LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
-            {where_clause}
-        """
-        total_count = await conn.fetchval(count_query, *params)
-
-        # Get products with aggregated stock info
-        query = f"""
-            SELECT
-                p.product_id,
-                p.sku,
-                p.product_name,
-                p.product_description,
-                c.category_name,
-                pt.type_name,
-                p.base_price,
-                p.cost,
-                p.gross_margin_percent,
-                p.discontinued,
-                s.supplier_id,
-                s.supplier_name,
-                s.supplier_code,
-                s.lead_time_days,
-                COALESCE(SUM(i.stock_level), 0) as total_stock,
-                COUNT(i.store_id) as store_count,
-                pie.image_url
-            FROM retail.products p
-            INNER JOIN retail.categories c ON p.category_id = c.category_id
-            INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
-            LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
-            LEFT JOIN retail.inventory i ON p.product_id = i.product_id
-            LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
-            {where_clause}
-            GROUP BY p.product_id, c.category_name, pt.type_name, s.supplier_id, s.supplier_name, s.supplier_code, s.lead_time_days, pie.image_url
-            ORDER BY p.product_name
-            LIMIT ${param_idx} OFFSET ${param_idx + 1}
-        """
-
-        params.extend([limit, offset])
-        rows = await conn.fetch(query, *params)
-
-        products = []
-        for row in rows:
-            base_price = float(row['base_price']) if row['base_price'] else 0
-            cost = float(row['cost']) if row['cost'] else 0
-            margin = float(row['gross_margin_percent']) if row['gross_margin_percent'] else 0
-            total_stock = int(row['total_stock'])
+            # Apply filters
+            if category:
+                stmt = stmt.where(func.lower(CategoryModel.category_name) == func.lower(category))
             
-            # Calculate inventory value
-            stock_value = cost * total_stock
-            retail_value = base_price * total_stock
+            if supplier_id is not None:
+                stmt = stmt.where(ProductModel.supplier_id == supplier_id)
             
-            products.append(ManagementProduct(
-                product_id=row['product_id'],
-                sku=row['sku'],
-                name=row['product_name'],
-                description=row['product_description'],
-                category=row['category_name'],
-                type=row['type_name'],
-                base_price=base_price,
-                cost=cost,
-                margin=margin,
-                discontinued=row['discontinued'],
-                supplier_id=row['supplier_id'],
-                supplier_name=row['supplier_name'],
-                supplier_code=row['supplier_code'],
-                lead_time=row['lead_time_days'],
-                total_stock=total_stock,
-                store_count=int(row['store_count']),
-                stock_value=round(stock_value, 2),
-                retail_value=round(retail_value, 2),
-                image_url=row['image_url']
-            ))
+            if discontinued is not None:
+                stmt = stmt.where(ProductModel.discontinued == discontinued)
+            
+            if search:
+                search_pattern = f"%{search}%"
+                stmt = stmt.where(
+                    (func.lower(ProductModel.product_name).like(func.lower(search_pattern))) |
+                    (func.lower(ProductModel.sku).like(func.lower(search_pattern))) |
+                    (func.lower(ProductModel.product_description).like(func.lower(search_pattern)))
+                )
 
-        logger.info(f"✅ Retrieved {len(products)} products (total: {total_count})")
-
-        return ManagementProductResponse(
-            products=products,
-            pagination=ProductPagination(
-                total=total_count,
-                limit=limit,
-                offset=offset,
-                has_more=(offset + len(products)) < total_count
+            # Group by all non-aggregated columns
+            stmt = stmt.group_by(
+                ProductModel.product_id,
+                CategoryModel.category_name,
+                ProductTypeModel.type_name,
+                SupplierModel.supplier_id,
+                SupplierModel.supplier_name,
+                SupplierModel.supplier_code,
+                SupplierModel.lead_time_days,
+                ProductImageEmbeddingModel.image_url
             )
-        )
+
+            # Get total count (need to count before limit/offset)
+            count_stmt = select(func.count(func.distinct(ProductModel.product_id))).select_from(stmt.alias())
+            total_result = await session.execute(count_stmt)
+            total_count = total_result.scalar()
+
+            # Apply ordering and pagination
+            stmt = stmt.order_by(ProductModel.product_name).limit(limit).offset(offset)
+
+            result = await session.execute(stmt)
+            rows = result.all()
+
+            products = []
+            for row in rows:
+                base_price = float(row.base_price) if row.base_price else 0
+                cost = float(row.cost) if row.cost else 0
+                margin = float(row.gross_margin_percent) if row.gross_margin_percent else 0
+                total_stock = int(row.total_stock)
+                
+                # Calculate inventory value
+                stock_value = cost * total_stock
+                retail_value = base_price * total_stock
+                
+                products.append(ManagementProduct(
+                    product_id=row.product_id,
+                    sku=row.sku,
+                    name=row.product_name,
+                    description=row.product_description,
+                    category=row.category_name,
+                    type=row.type_name,
+                    base_price=base_price,
+                    cost=cost,
+                    margin=margin,
+                    discontinued=row.discontinued,
+                    supplier_id=row.supplier_id,
+                    supplier_name=row.supplier_name,
+                    supplier_code=row.supplier_code,
+                    lead_time=row.lead_time_days,
+                    total_stock=total_stock,
+                    store_count=int(row.store_count),
+                    stock_value=round(stock_value, 2),
+                    retail_value=round(retail_value, 2),
+                    image_url=row.image_url
+                ))
+
+            logger.info(f"✅ Retrieved {len(products)} products (total: {total_count})")
+
+            return ManagementProductResponse(
+                products=products,
+                pagination=ProductPagination(
+                    total=total_count,
+                    limit=limit,
+                    offset=offset,
+                    has_more=(offset + len(products)) < total_count
+                )
+            )
 
     except Exception as e:
         logger.error(f"❌ Error fetching products: {e}")
@@ -1327,8 +1284,6 @@ async def get_products(
             status_code=500,
             detail=f"Failed to fetch products: {str(e)}"
         )
-    finally:
-        await db_provider.release_connection(conn)
 
 
 @app.websocket("/ws/ai-agent/inventory")
