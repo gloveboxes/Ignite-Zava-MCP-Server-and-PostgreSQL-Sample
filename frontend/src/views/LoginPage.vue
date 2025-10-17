@@ -70,15 +70,17 @@ export default {
       this.error = null;
       this.loading = true;
 
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const success = authStore.login(this.username, this.password);
-      
-      if (success) {
-        this.$router.push('/management');
-      } else {
-        this.error = 'Invalid username or password';
+      try {
+        const result = await authStore.login(this.username, this.password);
+        
+        if (result.success) {
+          this.$router.push('/management');
+        } else {
+          this.error = result.error || 'Invalid username or password';
+        }
+      } catch (error) {
+        this.error = 'An error occurred during login. Please try again.';
+      } finally {
         this.loading = false;
       }
     }

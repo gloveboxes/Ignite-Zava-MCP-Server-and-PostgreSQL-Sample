@@ -99,7 +99,7 @@ export default {
   },
   computed: {
     userName() {
-      return authStore.user?.name || 'User';
+      return authStore.user?.username || authStore.user?.store_name || 'User';
     },
     userRole() {
       return authStore.user?.role || 'Manager';

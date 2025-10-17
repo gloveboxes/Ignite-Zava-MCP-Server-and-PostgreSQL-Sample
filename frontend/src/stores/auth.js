@@ -1,37 +1,67 @@
 // Store for authentication state
 import { reactive } from 'vue';
+import axios from 'axios';
+import { managementConfig } from '../config/management';
 
 export const authStore = reactive({
   isAuthenticated: false,
   user: null,
+  token: null,
   
-  login(username, password) {
-    // Simple authentication check
-    if (username === 'admin' && password === 'github') {
+  async login(username, password) {
+    try {
+      // Call the real authentication API
+      const response = await axios.post(`${managementConfig.apiBaseUrl}/api/login`, {
+        username,
+        password
+      });
+      
+      const { access_token, user_role, store_id, store_name } = response.data;
+      
+      // Store authentication data
       this.isAuthenticated = true;
+      this.token = access_token;
       this.user = {
-        username: 'admin',
-        role: 'Store Manager',
-        name: 'Admin User'
+        username,
+        role: user_role,
+        store_id,
+        store_name
       };
-      // Store in sessionStorage
-      sessionStorage.setItem('auth', JSON.stringify(this.user));
-      return true;
+      
+      // Persist to sessionStorage
+      sessionStorage.setItem('auth_token', access_token);
+      sessionStorage.setItem('auth_user', JSON.stringify(this.user));
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.detail || 'Invalid username or password';
+      return { success: false, error: errorMessage };
     }
-    return false;
   },
   
   logout() {
     this.isAuthenticated = false;
     this.user = null;
-    sessionStorage.removeItem('auth');
+    this.token = null;
+    sessionStorage.removeItem('auth_token');
+    sessionStorage.removeItem('auth_user');
   },
   
   checkAuth() {
-    const stored = sessionStorage.getItem('auth');
-    if (stored) {
-      this.user = JSON.parse(stored);
+    const token = sessionStorage.getItem('auth_token');
+    const userStr = sessionStorage.getItem('auth_user');
+    
+    if (token && userStr) {
+      this.token = token;
+      this.user = JSON.parse(userStr);
       this.isAuthenticated = true;
+      return true;
     }
+    return false;
+  },
+  
+  getToken() {
+    return this.token || sessionStorage.getItem('auth_token');
   }
 });

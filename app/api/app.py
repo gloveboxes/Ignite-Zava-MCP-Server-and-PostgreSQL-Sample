@@ -14,8 +14,9 @@ from agent_framework import (ChatMessage,
                              ExecutorFailedEvent,
                              WorkflowOutputEvent,
                              WorkflowStartedEvent)
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 # Initialize in startup event
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
@@ -23,7 +24,9 @@ from fastapi_cache.decorator import cache
 
 from pydantic import BaseModel
 import json
+import secrets
 from datetime import datetime, timezone
+from typing import Dict
 from app.config import Config
 from app.agents.stock import workflow
 
@@ -42,7 +45,13 @@ from app.models.sqlite.categories import Category as CategoryModel
 from app.models.sqlite.product_types import ProductType as ProductTypeModel
 from app.models.sqlite.suppliers import Supplier as SupplierModel
 from app.models.sqlite.product_embeddings import ProductImageEmbedding as ProductImageEmbeddingModel
-from app.api.models import Product, ProductList, Store, StoreList, Category, CategoryList, TopCategory, TopCategoryList, Supplier, SupplierList, InventoryItem, InventorySummary, InventoryResponse, ManagementProduct, ProductPagination, ManagementProductResponse
+from app.api.models import (
+    Product, ProductList, Store, StoreList, Category, CategoryList, 
+    TopCategory, TopCategoryList, Supplier, SupplierList, 
+    InventoryItem, InventorySummary, InventoryResponse, 
+    ManagementProduct, ProductPagination, ManagementProductResponse,
+    LoginRequest, LoginResponse, TokenData
+)
 
 # Configure logging
 logging.basicConfig(
@@ -58,6 +67,71 @@ SCHEMA_NAME = "retail"
 # Database connections
 sqlalchemy_engine: Optional[AsyncEngine] = None
 async_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
+
+# Token storage (in-memory for simplicity - in production use Redis or database)
+# Maps token -> TokenData
+active_tokens: dict[str, TokenData] = {}
+
+# Static user database (in production, this would be in a database with hashed passwords)
+USERS = {
+    "admin": {
+        "password": "admin123",  # In production, use hashed passwords
+        "role": "admin",
+        "store_id": None
+    },
+    "manager1": {
+        "password": "manager123",
+        "role": "store_manager",
+        "store_id": 1  # Zava Pop-Up Bellevue Square
+    },
+    "manager2": {
+        "password": "manager123",
+        "role": "store_manager",
+        "store_id": 2  # Zava Pop-Up University Village
+    },
+}
+
+
+# Authentication helper functions
+def generate_token() -> str:
+    """Generate a random secure token"""
+    return secrets.token_urlsafe(32)
+
+
+async def get_current_user(authorization: str = Header(...)) -> TokenData:
+    """
+    Dependency to get current user from bearer token.
+    Raises HTTPException if token is invalid or missing.
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    token = authorization.replace("Bearer ", "")
+    
+    if token not in active_tokens:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return active_tokens[token]
+
+
+async def get_store_name(store_id: int) -> Optional[str]:
+    """Get store name by ID"""
+    try:
+        async with get_db_session() as session:
+            stmt = select(StoreModel.store_name).where(StoreModel.store_id == store_id)
+            result = await session.execute(stmt)
+            store_name = result.scalar_one_or_none()
+            return store_name
+    except Exception:
+        return None
 
 
 # Lifespan context manager for startup/shutdown
@@ -155,6 +229,51 @@ async def health_check():
     return {
         "status": "healthy"
     }
+
+
+# Authentication endpoint
+@app.post("/api/login", response_model=LoginResponse)
+async def login(credentials: LoginRequest) -> LoginResponse:
+    """
+    Login endpoint to authenticate users and receive bearer token.
+    
+    Supports two user roles:
+    - admin: Can see all stores
+    - store_manager: Can only see their assigned store
+    """
+    # Validate credentials
+    user = USERS.get(credentials.username)
+    if not user or user["password"] != credentials.password:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password"
+        )
+    
+    # Generate token
+    token = generate_token()
+    
+    # Store token data
+    token_data = TokenData(
+        username=credentials.username,
+        user_role=user["role"],
+        store_id=user["store_id"]
+    )
+    active_tokens[token] = token_data
+    
+    # Get store name if store manager
+    store_name = None
+    if user["store_id"]:
+        store_name = await get_store_name(user["store_id"])
+    
+    logger.info(f"✅ User {credentials.username} ({user['role']}) logged in")
+    
+    return LoginResponse(
+        access_token=token,
+        token_type="bearer",
+        user_role=user["role"],
+        store_id=user["store_id"],
+        store_name=store_name
+    )
 
 
 # Stores endpoint
@@ -610,15 +729,19 @@ async def get_product_by_sku(sku: str) -> Product:
 
 @app.get("/api/management/dashboard/top-categories", response_model=TopCategoryList)
 @cache(expire=600)
-async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Number of top categories to return")) -> TopCategoryList:
+async def get_top_categories(
+    limit: int = Query(5, ge=1, le=10, description="Number of top categories to return"),
+    current_user: TokenData = Depends(get_current_user)
+) -> TopCategoryList:
     """
     Get top categories by total inventory value (cost * stock).
     Returns categories ranked by revenue potential.
+    Requires authentication. Store managers see only their store's data.
     """
     try:
         async with get_db_session() as session:
             logger.info(
-                f"📊 Fetching top {limit} categories by inventory value...")
+                f"📊 Fetching top {limit} categories by inventory value for user {current_user.username}...")
 
             stmt = (
                 select(
@@ -637,7 +760,14 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
                 .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
                 .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
                 .where(ProductModel.discontinued == False)
-                .group_by(CategoryModel.category_name)
+            )
+
+            # Apply store filter for store managers
+            if current_user.store_id is not None:
+                stmt = stmt.where(InventoryModel.store_id == current_user.store_id)
+
+            stmt = (
+                stmt.group_by(CategoryModel.category_name)
                 .order_by(func.sum(InventoryModel.stock_level * ProductModel.base_price).desc())
                 .limit(limit)
             )
@@ -688,14 +818,15 @@ async def get_top_categories(limit: int = Query(5, ge=1, le=10, description="Num
 
 
 @app.get("/api/management/suppliers", response_model=SupplierList)
-async def get_suppliers() -> SupplierList:
+async def get_suppliers(current_user: TokenData = Depends(get_current_user)) -> SupplierList:
     """
     Get all suppliers with their details and associated product categories.
     Returns comprehensive supplier information for management interface.
+    Requires authentication. Store managers see only suppliers for products in their store.
     """
     try:
         async with get_db_session() as session:
-            logger.info("📊 Fetching suppliers...")
+            logger.info(f"📊 Fetching suppliers for user {current_user.username}...")
 
             # Get basic supplier info
             stmt = (
@@ -718,12 +849,25 @@ async def get_suppliers() -> SupplierList:
                     SupplierModel.active_status
                 )
                 .where(SupplierModel.active_status == True)
-                .order_by(
+            )
+            
+            # If store manager, filter suppliers to only those with products in their store
+            if current_user.store_id is not None:
+                # Subquery to get supplier IDs for products in the manager's store
+                supplier_subquery = (
+                    select(func.distinct(ProductModel.supplier_id))
+                    .select_from(InventoryModel)
+                    .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
+                    .where(InventoryModel.store_id == current_user.store_id)
+                    .where(ProductModel.supplier_id.isnot(None))
+                )
+                stmt = stmt.where(SupplierModel.supplier_id.in_(supplier_subquery))
+            
+            stmt = stmt.order_by(
                     SupplierModel.preferred_vendor.desc(),
                     SupplierModel.supplier_rating.desc(),
                     SupplierModel.supplier_name
                 )
-            )
 
             result = await session.execute(stmt)
             rows = result.all()
@@ -789,13 +933,15 @@ async def get_inventory(
     category: Optional[str] = None,
     low_stock_only: bool = False,
     low_stock_threshold: int = 10,
-    limit: int = 100
+    limit: int = 100,
+    current_user: TokenData = Depends(get_current_user)
 ) -> InventoryResponse:
     """
     Get inventory levels across stores with product and category details.
+    Requires authentication. Store managers automatically see only their store's inventory.
 
     Args:
-        store_id: Optional filter by specific store
+        store_id: Optional filter by specific store (admin only)
         product_id: Optional filter by specific product
         category: Optional filter by product category
         low_stock_only: Show only items with stock below reorder threshold
@@ -820,8 +966,12 @@ async def get_inventory(
                 .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
             )
 
-            # Apply filters
-            if store_id is not None:
+            # Apply store filter - store managers can only see their store
+            if current_user.store_id is not None:
+                # Store manager - override any store_id parameter
+                base_stmt = base_stmt.where(StoreModel.store_id == current_user.store_id)
+            elif store_id is not None:
+                # Admin with store filter
                 base_stmt = base_stmt.where(StoreModel.store_id == store_id)
 
             if product_id is not None:
@@ -854,7 +1004,12 @@ async def get_inventory(
             )
 
             # Apply same filters to summary query
-            if store_id is not None:
+            if current_user.store_id is not None:
+                # Store manager - override any store_id parameter
+                summary_stmt = summary_stmt.where(
+                    StoreModel.store_id == current_user.store_id)
+            elif store_id is not None:
+                # Admin with store filter
                 summary_stmt = summary_stmt.where(
                     StoreModel.store_id == store_id)
             if product_id is not None:
@@ -980,10 +1135,12 @@ async def get_products(
     discontinued: Optional[bool] = None,
     search: Optional[str] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
+    current_user: TokenData = Depends(get_current_user)
 ) -> ManagementProductResponse:
     """
     Get products with detailed information including pricing, suppliers, and stock status.
+    Requires authentication. Store managers see only products with inventory in their store.
 
     Args:
         category: Filter by category name
@@ -1026,6 +1183,10 @@ async def get_products(
                 .outerjoin(InventoryModel, ProductModel.product_id == InventoryModel.product_id)
                 .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
             )
+
+            # Store manager filtering - only show products in their store
+            if current_user.store_id is not None:
+                stmt = stmt.where(InventoryModel.store_id == current_user.store_id)
 
             # Apply filters
             if category:

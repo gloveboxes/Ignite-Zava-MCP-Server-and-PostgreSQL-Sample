@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { managementConfig } from '../config/management';
+import { authStore } from '../stores/auth';
 
 const managementApi = axios.create({
   baseURL: managementConfig.apiBaseUrl,
@@ -8,6 +9,34 @@ const managementApi = axios.create({
     'Content-Type': 'application/json',
   }
 });
+
+// Add request interceptor to include auth token
+managementApi.interceptors.request.use(
+  (config) => {
+    const token = authStore.getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to handle 401 errors
+managementApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Token is invalid or expired, logout user
+      authStore.logout();
+      // Redirect to login page
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const managementService = {
   // Dashboard stats

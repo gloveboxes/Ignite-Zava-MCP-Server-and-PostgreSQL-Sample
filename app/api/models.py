@@ -173,3 +173,26 @@ class ManagementProductResponse(BaseModel):
     """Response model for management products list with pagination."""
     products: List[ManagementProduct] = Field(..., description="List of products")
     pagination: ProductPagination = Field(..., description="Pagination information")
+
+
+# Authentication models
+class LoginRequest(BaseModel):
+    """Login request model"""
+    username: str = Field(..., description="Username")
+    password: str = Field(..., description="Password")
+
+
+class LoginResponse(BaseModel):
+    """Login response model"""
+    access_token: str = Field(..., description="Bearer token for API access")
+    token_type: str = Field(default="bearer", description="Token type")
+    user_role: str = Field(..., description="User role (admin or store_manager)")
+    store_id: Optional[int] = Field(None, description="Store ID for store managers")
+    store_name: Optional[str] = Field(None, description="Store name for store managers")
+
+
+class TokenData(BaseModel):
+    """Token data model for internal use"""
+    username: str
+    user_role: str
+    store_id: Optional[int] = None
