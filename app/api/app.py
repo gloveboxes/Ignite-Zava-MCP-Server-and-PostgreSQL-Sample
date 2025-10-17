@@ -25,10 +25,10 @@ from pydantic import BaseModel, Field
 import json
 from datetime import datetime, timezone
 from app.config import Config
-from app.sales_analysis_postgres import PostgreSQLSchemaProvider
 from app.agents.stock import workflow
 
 # SQLAlchemy imports for SQLite
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -36,6 +36,10 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from app.models.sqlite import Base
+from app.models.sqlite.stores import Store as StoreModel
+from app.models.sqlite.inventory import Inventory as InventoryModel
+from app.models.sqlite.products import Product as ProductModel
+from app.models.sqlite.categories import Category as CategoryModel
 
 # Configure logging
 logging.basicConfig(
@@ -49,7 +53,6 @@ config = Config()
 SCHEMA_NAME = "retail"
 
 # Database connections
-db_provider: Optional[PostgreSQLSchemaProvider] = None
 sqlalchemy_engine: Optional[AsyncEngine] = None
 async_session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
@@ -232,19 +235,10 @@ class ManagementProductResponse(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown events"""
-    global db_provider, sqlalchemy_engine, async_session_factory
+    global sqlalchemy_engine, async_session_factory
 
     # Startup
     logger.info("🚀 Starting GitHub API Server...")
-
-    # Initialize PostgreSQL connection pool (legacy)
-    try:
-        db_provider = PostgreSQLSchemaProvider()
-        await db_provider.create_pool()
-        logger.info("✅ PostgreSQL connection pool created")
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize PostgreSQL: {e}")
-        raise
 
     # Initialize SQLAlchemy async engine for SQLite
     try:
@@ -276,11 +270,6 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("🛑 Shutting down GitHub API Server...")
-
-    # Close PostgreSQL pool
-    if db_provider:
-        await db_provider.close_pool()
-        logger.info("✅ PostgreSQL connection pool closed")
 
     # Dispose SQLAlchemy engine
     if sqlalchemy_engine:
@@ -355,41 +344,51 @@ async def get_stores() -> StoreList:
     Get all store locations with inventory counts and details.
     Returns comprehensive store information for the stores page.
     """
-    if not db_provider or not db_provider.connection_pool:
-        raise HTTPException(
-            status_code=503,
-            detail="Database connection not available"
-        )
-
     try:
-        conn = await db_provider.get_connection()
+        async with get_db_session() as session:
+            # Build SQLAlchemy query with aggregations
+            stmt = (
+                select(
+                    StoreModel.store_id,
+                    StoreModel.store_name,
+                    StoreModel.is_online,
+                    func.count(func.distinct(InventoryModel.product_id)).label(
+                        "product_count"
+                    ),
+                    func.sum(InventoryModel.stock_level).label("total_stock"),
+                    func.sum(
+                        InventoryModel.stock_level * ProductModel.cost
+                    ).label("inventory_cost_value"),
+                    func.sum(
+                        InventoryModel.stock_level * ProductModel.base_price
+                    ).label("inventory_retail_value"),
+                )
+                .select_from(StoreModel)
+                .outerjoin(
+                    InventoryModel,
+                    StoreModel.store_id == InventoryModel.store_id
+                )
+                .outerjoin(
+                    ProductModel,
+                    InventoryModel.product_id == ProductModel.product_id
+                )
+                .group_by(
+                    StoreModel.store_id,
+                    StoreModel.store_name,
+                    StoreModel.is_online
+                )
+                .order_by(StoreModel.is_online.asc(), StoreModel.store_name)
+            )
 
-        try:
-            # Query stores with product counts and inventory values
-            query = """
-                SELECT
-                    s.store_id,
-                    s.store_name,
-                    s.is_online,
-                    COUNT(DISTINCT i.product_id) as product_count,
-                    SUM(i.stock_level) as total_stock,
-                    SUM(i.stock_level * p.cost) as inventory_cost_value,
-                    SUM(i.stock_level * p.base_price) as inventory_retail_value
-                FROM retail.stores s
-                LEFT JOIN retail.inventory i ON s.store_id = i.store_id
-                LEFT JOIN retail.products p ON i.product_id = p.product_id
-                GROUP BY s.store_id, s.store_name, s.is_online
-                ORDER BY s.is_online ASC, s.store_name
-            """
-
-            rows = await conn.fetch(query)
+            result = await session.execute(stmt)
+            rows = result.all()
 
             stores: list[Store] = []
             for row in rows:
-                store_name = row['store_name']
-                
+                store_name = row.store_name
+
                 # Extract location key for images
-                if row['is_online']:
+                if row.is_online:
                     location_key = "online"
                     location = "Online Warehouse, Seattle, WA"
                 else:
@@ -405,19 +404,19 @@ async def get_stores() -> StoreList:
                         location = "Washington State"
 
                 stores.append(Store(
-                    id=row['store_id'],
+                    id=row.store_id,
                     name=store_name,
                     location=location,
-                    is_online=row['is_online'],
+                    is_online=row.is_online,
                     location_key=location_key,
-                    products=int(row['product_count'] or 0),
-                    total_stock=int(row['total_stock'] or 0),
+                    products=int(row.product_count or 0),
+                    total_stock=int(row.total_stock or 0),
                     inventory_value=round(
-                        float(row['inventory_retail_value'] or 0), 2
+                        float(row.inventory_retail_value or 0), 2
                     ),
-                    status="Online" if row['is_online'] else "Open",
+                    status="Online" if row.is_online else "Open",
                     hours=(
-                        "24/7 Online" if row['is_online']
+                        "24/7 Online" if row.is_online
                         else "Mon-Sun: 10am-7pm"
                     )
                 ))
@@ -425,9 +424,6 @@ async def get_stores() -> StoreList:
             logger.info(f"✅ Retrieved {len(stores)} stores")
 
             return StoreList(stores=stores, total=len(stores))
-
-        finally:
-            await db_provider.release_connection(conn)
 
     except Exception as e:
         logger.error(f"❌ Error fetching stores: {e}")
@@ -445,40 +441,30 @@ async def get_categories() -> CategoryList:
     Get all product categories.
     Returns a list of all available categories in the system.
     """
-    if not db_provider or not db_provider.connection_pool:
-        raise HTTPException(
-            status_code=503,
-            detail="Database connection not available"
-        )
-
     try:
-        conn = await db_provider.get_connection()
+        async with get_db_session() as session:
+            # Build SQLAlchemy query for categories
+            stmt = (
+                select(
+                    CategoryModel.category_id,
+                    CategoryModel.category_name
+                )
+                .order_by(CategoryModel.category_name)
+            )
 
-        try:
-            # Query all categories ordered by name
-            query = """
-                SELECT
-                    category_id,
-                    category_name
-                FROM retail.categories
-                ORDER BY category_name
-            """
-
-            rows = await conn.fetch(query)
+            result = await session.execute(stmt)
+            rows = result.all()
 
             categories: list[Category] = []
             for row in rows:
                 categories.append(Category(
-                    id=row['category_id'],
-                    name=row['category_name']
+                    id=row.category_id,
+                    name=row.category_name
                 ))
 
             logger.info(f"✅ Retrieved {len(categories)} categories")
 
             return CategoryList(categories=categories, total=len(categories))
-
-        finally:
-            await db_provider.release_connection(conn)
 
     except Exception as e:
         logger.error(f"❌ Error fetching categories: {e}")
