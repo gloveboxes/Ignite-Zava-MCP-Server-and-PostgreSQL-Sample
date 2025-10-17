@@ -13,12 +13,12 @@ POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 
 # --- Parameters (match deploy.ps1) ---
 RG_LOCATION="westus"
-RESOURCE_PREFIX="zava-mcp-server"
+RESOURCE_PREFIX="gh-popup-server"
 # unique suffix: lowercase letters + digits, 4 chars (macOS compatible)
 UNIQUE_SUFFIX=$(openssl rand -hex 2 | tr '[:upper:]' '[:lower:]')
 
 echo "Creating agent resources in resource group: rg-$RESOURCE_PREFIX-$UNIQUE_SUFFIX"
-DEPLOYMENT_NAME="azure-zava-mcp-server-$(date +%Y%m%d%H%M%S)"
+DEPLOYMENT_NAME="azure-gh-popup-server-$(date +%Y%m%d%H%M%S)"
 
 # --- Configure models array (always deploy both models) ---
 MODELS_JSON='[
@@ -101,23 +101,34 @@ echo "Using subscription: $SUB_NAME ($SUB_ID)"
 
 # Create service principal
 echo "Creating service principal..."
-if ! SP_RESULT=$(az ad sp create-for-rbac \
-    --name "zava-mcp-server-sp" \
+SP_CREATION_SUCCESS=false
+if SP_RESULT=$(az ad sp create-for-rbac \
+    --name "gh-popup-server-sp" \
     --role "Cognitive Services OpenAI User" \
     --scopes "/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.CognitiveServices/accounts/$AI_FOUNDRY_NAME" \
     --output json 2>/dev/null); then
-    echo "Failed to create service principal"
-    exit 1
-fi
-
-CLIENT_ID=$(echo "$SP_RESULT" | jq -r '.appId // empty')
-CLIENT_SECRET=$(echo "$SP_RESULT" | jq -r '.password // empty')
-TENANT_ID=$(echo "$SP_RESULT" | jq -r '.tenant // empty')
-
-# Verify we got the values
-if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$TENANT_ID" ]; then
-    echo "Failed to parse service principal response"
-    exit 1
+    
+    CLIENT_ID=$(echo "$SP_RESULT" | jq -r '.appId // empty')
+    CLIENT_SECRET=$(echo "$SP_RESULT" | jq -r '.password // empty')
+    TENANT_ID=$(echo "$SP_RESULT" | jq -r '.tenant // empty')
+    
+    # Verify we got the values
+    if [ -n "$CLIENT_ID" ] && [ -n "$CLIENT_SECRET" ] && [ -n "$TENANT_ID" ]; then
+        echo "✅ Service principal created successfully"
+        SP_CREATION_SUCCESS=true
+    else
+        echo "⚠️ Failed to parse service principal response"
+        CLIENT_ID=""
+        CLIENT_SECRET=""
+        TENANT_ID=""
+    fi
+else
+    echo "⚠️ Failed to create service principal"
+    echo "This can happen due to insufficient permissions or existing service principal conflicts."
+    echo "The deployment will continue and you can create the service principal manually later."
+    CLIENT_ID=""
+    CLIENT_SECRET=""
+    TENANT_ID=""
 fi
 
 # Write .env for workshop (overwrite)
@@ -132,6 +143,7 @@ mkdir -p "$(dirname "$ENV_FILE_PATH")"
 # Configure GPT model deployment name (always deployed)
 GPT_MODEL_LINE='GPT_MODEL_DEPLOYMENT_NAME="gpt-4o-mini"'
 
+# Create .env file with all available information
 cat > "$ENV_FILE_PATH" << EOF
 POSTGRES_DB_HOST=$POSTGRESQL_SERVER_FQDN
 POSTGRES_DB_PORT=5432
@@ -146,78 +158,97 @@ $GPT_MODEL_LINE
 EMBEDDING_MODEL_DEPLOYMENT_NAME="text-embedding-3-small"
 APPLICATIONINSIGHTS_CONNECTION_STRING="$APPLICATIONINSIGHTS_CONNECTION_STRING"
 AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED="true"
+EOF
+
+# Add service principal credentials if available
+if [ "$SP_CREATION_SUCCESS" = true ]; then
+    cat >> "$ENV_FILE_PATH" << EOF
 AZURE_CLIENT_ID=$CLIENT_ID
 AZURE_CLIENT_SECRET=$CLIENT_SECRET
 AZURE_TENANT_ID=$TENANT_ID
-AZURE_EXTENSION_USE_DYNAMIC_INSTALL="yes_without_prompt"
 EOF
+    echo "✅ Service principal credentials added to .env file"
+else
+    cat >> "$ENV_FILE_PATH" << EOF
+# Service principal creation failed - add these manually:
+# AZURE_CLIENT_ID=your_client_id
+# AZURE_CLIENT_SECRET=your_client_secret
+# AZURE_TENANT_ID=your_tenant_id
+EOF
+    echo "⚠️ Service principal credentials not available - placeholders added to .env file"
+fi
 
-# Write resources summary
-RESOURCES_FILE_PATH="../resources.txt"
-mkdir -p "$(dirname "$RESOURCES_FILE_PATH")"
-[ -f "$RESOURCES_FILE_PATH" ] && rm -f "$RESOURCES_FILE_PATH"
-
-cat > "$RESOURCES_FILE_PATH" << EOF
-Azure AI Foundry Resources:
-- Resource Group Name: $RESOURCE_GROUP_NAME
-- AI Project Name: $AI_PROJECT_NAME
-- Foundry Resource Name: $AI_FOUNDRY_NAME
-- Application Insights Name: $APPLICATION_INSIGHTS_NAME
-
-PostgreSQL Database:
-- Server FQDN: $POSTGRESQL_SERVER_FQDN
-- Database Name: $POSTGRESQL_DATABASE_NAME
-- Administrator Login: $POSTGRESQL_ADMIN_LOGIN
+# Add final configuration
+cat >> "$ENV_FILE_PATH" << EOF
+AZURE_EXTENSION_USE_DYNAMIC_INSTALL="yes_without_prompt"
 EOF
 
 # Clean up output.json
 rm -f output.json
 
-echo "Adding Azure AI Developer user role"
+echo "Adding Azure AI user roles..."
 
-# Role assignments
-OBJECT_ID=$(az ad signed-in-user show --query id -o tsv)
+# Role assignments - track success for final reporting
+ROLE_ASSIGNMENTS_SUCCESS=true
+FAILED_ROLES=()
 
-echo "Ensuring Azure AI Developer role assignment..."
-if ROLE_RESULT=$(az role assignment create \
-  --role "Azure AI Developer" \
-  --assignee "$OBJECT_ID" \
-  --scope "/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.CognitiveServices/accounts/$AI_FOUNDRY_NAME" 2>&1); then
-    echo "✅ Azure AI Developer role assignment created successfully."
-elif echo "$ROLE_RESULT" | grep -q "RoleAssignmentExists\|already exists"; then
-    echo "✅ Azure AI Developer role assignment already exists."
+# Get user object ID (this might also fail in some environments)
+if OBJECT_ID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null); then
+    echo "Retrieved user object ID for role assignments"
 else
-    echo "❌ User role assignment failed with unexpected error:"
-    echo "$ROLE_RESULT"
-    exit 1
+    echo "⚠️ Could not retrieve user object ID - skipping role assignments"
+    echo "This can happen due to device management policies or authentication issues."
+    echo "You may need to assign roles manually in the Azure portal."
+    ROLE_ASSIGNMENTS_SUCCESS=false
+    FAILED_ROLES+=("All roles (could not get user ID)")
 fi
 
-echo "Ensuring Azure AI User role assignment..."
-if ROLE_RESULT_USER=$(az role assignment create \
-  --assignee "$OBJECT_ID" \
-  --role "Azure AI User" \
-  --scope "/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME" 2>&1); then
-    echo "✅ Azure AI User role assignment created successfully."
-elif echo "$ROLE_RESULT_USER" | grep -q "RoleAssignmentExists\|already exists"; then
-    echo "✅ Azure AI User role assignment already exists."
-else
-    echo "❌ Azure AI User role assignment failed with unexpected error:"
-    echo "$ROLE_RESULT_USER"
-    exit 1
-fi
+# Only attempt role assignments if we have the object ID
+if [ -n "$OBJECT_ID" ]; then
+    echo "Ensuring Azure AI Developer role assignment..."
+    if ROLE_RESULT=$(az role assignment create \
+      --role "Azure AI Developer" \
+      --assignee "$OBJECT_ID" \
+      --scope "/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.CognitiveServices/accounts/$AI_FOUNDRY_NAME" 2>&1); then
+        echo "✅ Azure AI Developer role assignment created successfully."
+    elif echo "$ROLE_RESULT" | grep -q "RoleAssignmentExists\|already exists"; then
+        echo "✅ Azure AI Developer role assignment already exists."
+    else
+        echo "⚠️ Azure AI Developer role assignment failed:"
+        echo "$ROLE_RESULT" | head -n 2
+        ROLE_ASSIGNMENTS_SUCCESS=false
+        FAILED_ROLES+=("Azure AI Developer")
+    fi
 
-echo "Ensuring Azure AI Project Manager role assignment..."
-if ROLE_RESULT_MANAGER=$(az role assignment create \
-  --assignee "$OBJECT_ID" \
-  --role "Azure AI Project Manager" \
-  --scope "/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME" 2>&1); then
-    echo "✅ Azure AI Project Manager role assignment created successfully."
-elif echo "$ROLE_RESULT_MANAGER" | grep -q "RoleAssignmentExists\|already exists"; then
-    echo "✅ Azure AI Project Manager role assignment already exists."
-else
-    echo "❌ Azure AI Project Manager role assignment failed with unexpected error:"
-    echo "$ROLE_RESULT_MANAGER"
-    exit 1
+    echo "Ensuring Azure AI User role assignment..."
+    if ROLE_RESULT_USER=$(az role assignment create \
+      --assignee "$OBJECT_ID" \
+      --role "Azure AI User" \
+      --scope "/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME" 2>&1); then
+        echo "✅ Azure AI User role assignment created successfully."
+    elif echo "$ROLE_RESULT_USER" | grep -q "RoleAssignmentExists\|already exists"; then
+        echo "✅ Azure AI User role assignment already exists."
+    else
+        echo "⚠️ Azure AI User role assignment failed:"
+        echo "$ROLE_RESULT_USER" | head -n 2
+        ROLE_ASSIGNMENTS_SUCCESS=false
+        FAILED_ROLES+=("Azure AI User")
+    fi
+
+    echo "Ensuring Azure AI Project Manager role assignment..."
+    if ROLE_RESULT_MANAGER=$(az role assignment create \
+      --assignee "$OBJECT_ID" \
+      --role "Azure AI Project Manager" \
+      --scope "/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME" 2>&1); then
+        echo "✅ Azure AI Project Manager role assignment created successfully."
+    elif echo "$ROLE_RESULT_MANAGER" | grep -q "RoleAssignmentExists\|already exists"; then
+        echo "✅ Azure AI Project Manager role assignment already exists."
+    else
+        echo "⚠️ Azure AI Project Manager role assignment failed:"
+        echo "$ROLE_RESULT_MANAGER" | head -n 2
+        ROLE_ASSIGNMENTS_SUCCESS=false
+        FAILED_ROLES+=("Azure AI Project Manager")
+    fi
 fi
 
 # Check if PostgreSQL tools are available
@@ -290,9 +321,96 @@ else
     echo ""
 fi
 
+# Write resources summary now that all operations are complete
+RESOURCES_FILE_PATH="../resources.txt"
+mkdir -p "$(dirname "$RESOURCES_FILE_PATH")"
+[ -f "$RESOURCES_FILE_PATH" ] && rm -f "$RESOURCES_FILE_PATH"
+
+cat > "$RESOURCES_FILE_PATH" << EOF
+Azure AI Foundry Resources:
+- Resource Group Name: $RESOURCE_GROUP_NAME
+- AI Project Name: $AI_PROJECT_NAME
+- Foundry Resource Name: $AI_FOUNDRY_NAME
+- Application Insights Name: $APPLICATION_INSIGHTS_NAME
+
+PostgreSQL Database:
+- Server FQDN: $POSTGRESQL_SERVER_FQDN
+- Database Name: $POSTGRESQL_DATABASE_NAME
+- Administrator Login: $POSTGRESQL_ADMIN_LOGIN
+
+Service Principal:
+EOF
+
+# Add service principal status to resources file
+if [ "$SP_CREATION_SUCCESS" = true ]; then
+    cat >> "$RESOURCES_FILE_PATH" << EOF
+- Status: Created successfully
+- Client ID: $CLIENT_ID
+- Note: Client secret is stored in .env file
+EOF
+else
+    cat >> "$RESOURCES_FILE_PATH" << EOF
+- Status: Creation failed - needs manual setup
+- Instructions: See deployment output or .env file comments for manual creation steps
+EOF
+fi
+
+# Add role assignment status
+cat >> "$RESOURCES_FILE_PATH" << EOF
+
+Role Assignments:
+EOF
+
+if [ "$ROLE_ASSIGNMENTS_SUCCESS" = true ]; then
+    cat >> "$RESOURCES_FILE_PATH" << EOF
+- Status: All roles assigned successfully
+- Roles: Azure AI Developer, Azure AI User, Azure AI Project Manager
+EOF
+else
+    cat >> "$RESOURCES_FILE_PATH" << EOF
+- Status: Some roles failed to assign
+- Failed roles: $(IFS=', '; echo "${FAILED_ROLES[*]}")
+- Instructions: Assign roles manually in Azure portal or use Azure CLI
+EOF
+fi
+
 echo ""
 echo "🎉 Deployment completed successfully!"
 echo ""
+
+# Show service principal status
+if [ "$SP_CREATION_SUCCESS" = true ]; then
+    echo "✅ Service principal created and configured"
+else
+    echo "⚠️  Service principal creation failed"
+    echo ""
+    echo "🔧 To create the service principal manually:"
+    echo "  1. Run: az ad sp create-for-rbac --name \"gh-popup-server-sp\" --role \"Cognitive Services OpenAI User\" --scopes \"/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.CognitiveServices/accounts/$AI_FOUNDRY_NAME\""
+    echo "  2. Update the .env file with the returned appId, password, and tenant values"
+    echo "  3. Set AZURE_CLIENT_ID=<appId>, AZURE_CLIENT_SECRET=<password>, AZURE_TENANT_ID=<tenant>"
+    echo ""
+fi
+
+# Show role assignment status
+if [ "$ROLE_ASSIGNMENTS_SUCCESS" = true ]; then
+    echo "✅ Azure AI role assignments completed successfully"
+else
+    echo "⚠️  Some role assignments failed"
+    echo ""
+    echo "🔧 To assign roles manually:"
+    echo "  1. Go to the Azure portal and navigate to your resource group: $RESOURCE_GROUP_NAME"
+    echo "  2. Navigate to the AI Foundry resource: $AI_FOUNDRY_NAME"
+    echo "  3. Go to Access control (IAM) and add the following role assignments for your user:"
+    for role in "${FAILED_ROLES[@]}"; do
+        echo "     - $role"
+    done
+    echo "  4. Alternatively, you can use the Azure CLI if authentication issues are resolved:"
+    echo "     az role assignment create --role \"Azure AI Developer\" --assignee \$(az ad signed-in-user show --query id -o tsv) --scope \"/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.CognitiveServices/accounts/$AI_FOUNDRY_NAME\""
+    echo "     az role assignment create --role \"Azure AI User\" --assignee \$(az ad signed-in-user show --query id -o tsv) --scope \"/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME\""
+    echo "     az role assignment create --role \"Azure AI Project Manager\" --assignee \$(az ad signed-in-user show --query id -o tsv) --scope \"/subscriptions/$SUB_ID/resourceGroups/$RESOURCE_GROUP_NAME\""
+    echo ""
+fi
+
 echo "🔍 Running deployment validation..."
 if ./validate-deployment.sh; then
     echo "✅ All validation checks passed!"
