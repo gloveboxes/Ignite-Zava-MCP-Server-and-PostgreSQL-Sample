@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import os
 from agent_framework import (
     ChatAgent,
     MCPStreamableHTTPTool,
@@ -18,8 +19,9 @@ from agent_framework import (
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+GPT_DEPLOYMENT = os.getenv("GPT_MODEL_DEPLOYMENT_NAME", "gpt-4o-mini")
 
-chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
+chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name=GPT_DEPLOYMENT)
 
 
 sales_mcp_tools = MCPStreamableHTTPTool(

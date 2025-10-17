@@ -1,4 +1,5 @@
 # Copyright (c) Microsoft. All rights reserved.
+import os
 
 from agent_framework import (
     ChatAgent,
@@ -9,7 +10,7 @@ from agent_framework import (
     WorkflowContext,
     handler,
 )
-from agent_framework.azure import AzureOpenAIChatClient, AzureOpenAIResponsesClient
+from agent_framework.azure import AzureOpenAIChatClient
 from azure.identity import DefaultAzureCredential
 from pydantic import BaseModel
 
@@ -21,7 +22,7 @@ finance_mcp_tools = MCPStreamableHTTPTool(
     load_prompts=False,
     request_timeout=30,
 )
-
+GPT_DEPLOYMENT = os.getenv("GPT_MODEL_DEPLOYMENT_NAME", "gpt-4o-mini")
 
 class StockItem(BaseModel):
     sku: str
@@ -127,7 +128,7 @@ class Summarizer(Executor):
         await ctx.send_message(response.messages)
         await ctx.yield_output(RestockResult(items=stock_result.collection.items, summary=response.text))
 
-chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name="gpt-4o-mini")
+chat_client = AzureOpenAIChatClient(credential=DefaultAzureCredential(), deployment_name=GPT_DEPLOYMENT)
 
 # Instantiate the two agent backed executors.
 stock = StockExtractor(chat_client)
