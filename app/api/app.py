@@ -28,14 +28,13 @@ from app.config import Config
 from app.agents.stock import workflow
 
 # SQLAlchemy imports for SQLite
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from app.models.sqlite import Base
 from app.models.sqlite.stores import Store as StoreModel
 from app.models.sqlite.inventory import Inventory as InventoryModel
 from app.models.sqlite.products import Product as ProductModel
@@ -326,16 +325,8 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    db_status = (
-        "connected"
-        if db_provider and db_provider.connection_pool
-        else "disconnected"
-    )
     return {
-        "status": "healthy",
-        "service": "github-api",
-        "database": db_status
+        "status": "healthy"
     }
 
 
@@ -972,162 +963,149 @@ async def get_inventory(
         low_stock_threshold: Threshold for considering stock as low (default: 10)
         limit: Maximum number of records to return
     """
-    conn = await db_provider.get_connection()
-    
     try:
-        logger.info(f"📦 Fetching inventory (store={store_id}, product={product_id}, category={category}, low_stock={low_stock_only})...")
+        async with get_db_session() as session:
+            logger.info(f"📦 Fetching inventory (store={store_id}, product={product_id}, category={category}, low_stock={low_stock_only})...")
 
-        # Build dynamic WHERE clause and filter params
-        where_conditions = []
-        filter_params = []
-        param_idx = 1
-
-        if store_id is not None:
-            where_conditions.append(f"st.store_id = ${param_idx}")
-            filter_params.append(store_id)
-            param_idx += 1
-
-        if product_id is not None:
-            where_conditions.append(f"p.product_id = ${param_idx}")
-            filter_params.append(product_id)
-            param_idx += 1
-
-        if category:
-            where_conditions.append(f"LOWER(c.category_name) = LOWER(${param_idx})")
-            filter_params.append(category)
-            param_idx += 1
-
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-
-        # First, get summary statistics for ALL matching records (not limited)
-        # Note: Count distinct products, not inventory records (product x store combinations)
-        threshold_param_idx = param_idx  # Store the index for threshold
-        summary_query = f"""
-            SELECT
-                COUNT(DISTINCT p.product_id) as total_items,
-                SUM(CASE WHEN i.stock_level < ${threshold_param_idx} THEN 1 ELSE 0 END) as low_stock_count,
-                SUM(i.stock_level * p.cost) as total_stock_value,
-                SUM(i.stock_level * p.base_price) as total_retail_value,
-                AVG(i.stock_level) as avg_stock_level
-            FROM retail.inventory i
-            INNER JOIN retail.stores st ON i.store_id = st.store_id
-            INNER JOIN retail.products p ON i.product_id = p.product_id
-            INNER JOIN retail.categories c ON p.category_id = c.category_id
-            INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
-            {where_clause}
-        """
-        
-        # Execute summary query with filter params + threshold
-        summary_params = filter_params + [low_stock_threshold]
-        summary_row = await conn.fetchrow(summary_query, *summary_params)
-        
-        # Now get the limited result set for display
-        limit_param_idx = param_idx  # Same index position for limit (separate query)
-        query = f"""
-            SELECT
-                i.store_id,
-                st.store_name,
-                st.is_online,
-                i.product_id,
-                p.product_name,
-                p.sku,
-                c.category_name,
-                pt.type_name,
-                i.stock_level,
-                p.base_price,
-                p.cost,
-                s.supplier_name,
-                s.supplier_code,
-                s.lead_time_days,
-                pie.image_url
-            FROM retail.inventory i
-            INNER JOIN retail.stores st ON i.store_id = st.store_id
-            INNER JOIN retail.products p ON i.product_id = p.product_id
-            INNER JOIN retail.categories c ON p.category_id = c.category_id
-            INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
-            LEFT JOIN retail.suppliers s ON p.supplier_id = s.supplier_id
-            LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
-            {where_clause}
-            ORDER BY i.stock_level ASC, st.store_name, p.product_name
-            LIMIT ${limit_param_idx}
-        """
-
-        # Execute main query with filter params + limit
-        query_params = filter_params + [limit]
-        rows = await conn.fetch(query, *query_params)
-
-        inventory_items: list[InventoryItem] = []
-        for row in rows:
-            stock_level = row['stock_level']
-            # Use the threshold parameter for reorder point
-            # In production, this would come from a products or inventory_settings table
-            reorder_point = low_stock_threshold
-            
-            is_low_stock = stock_level < reorder_point
-            
-            # Skip if filtering for low stock only
-            if low_stock_only and not is_low_stock:
-                continue
-            
-            # Calculate inventory value
-            stock_value = float(row['cost']) * stock_level if row['cost'] else 0
-            retail_value = float(row['base_price']) * stock_level if row['base_price'] else 0
-            
-            # Extract location from store name
-            # Format: "Zava Pop-Up Location Name" or "Zava Online Store"
-            store_location = "Online Store"
-            if row['is_online']:
-                store_location = "Online Warehouse"
-            else:
-                # Extract location from name (e.g., "Zava Pop-Up Bellevue Square" -> "Bellevue Square")
-                name_parts = row['store_name'].split('Pop-Up ')
-                if len(name_parts) > 1:
-                    store_location = name_parts[1]
-                else:
-                    store_location = row['store_name']
-            
-            inventory_items.append(InventoryItem(
-                store_id=row['store_id'],
-                store_name=row['store_name'],
-                store_location=store_location,
-                is_online=row['is_online'],
-                product_id=row['product_id'],
-                product_name=row['product_name'],
-                sku=row['sku'],
-                category=row['category_name'],
-                type=row['type_name'],
-                stock_level=stock_level,
-                reorder_point=reorder_point,
-                is_low_stock=is_low_stock,
-                unit_cost=float(row['cost']) if row['cost'] else 0,
-                unit_price=float(row['base_price']) if row['base_price'] else 0,
-                stock_value=round(stock_value, 2),
-                retail_value=round(retail_value, 2),
-                supplier_name=row['supplier_name'],
-                supplier_code=row['supplier_code'],
-                lead_time=row['lead_time_days'],
-                image_url=row['image_url']
-            ))
-
-        # Use the summary statistics from the dedicated query (all records, not limited)
-        total_items = int(summary_row['total_items']) if summary_row['total_items'] else 0
-        low_stock_count = int(summary_row['low_stock_count']) if summary_row['low_stock_count'] else 0
-        total_stock_value = float(summary_row['total_stock_value']) if summary_row['total_stock_value'] else 0.0
-        total_retail_value = float(summary_row['total_retail_value']) if summary_row['total_retail_value'] else 0.0
-        avg_stock = float(summary_row['avg_stock_level']) if summary_row['avg_stock_level'] else 0.0
-
-        logger.info(f"✅ Retrieved {len(inventory_items)} inventory items (showing {len(inventory_items)} of {total_items} total, {low_stock_count} low stock)")
-
-        return InventoryResponse(
-            inventory=inventory_items,
-            summary=InventorySummary(
-                total_items=total_items,
-                low_stock_count=low_stock_count,
-                total_stock_value=round(total_stock_value, 2),
-                total_retail_value=round(total_retail_value, 2),
-                avg_stock_level=round(avg_stock, 1)
+            # Build base query with joins
+            base_stmt = (
+                select(InventoryModel, StoreModel, ProductModel, CategoryModel, ProductTypeModel, SupplierModel, ProductImageEmbeddingModel)
+                .select_from(InventoryModel)
+                .join(StoreModel, InventoryModel.store_id == StoreModel.store_id)
+                .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
+                .outerjoin(SupplierModel, ProductModel.supplier_id == SupplierModel.supplier_id)
+                .outerjoin(ProductImageEmbeddingModel, ProductModel.product_id == ProductImageEmbeddingModel.product_id)
             )
-        )
+
+            # Apply filters
+            if store_id is not None:
+                base_stmt = base_stmt.where(StoreModel.store_id == store_id)
+            
+            if product_id is not None:
+                base_stmt = base_stmt.where(ProductModel.product_id == product_id)
+            
+            if category:
+                base_stmt = base_stmt.where(func.lower(CategoryModel.category_name) == func.lower(category))
+
+            # Summary query - get statistics across ALL matching records
+            summary_stmt = (
+                select(
+                    func.count(func.distinct(ProductModel.product_id)).label('total_items'),
+                    func.sum(case((InventoryModel.stock_level < low_stock_threshold, 1), else_=0)).label('low_stock_count'),
+                    func.sum(InventoryModel.stock_level * ProductModel.cost).label('total_stock_value'),
+                    func.sum(InventoryModel.stock_level * ProductModel.base_price).label('total_retail_value'),
+                    func.avg(InventoryModel.stock_level).label('avg_stock_level')
+                )
+                .select_from(InventoryModel)
+                .join(StoreModel, InventoryModel.store_id == StoreModel.store_id)
+                .join(ProductModel, InventoryModel.product_id == ProductModel.product_id)
+                .join(CategoryModel, ProductModel.category_id == CategoryModel.category_id)
+                .join(ProductTypeModel, ProductModel.type_id == ProductTypeModel.type_id)
+            )
+            
+            # Apply same filters to summary query
+            if store_id is not None:
+                summary_stmt = summary_stmt.where(StoreModel.store_id == store_id)
+            if product_id is not None:
+                summary_stmt = summary_stmt.where(ProductModel.product_id == product_id)
+            if category:
+                summary_stmt = summary_stmt.where(func.lower(CategoryModel.category_name) == func.lower(category))
+
+            # Execute summary query
+            summary_result = await session.execute(summary_stmt)
+            summary_row = summary_result.one()
+
+            # Main query with ordering and limit
+            main_stmt = base_stmt.order_by(
+                InventoryModel.stock_level.asc(),
+                StoreModel.store_name,
+                ProductModel.product_name
+            ).limit(limit)
+
+            # Execute main query
+            result = await session.execute(main_stmt)
+            rows = result.all()
+
+            inventory_items: list[InventoryItem] = []
+            for row in rows:
+                inventory = row[0]
+                store = row[1]
+                product = row[2]
+                category_obj = row[3]
+                product_type = row[4]
+                supplier = row[5]
+                image_embedding = row[6]
+                
+                stock_level = inventory.stock_level
+                reorder_point = low_stock_threshold
+                is_low_stock = stock_level < reorder_point
+                
+                # Skip if filtering for low stock only
+                if low_stock_only and not is_low_stock:
+                    continue
+                
+                # Calculate inventory value
+                cost = float(product.cost) if product.cost else 0
+                base_price = float(product.base_price) if product.base_price else 0
+                stock_value = cost * stock_level
+                retail_value = base_price * stock_level
+                
+                # Extract location from store name
+                store_location = "Online Store"
+                if store.is_online:
+                    store_location = "Online Warehouse"
+                else:
+                    # Extract location from name (e.g., "Zava Pop-Up Bellevue Square" -> "Bellevue Square")
+                    name_parts = store.store_name.split('Pop-Up ')
+                    if len(name_parts) > 1:
+                        store_location = name_parts[1]
+                    else:
+                        store_location = store.store_name
+                
+                inventory_items.append(InventoryItem(
+                    store_id=store.store_id,
+                    store_name=store.store_name,
+                    store_location=store_location,
+                    is_online=store.is_online,
+                    product_id=product.product_id,
+                    product_name=product.product_name,
+                    sku=product.sku,
+                    category=category_obj.category_name,
+                    type=product_type.type_name,
+                    stock_level=stock_level,
+                    reorder_point=reorder_point,
+                    is_low_stock=is_low_stock,
+                    unit_cost=cost,
+                    unit_price=base_price,
+                    stock_value=round(stock_value, 2),
+                    retail_value=round(retail_value, 2),
+                    supplier_name=supplier.supplier_name if supplier else None,
+                    supplier_code=supplier.supplier_code if supplier else None,
+                    lead_time=supplier.lead_time_days if supplier else None,
+                    image_url=image_embedding.image_url if image_embedding else None
+                ))
+
+            # Use the summary statistics from the dedicated query
+            total_items = int(summary_row.total_items) if summary_row.total_items else 0
+            low_stock_count = int(summary_row.low_stock_count) if summary_row.low_stock_count else 0
+            total_stock_value = float(summary_row.total_stock_value) if summary_row.total_stock_value else 0.0
+            total_retail_value = float(summary_row.total_retail_value) if summary_row.total_retail_value else 0.0
+            avg_stock = float(summary_row.avg_stock_level) if summary_row.avg_stock_level else 0.0
+
+            logger.info(f"✅ Retrieved {len(inventory_items)} inventory items (showing {len(inventory_items)} of {total_items} total, {low_stock_count} low stock)")
+
+            return InventoryResponse(
+                inventory=inventory_items,
+                summary=InventorySummary(
+                    total_items=total_items,
+                    low_stock_count=low_stock_count,
+                    total_stock_value=round(total_stock_value, 2),
+                    total_retail_value=round(total_retail_value, 2),
+                    avg_stock_level=round(avg_stock, 1)
+                )
+            )
 
     except Exception as e:
         logger.error(f"❌ Error fetching inventory: {e}")
@@ -1135,8 +1113,6 @@ async def get_inventory(
             status_code=500,
             detail=f"Failed to fetch inventory: {str(e)}"
         )
-    finally:
-        await db_provider.release_connection(conn)
 
 
 @app.get("/api/management/products", response_model=ManagementProductResponse)
