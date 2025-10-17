@@ -95,12 +95,24 @@
         </div>
         <div class="filter-group">
           <label>Category</label>
-          <select v-model="filters.category" @change="loadInventory">
-            <option :value="null">All Categories</option>
+          <select v-model="filters.category" @change="loadInventory" :disabled="loadingCategories">
+            <option :value="null">{{ loadingCategories ? 'Loading categories...' : 'All Categories' }}</option>
             <option v-for="cat in categories" :key="cat" :value="cat">
               {{ cat }}
             </option>
           </select>
+        </div>
+        <div class="filter-group">
+          <label>Low Stock Threshold</label>
+          <input 
+            type="number" 
+            v-model.number="filters.low_stock_threshold" 
+            @change="loadInventory"
+            min="1"
+            max="100"
+            placeholder="10"
+            title="Items with stock below this value are considered low stock"
+          />
         </div>
         <div class="filter-group">
           <label>
@@ -231,28 +243,24 @@ export default {
     return {
       loading: false,
       loadingStores: true,
+      loadingCategories: true,
       inventory: [],
       summary: null,
       filters: {
         store_id: null,
         category: null,
-        low_stock_only: false
+        low_stock_only: false,
+        low_stock_threshold: 10
       },
       stores: [],
-      categories: [
-        'Accessories',
-        'Apparel - Bottoms',
-        'Apparel - Tops',
-        'Eyewear',
-        'Footwear',
-        'Outerwear'
-      ]
+      categories: []
     };
   },
   async mounted() {
-    // Load stores and inventory in parallel
+    // Load stores, categories, and inventory in parallel
     await Promise.all([
       this.loadStores(),
+      this.loadCategories(),
       this.loadInventory()
     ]);
   },
@@ -287,6 +295,31 @@ export default {
         this.loadingStores = false;
       }
     },
+    async loadCategories() {
+      this.loadingCategories = true;
+      try {
+        const response = await apiClient.get('/api/categories');
+        // API returns {categories: [...]}
+        if (response.data && response.data.categories) {
+          this.categories = response.data.categories.map(cat => cat.name);
+          console.log(`✅ Loaded ${this.categories.length} categories from API`);
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error);
+        // Fallback to hardcoded categories if API fails
+        this.categories = [
+          'Accessories',
+          'Apparel - Bottoms',
+          'Apparel - Tops',
+          'Eyewear',
+          'Footwear',
+          'Outerwear'
+        ];
+        console.log('⚠️ Using fallback hardcoded categories');
+      } finally {
+        this.loadingCategories = false;
+      }
+    },
     async loadInventory() {
       this.loading = true;
       try {
@@ -294,14 +327,17 @@ export default {
           limit: 100
         };
         
-        if (this.filters.storeId) {
-          params.store_id = this.filters.storeId;
+        if (this.filters.store_id) {
+          params.store_id = this.filters.store_id;
         }
         if (this.filters.category) {
           params.category = this.filters.category;
         }
-        if (this.filters.lowStockOnly) {
+        if (this.filters.low_stock_only) {
           params.low_stock_only = true;
+        }
+        if (this.filters.low_stock_threshold) {
+          params.low_stock_threshold = this.filters.low_stock_threshold;
         }
 
         const data = await managementService.getInventory(params);
@@ -548,6 +584,21 @@ export default {
   font-size: 0.875rem;
   min-width: 200px;
   background: white;
+}
+
+.filter-group input[type="number"] {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  width: 100px;
+  background: white;
+}
+
+.filter-group input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .filter-group input[type="checkbox"] {

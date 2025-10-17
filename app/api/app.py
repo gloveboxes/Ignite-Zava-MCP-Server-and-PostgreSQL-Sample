@@ -86,6 +86,18 @@ class StoreList(BaseModel):
     total: int
 
 
+class Category(BaseModel):
+    """Category model for API responses"""
+    id: int = Field(..., description="Unique category identifier")
+    name: str = Field(..., description="Category name")
+
+
+class CategoryList(BaseModel):
+    """List of categories response"""
+    categories: List[Category]
+    total: int
+
+
 class TopCategory(BaseModel):
     """Top category model for dashboard analytics"""
     name: str = Field(..., description="Category name")
@@ -359,6 +371,57 @@ async def get_stores() -> StoreList:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch stores: {str(e)}"
+        )
+
+
+# Categories endpoint
+@app.get("/api/categories", response_model=CategoryList)
+@cache(expire=3600)
+async def get_categories() -> CategoryList:
+    """
+    Get all product categories.
+    Returns a list of all available categories in the system.
+    """
+    if not db_provider or not db_provider.connection_pool:
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection not available"
+        )
+
+    try:
+        conn = await db_provider.get_connection()
+
+        try:
+            # Query all categories ordered by name
+            query = """
+                SELECT
+                    category_id,
+                    category_name
+                FROM retail.categories
+                ORDER BY category_name
+            """
+
+            rows = await conn.fetch(query)
+
+            categories: list[Category] = []
+            for row in rows:
+                categories.append(Category(
+                    id=row['category_id'],
+                    name=row['category_name']
+                ))
+
+            logger.info(f"✅ Retrieved {len(categories)} categories")
+
+            return CategoryList(categories=categories, total=len(categories))
+
+        finally:
+            await db_provider.release_connection(conn)
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching categories: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch categories: {str(e)}"
         )
 
 
@@ -882,6 +945,7 @@ async def get_inventory(
     product_id: Optional[int] = None,
     category: Optional[str] = None,
     low_stock_only: bool = False,
+    low_stock_threshold: int = 10,
     limit: int = 100
 ) -> InventoryResponse:
     """
@@ -892,6 +956,7 @@ async def get_inventory(
         product_id: Optional filter by specific product
         category: Optional filter by product category
         low_stock_only: Show only items with stock below reorder threshold
+        low_stock_threshold: Threshold for considering stock as low (default: 10)
         limit: Maximum number of records to return
     """
     conn = await db_provider.get_connection()
@@ -899,30 +964,52 @@ async def get_inventory(
     try:
         logger.info(f"📦 Fetching inventory (store={store_id}, product={product_id}, category={category}, low_stock={low_stock_only})...")
 
-        # Build dynamic WHERE clause
+        # Build dynamic WHERE clause and filter params
         where_conditions = []
-        params = []
+        filter_params = []
         param_idx = 1
 
         if store_id is not None:
             where_conditions.append(f"st.store_id = ${param_idx}")
-            params.append(store_id)
+            filter_params.append(store_id)
             param_idx += 1
 
         if product_id is not None:
             where_conditions.append(f"p.product_id = ${param_idx}")
-            params.append(product_id)
+            filter_params.append(product_id)
             param_idx += 1
 
         if category:
             where_conditions.append(f"LOWER(c.category_name) = LOWER(${param_idx})")
-            params.append(category)
+            filter_params.append(category)
             param_idx += 1
 
-        # For low stock, we'll filter after the query since reorder_point may vary
-        
         where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
+        # First, get summary statistics for ALL matching records (not limited)
+        # Note: Count distinct products, not inventory records (product x store combinations)
+        threshold_param_idx = param_idx  # Store the index for threshold
+        summary_query = f"""
+            SELECT
+                COUNT(DISTINCT p.product_id) as total_items,
+                SUM(CASE WHEN i.stock_level < ${threshold_param_idx} THEN 1 ELSE 0 END) as low_stock_count,
+                SUM(i.stock_level * p.cost) as total_stock_value,
+                SUM(i.stock_level * p.base_price) as total_retail_value,
+                AVG(i.stock_level) as avg_stock_level
+            FROM retail.inventory i
+            INNER JOIN retail.stores st ON i.store_id = st.store_id
+            INNER JOIN retail.products p ON i.product_id = p.product_id
+            INNER JOIN retail.categories c ON p.category_id = c.category_id
+            INNER JOIN retail.product_types pt ON p.type_id = pt.type_id
+            {where_clause}
+        """
+        
+        # Execute summary query with filter params + threshold
+        summary_params = filter_params + [low_stock_threshold]
+        summary_row = await conn.fetchrow(summary_query, *summary_params)
+        
+        # Now get the limited result set for display
+        limit_param_idx = param_idx  # Same index position for limit (separate query)
         query = f"""
             SELECT
                 i.store_id,
@@ -949,18 +1036,19 @@ async def get_inventory(
             LEFT JOIN retail.product_image_embeddings pie ON p.product_id = pie.product_id
             {where_clause}
             ORDER BY i.stock_level ASC, st.store_name, p.product_name
-            LIMIT ${param_idx}
+            LIMIT ${limit_param_idx}
         """
 
-        params.append(limit)
-        rows = await conn.fetch(query, *params)
+        # Execute main query with filter params + limit
+        query_params = filter_params + [limit]
+        rows = await conn.fetch(query, *query_params)
 
         inventory_items: list[InventoryItem] = []
         for row in rows:
             stock_level = row['stock_level']
-            # Calculate reorder point as 20% of typical stock (simple heuristic)
+            # Use the threshold parameter for reorder point
             # In production, this would come from a products or inventory_settings table
-            reorder_point = 50  # Default threshold
+            reorder_point = low_stock_threshold
             
             is_low_stock = stock_level < reorder_point
             
@@ -1008,17 +1096,14 @@ async def get_inventory(
                 image_url=row['image_url']
             ))
 
-        # Calculate summary statistics
-        total_items = len(inventory_items)
-        low_stock_count = sum(1 for item in inventory_items if item.is_low_stock)
-        total_stock_value = sum(item.stock_value for item in inventory_items)
-        total_retail_value = sum(item.retail_value for item in inventory_items)
-        avg_stock = (
-            round(sum(item.stock_level for item in inventory_items) / total_items, 1)
-            if total_items > 0 else 0
-        )
+        # Use the summary statistics from the dedicated query (all records, not limited)
+        total_items = int(summary_row['total_items']) if summary_row['total_items'] else 0
+        low_stock_count = int(summary_row['low_stock_count']) if summary_row['low_stock_count'] else 0
+        total_stock_value = float(summary_row['total_stock_value']) if summary_row['total_stock_value'] else 0.0
+        total_retail_value = float(summary_row['total_retail_value']) if summary_row['total_retail_value'] else 0.0
+        avg_stock = float(summary_row['avg_stock_level']) if summary_row['avg_stock_level'] else 0.0
 
-        logger.info(f"✅ Retrieved {total_items} inventory items ({low_stock_count} low stock)")
+        logger.info(f"✅ Retrieved {len(inventory_items)} inventory items (showing {len(inventory_items)} of {total_items} total, {low_stock_count} low stock)")
 
         return InventoryResponse(
             inventory=inventory_items,
@@ -1027,7 +1112,7 @@ async def get_inventory(
                 low_stock_count=low_stock_count,
                 total_stock_value=round(total_stock_value, 2),
                 total_retail_value=round(total_retail_value, 2),
-                avg_stock_level=avg_stock
+                avg_stock_level=round(avg_stock, 1)
             )
         )
 
@@ -1330,6 +1415,8 @@ async def root():
         "status": "running",
         "endpoints": {
             "health": "/health",
+            "stores": "/api/stores",
+            "categories": "/api/categories",
             "featured_products": "/api/products/featured",
             "products_by_category": "/api/products/category/{category}",
             "product_by_id": "/api/products/{product_id}",
