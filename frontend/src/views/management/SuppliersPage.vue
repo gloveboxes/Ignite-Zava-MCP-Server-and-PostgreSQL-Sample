@@ -70,11 +70,11 @@
               </div>
               <div class="metric">
                 <div class="metric-label">Lead Time</div>
-                <div class="metric-value">{{ supplier.leadTime }} days</div>
+                <div class="metric-value">{{ supplier.lead_time }} days</div>
               </div>
               <div class="metric">
                 <div class="metric-label">Bulk Discount</div>
-                <div class="metric-value">{{ supplier.bulkDiscount }}%</div>
+                <div class="metric-value">{{ supplier.bulk_discount }}%</div>
               </div>
             </div>
 
@@ -83,10 +83,10 @@
                 <strong>Categories:</strong> {{ supplier.categories.join(', ') }}
               </div>
               <div class="info-item">
-                <strong>Payment:</strong> {{ supplier.paymentTerms }}
+                <strong>Payment:</strong> {{ supplier.payment_terms }}
               </div>
               <div class="info-item">
-                <strong>Min Order:</strong> ${{ formatNumber(supplier.minOrder) }}
+                <strong>Min Order:</strong> ${{ formatNumber(supplier.min_order) }}
               </div>
             </div>
 

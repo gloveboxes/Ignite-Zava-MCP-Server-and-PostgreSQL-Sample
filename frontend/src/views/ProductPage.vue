@@ -135,7 +135,8 @@ export default {
         type: '',
         price: 0,
         originalPrice: null,
-        description: 'High-quality product crafted with attention to detail. Perfect for everyday wear and special occasions.'
+        description: 'High-quality product crafted with attention to detail. Perfect for everyday wear and special occasions.',
+        imageUrl: 'placeholder.png'
       },
       selectedSize: 'M',
       sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL'],
@@ -161,7 +162,7 @@ export default {
       if (this.imageError) {
         return config.placeholderImage;
       }
-      return config.getProductImageUrl(this.product.id);
+      return `/images/${this.product.imageUrl}`;
     }
   },
   async mounted() {
@@ -181,7 +182,8 @@ export default {
           type: data.product_type || data.type || 'General',
           price: data.unit_price || data.price || 49.99,
           originalPrice: data.original_price,
-          description: data.description || this.product.description
+          description: data.description || this.product.description,
+          imageUrl: data.image_url,
         };
       } catch (err) {
         console.error('Error loading product:', err);

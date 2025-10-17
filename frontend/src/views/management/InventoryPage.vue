@@ -56,17 +56,10 @@
           <div class="card-icon">📦</div>
           <div class="card-content">
             <div class="card-label">Total Items</div>
-            <div class="card-value">{{ summary.totalItems }}</div>
+            <div class="card-value">{{ summary.total_items }}</div>
           </div>
         </div>
         <div class="summary-card alert">
-          <div class="card-icon">⚠️</div>
-          <div class="card-content">
-            <div class="card-label">Low Stock</div>
-                        <div class="card-value">{{ summary.total_items }}</div>
-          </div>
-        </div>
-        <div class="summary-card">
           <div class="card-icon">⚠️</div>
           <div class="card-content">
             <div class="card-label">Low Stock</div>
@@ -85,20 +78,6 @@
           <div class="card-content">
             <div class="card-label">Retail Value</div>
             <div class="card-value">${{ formatNumber(summary.total_retail_value) }}</div>
-          </div>
-        </div>
-        <div class="summary-card">
-          <div class="card-icon">💰</div>
-          <div class="card-content">
-            <div class="card-label">Stock Value</div>
-            <div class="card-value">${{ formatNumber(summary.totalStockValue) }}</div>
-          </div>
-        </div>
-        <div class="summary-card">
-          <div class="card-icon">🏪</div>
-          <div class="card-content">
-            <div class="card-label">Retail Value</div>
-            <div class="card-value">${{ formatNumber(summary.totalRetailValue) }}</div>
           </div>
         </div>
       </div>
@@ -351,10 +330,10 @@ export default {
       alert('Export inventory to CSV - Coming soon!');
     },
     handleAdjustStock(item) {
-      alert(`Adjust stock for ${item.productName} at ${item.storeName} - Coming soon!`);
+      alert(`Adjust stock for ${item.product_name} at ${item.store_name} - Coming soon!`);
     },
     handleReorder(item) {
-      alert(`Create reorder request for ${item.productName} from ${item.supplierName} - Coming soon!`);
+      alert(`Create reorder request for ${item.product_name} from ${item.supplier_name} - Coming soon!`);
     }
   }
 };

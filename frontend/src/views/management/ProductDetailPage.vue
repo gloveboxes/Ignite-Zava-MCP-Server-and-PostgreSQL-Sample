@@ -138,12 +138,12 @@
                   <tbody>
                     <tr v-for="inv in inventoryData" :key="inv.storeId" 
                         :class="{ 'low-stock-row': inv.isLowStock }">
-                      <td class="store-name">{{ inv.storeName }}</td>
-                      <td class="store-location">{{ inv.storeLocation }}</td>
+                      <td class="store-name">{{ inv.store_name }}</td>
+                      <td class="store-location">{{ inv.store_location }}</td>
                       <td class="stock-level">
-                        <strong>{{ inv.stockLevel }}</strong> units
+                        <strong>{{ inv.stock_level }}</strong> units
                       </td>
-                      <td class="value-cell">${{ (inv.stockLevel * product.cost).toFixed(2) }}</td>
+                      <td class="value-cell">${{ (inv.stock_level * product.cost).toFixed(2) }}</td>
                       <td>
                         <span v-if="inv.isLowStock" class="status-badge status-low">
                           ⚠️ Low Stock
