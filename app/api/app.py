@@ -66,6 +66,26 @@ class ProductList(BaseModel):
     total: int
 
 
+class Store(BaseModel):
+    """Store location model for API responses"""
+    id: int = Field(..., description="Unique store identifier")
+    name: str = Field(..., description="Store name")
+    location: str = Field(..., description="Store location/address")
+    isOnline: bool = Field(..., description="Whether this is an online store")
+    locationKey: str = Field(..., description="Location key for image mapping")
+    products: int = Field(..., description="Number of products in stock")
+    totalStock: int = Field(..., description="Total stock level across products")
+    inventoryValue: float = Field(..., description="Total inventory retail value")
+    status: str = Field(..., description="Store status (Open/Online)")
+    hours: str = Field(..., description="Store operating hours")
+
+
+class StoreList(BaseModel):
+    """List of stores response"""
+    stores: List[Store]
+    total: int
+
+
 # Lifespan context manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -134,9 +154,9 @@ async def health_check():
 
 
 # Stores endpoint
-@app.get("/api/stores")
+@app.get("/api/stores", response_model=StoreList)
 @cache(expire=600)
-async def get_stores():
+async def get_stores() -> StoreList:
     """
     Get all store locations with inventory counts and details.
     Returns comprehensive store information for the stores page.
@@ -170,7 +190,7 @@ async def get_stores():
 
             rows = await conn.fetch(query)
 
-            stores = []
+            stores: list[Store] = []
             for row in rows:
                 store_name = row['store_name']
                 
@@ -190,30 +210,27 @@ async def get_stores():
                         location_key = store_name.lower().replace(' ', '_')
                         location = "Washington State"
 
-                stores.append({
-                    "id": row['store_id'],
-                    "name": store_name,
-                    "location": location,
-                    "isOnline": row['is_online'],
-                    "locationKey": location_key,
-                    "products": int(row['product_count'] or 0),
-                    "totalStock": int(row['total_stock'] or 0),
-                    "inventoryValue": round(
+                stores.append(Store(
+                    id=row['store_id'],
+                    name=store_name,
+                    location=location,
+                    isOnline=row['is_online'],
+                    locationKey=location_key,
+                    products=int(row['product_count'] or 0),
+                    totalStock=int(row['total_stock'] or 0),
+                    inventoryValue=round(
                         float(row['inventory_retail_value'] or 0), 2
                     ),
-                    "status": "Online" if row['is_online'] else "Open",
-                    "hours": (
+                    status="Online" if row['is_online'] else "Open",
+                    hours=(
                         "24/7 Online" if row['is_online']
                         else "Mon-Sun: 10am-7pm"
                     )
-                })
+                ))
 
             logger.info(f"✅ Retrieved {len(stores)} stores")
 
-            return {
-                "stores": stores,
-                "total": len(stores)
-            }
+            return StoreList(stores=stores, total=len(stores))
 
         finally:
             await db_provider.release_connection(conn)
@@ -231,7 +248,7 @@ async def get_stores():
 @cache(expire=600)
 async def get_featured_products(
     limit: int = Query(8, ge=1, le=50, description="Number of products to return")
-):
+) -> ProductList:
     """
     Get featured products for the homepage.
     Returns a curated selection of products with good ratings and availability.
@@ -317,7 +334,7 @@ async def get_products_by_category(
     category: str,
     limit: int = Query(50, ge=1, le=100, description="Max products to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination")
-):
+) -> ProductList:
     """
     Get products filtered by category.
     Category names: Accessories, Apparel - Bottoms, Apparel - Tops, Footwear, Outerwear
@@ -415,7 +432,7 @@ async def get_products_by_category(
 
 # Get product by ID endpoint
 @app.get("/api/products/{product_id}", response_model=Product)
-async def get_product_by_id(product_id: int):
+async def get_product_by_id(product_id: int) -> Product:
     """
     Get a single product by its ID.
     Returns complete product information including category, type, and supplier.
@@ -494,7 +511,7 @@ async def get_product_by_id(product_id: int):
 
 
 @app.get("/api/products/sku/{sku}", response_model=Product)
-async def get_product_by_sku(sku: str):
+async def get_product_by_sku(sku: str) -> Product:
     """
     Get a single product by its SKU.
     Returns complete product information including category, type, and supplier.
