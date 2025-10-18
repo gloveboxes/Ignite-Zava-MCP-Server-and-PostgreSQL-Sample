@@ -13,6 +13,7 @@ dependencies = [
     "agent-framework-core>=1.0.0b251016",
     
     "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-instrumentation-sqlalchemy",
     "opentelemetry-exporter-otlp",
     "opentelemetry-distro",
 

@@ -14,6 +14,11 @@ export default defineConfig({
       '/api': {
         target: process.env.services__api__https__0 ||  process.env.services__api__http__0 || 'http://localhost:8091',
         changeOrigin: true,
+      },
+      '/ws': {
+        target: process.env.services__api__https__0 ||  process.env.services__api__http__0 || 'http://localhost:8091',
+        changeOrigin: true,
+        ws: true
       }
     }
   }

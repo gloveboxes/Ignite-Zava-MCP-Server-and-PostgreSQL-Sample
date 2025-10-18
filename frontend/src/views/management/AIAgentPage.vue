@@ -609,7 +609,7 @@ const startAnalysis = () => {
   progressSteps.value = []
 
   // Try to connect to WebSocket with timeout
-  const wsUrl = config.wsBaseUrl + '/ws/ai-agent/inventory'
+  const wsUrl = '/ws/management/ai-agent/inventory'
   ws = new WebSocket(wsUrl)
   
   let connectionEstablished = false

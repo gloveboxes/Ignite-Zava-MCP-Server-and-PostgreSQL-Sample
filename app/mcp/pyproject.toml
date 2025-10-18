@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "fastmcp",
     "opentelemetry-instrumentation-starlette",
+    "opentelemetry-instrumentation-sqlalchemy",
     "opentelemetry-exporter-otlp",
     "opentelemetry-distro",
     # local editable packages

@@ -53,6 +53,7 @@ from .models import (
     LoginRequest, LoginResponse, TokenData,
     WeeklyInsights, Insight, InsightAction
 )
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
 # Configure logging
 logging.basicConfig(
@@ -154,7 +155,10 @@ async def lifespan(app: FastAPI):
             pool_pre_ping=True,
             echo=False,
         )
-
+        SQLAlchemyInstrumentor().instrument(
+            engine=sqlalchemy_engine.sync_engine,
+            enable_commenter=True, commenter_options={}  # TODO : disable this in prod
+        )
         # Create async session factory
         async_session_factory = async_sessionmaker(
             sqlalchemy_engine,
@@ -1486,7 +1490,7 @@ async def get_products(
         )
 
 
-@app.websocket("/ws/ai-agent/inventory")
+@app.websocket("/ws/management/ai-agent/inventory")
 async def websocket_ai_agent_inventory(websocket: WebSocket):
     """
     WebSocket endpoint for AI Inventory Agent.
