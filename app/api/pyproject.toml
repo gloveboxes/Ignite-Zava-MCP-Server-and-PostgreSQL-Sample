@@ -12,6 +12,10 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.0,<3.0.0",
     "agent-framework-core>=1.0.0b251016",
     
+    "opentelemetry-instrumentation-fastapi",
+    "opentelemetry-exporter-otlp",
+    "opentelemetry-distro",
+
     # local editable packages
     "github-shop-shared",
     "github-shop-agents",

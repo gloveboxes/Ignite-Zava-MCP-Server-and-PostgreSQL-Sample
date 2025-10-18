@@ -10,6 +10,8 @@ This MCP server provides tools to support a Supplier Agent with the following ca
 
 Uses pre-written SQL queries from supplier_sqlite.py for all database operations.
 """
+from opentelemetry.instrumentation.auto_instrumentation import initialize
+initialize()
 
 import asyncio
 import logging

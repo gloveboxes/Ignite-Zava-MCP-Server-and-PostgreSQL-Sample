@@ -7,6 +7,8 @@ finance agents with order policies, contracts, sales analysis, and inventory.
 
 The server uses pre-written SQL queries (not dynamically generated SQL) with SQLite ORM.
 """
+from opentelemetry.instrumentation.auto_instrumentation import initialize
+initialize()
 
 import os
 from github_shop_shared.finance_sqlite import FinanceSQLiteProvider

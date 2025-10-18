@@ -3,6 +3,8 @@
 FastAPI Backend for GitHub Popup Store
 Provides REST API endpoints for the frontend application.
 """
+from opentelemetry.instrumentation.auto_instrumentation import initialize
+initialize()
 
 import logging
 from contextlib import asynccontextmanager
