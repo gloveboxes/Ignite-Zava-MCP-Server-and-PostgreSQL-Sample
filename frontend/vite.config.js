@@ -12,7 +12,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:8091',
+        target: process.env.services__api__https__0 ||  process.env.services__api__http__0 || 'http://localhost:8091',
         changeOrigin: true,
       }
     }

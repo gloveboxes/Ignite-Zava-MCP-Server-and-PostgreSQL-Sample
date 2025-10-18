@@ -1,7 +1,6 @@
 // Store for authentication state
 import { reactive } from 'vue';
 import axios from 'axios';
-import { managementConfig } from '../config/management';
 
 export const authStore = reactive({
   isAuthenticated: false,
@@ -11,7 +10,7 @@ export const authStore = reactive({
   async login(username, password) {
     try {
       // Call the real authentication API
-      const response = await axios.post(`${managementConfig.apiBaseUrl}/api/login`, {
+      const response = await axios.post(`/api/login`, {
         username,
         password
       });

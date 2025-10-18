@@ -1,9 +1,7 @@
 import axios from 'axios';
-import { managementConfig } from '../config/management';
 import { authStore } from '../stores/auth';
 
 const managementApi = axios.create({
-  baseURL: managementConfig.apiBaseUrl,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
