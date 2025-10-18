@@ -14,8 +14,8 @@ from typing import Optional
 from sqlalchemy import select, func, case, and_
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
 
-from config import Config
-from models.sqlite import (
+from .config import Config
+from .models.sqlite import (
     CompanyPolicy,
     Supplier,
     SupplierContract,

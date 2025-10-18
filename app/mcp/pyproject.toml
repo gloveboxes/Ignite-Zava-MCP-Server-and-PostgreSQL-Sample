@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "MCP server for the shop application"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.10.0,<2.0.0",
+    "fastmcp",
+    "opentelemetry-instrumentation-starlette",
     # local editable packages
     "github-shop-shared",
 ]

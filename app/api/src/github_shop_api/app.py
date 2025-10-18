@@ -145,6 +145,7 @@ async def lifespan(app: FastAPI):
     # Initialize SQLAlchemy async engine for SQLite
     try:
         sqlite_url = config.sqlite_database_url or "sqlite+aiosqlite:///./data/retail.db"
+        logger.info(f"🔗 Connecting to SQLite database at {sqlite_url}...")
         sqlalchemy_engine = create_async_engine(
             sqlite_url,
             connect_args={"timeout": 30, "check_same_thread": False},

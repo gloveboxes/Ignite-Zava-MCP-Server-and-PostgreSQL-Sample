@@ -6,10 +6,21 @@
 var builder = DistributedApplication.CreateBuilder(args);
 #pragma warning disable ASPIREHOSTINGPYTHON001
 
+var financeMcp = builder.AddPythonModule("finance-mcp", "./app/mcp/", "github_shop_mcp.finance_server")
+    .WithUvEnvironment()
+    .WithHttpEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints();
+
+var supplierMcp = builder.AddPythonModule("supplier-mcp", "./app/mcp/", "github_shop_mcp.supplier_server")
+    .WithUvEnvironment()
+    .WithHttpEndpoint(env: "PORT")
+    .WithExternalHttpEndpoints();
+
 var apiService = builder.AddPythonModule("api", "./app/api/", "uvicorn")
     .WithArgs("github_shop_api.app:app", "--reload")
     .WithUvEnvironment()
     .WithHttpEndpoint(env: "UVICORN_PORT")
+    .WithHttpHealthCheck("/health")
     .WithExternalHttpEndpoints();
     
 builder.AddViteApp("frontend", "./frontend")

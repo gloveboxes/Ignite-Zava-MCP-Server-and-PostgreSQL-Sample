@@ -14,28 +14,17 @@ Uses pre-written SQL queries from supplier_sqlite.py for all database operations
 import asyncio
 import logging
 from datetime import datetime, timezone
+import os
 from typing import Annotated, Optional
-from azure.monitor.opentelemetry import configure_azure_monitor
 from mcp.server.fastmcp import Context, FastMCP
 from opentelemetry.instrumentation.starlette import StarletteInstrumentor
 from pydantic import Field
 
-from shared.config import Config
-from shared.supplier_sqlite import SupplierSQLiteProvider
+from github_shop_shared.config import Config
+from github_shop_shared.supplier_sqlite import SupplierSQLiteProvider
 
 config = Config()
 logger = logging.getLogger(__name__)
-
-for name in [
-    "azure.core.pipeline.policies.http_logging_policy",
-    "azure.ai.agents",
-    "azure.ai.projects",
-    "azure.core",
-    "azure.identity",
-    "uvicorn.access",
-    "azure.monitor.opentelemetry.exporter.export._base",
-]:
-    logging.getLogger(name).setLevel(logging.WARNING)
 
 # Create database provider
 supplier_provider = SupplierSQLiteProvider()
@@ -259,16 +248,6 @@ async def get_current_utc_date() -> str:
 async def run_http_server() -> None:
     """Run the MCP server in HTTP mode."""
 
-    # Only configure azure monitor if a valid connection string is provided.
-    appinsights_connection_string = config.applicationinsights_connection_string
-    if (
-        appinsights_connection_string
-        and "InstrumentationKey=" in appinsights_connection_string
-    ):
-        configure_azure_monitor(connection_string=appinsights_connection_string)
-    else:
-        logger.info("Azure Application Insights not configured - running without telemetry")
-
     # Ensure a single connection pool is created once for the process.
     try:
         await supplier_provider.create_pool()
@@ -285,8 +264,8 @@ async def run_http_server() -> None:
         logger.info("  - get_current_utc_date: Get current date/time")
         
         # Configure server settings
-        mcp.settings.port = 8001
-        mcp.settings.host = "0.0.0.0"
+        mcp.settings.port = int(os.getenv("PORT", 8092))
+        mcp.settings.host = os.getenv("HOST", "0.0.0.0")
         StarletteInstrumentor().instrument_app(mcp.sse_app())
         StarletteInstrumentor().instrument_app(mcp.streamable_http_app())
         logger.info(
